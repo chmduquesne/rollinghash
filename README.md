@@ -1,8 +1,7 @@
 How to
-======
 
-package main
-
+    package main
+    
     import (
     	"fmt"
     	"github.com/chmduquesne/rollinghash/adler32"
