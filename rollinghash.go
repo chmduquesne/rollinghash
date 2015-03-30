@@ -22,16 +22,16 @@ Example:
 		hash.Write(s[0:n])
 
 		// Roll it
-		for i := 1; i < len(s)-n; i++ {
+		for i := n; i < len(s); i++ {
 
-			err := hash.Roll(s[i-1], s[i+n-1])
+			err := hash.Roll(s[i])
 			if err != nil {
 				log.Fatal(err)
 			}
 
 			sum := hash.Sum32()
 
-			fmt.Printf("%v has checksum %x\n", s[i:i+n], sum)
+			fmt.Printf("The adler32sum of %v is %x\n", s[i+1-n : i+1], sum)
 		}
 	}
 */
@@ -41,16 +41,17 @@ import "hash"
 
 // RollingHash is the common interface implemented by all rolling
 // checksums. A RollingHash can be updated byte by byte, by specifying
-// which byte enters the window, and which byte leaves it.
+// which byte enters the window.
 type RollingHash interface {
 	hash.Hash
 
-	// Roll updates the hash of a rolling window from the leaving byte and
-	// the entering byte. It assumes the size of the window from the
-	// first Write(), and if Nothing was ever written using Write(), it
-	// triggers an error. Several calls to Write() will modify the
-	// assumed window size every time.
-	Roll(oldbyte, newbyte byte) error
+	// Roll updates the hash of a rolling window from the entering byte.
+	// A copy of the window is internally kept from the last Write().
+	// Roll updates this copy and the internal state of the checksum, and
+	// ideally (at least this is true for adler32), determines the new
+	// hash just from the current state, the entering byte, and the
+	// leaving byte.
+	Roll(b byte) error
 }
 
 type RollingHash32 interface {

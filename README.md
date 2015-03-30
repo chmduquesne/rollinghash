@@ -1,4 +1,8 @@
-How to
+Installation:
+
+    go get github.com/chmduquesne/rollinghash
+
+Usage:
 
     package main
     
@@ -19,16 +23,15 @@ How to
     	hash.Write(s[0:n])
     
     	// Roll it
-    	for i := 1; i < len(s)-n; i++ {
+    	for i := n; i < len(s); i++ {
     
-    		err := hash.Roll(s[i-1], s[i+n-1])
+    		err := hash.Roll(s[i])
     		if err != nil {
     			log.Fatal(err)
     		}
     
     		sum := hash.Sum32()
     
-    		fmt.Printf("%v has checksum %x\n", s[i:i+n], sum)
+    		fmt.Printf("The adler32sum of %v is %x\n", s[i+1-n : i+1], sum)
     	}
     }
-

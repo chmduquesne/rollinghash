@@ -18,12 +18,16 @@ const Size = 4
 type digest struct {
 	// invariant: (a < mod && b < mod) || a <= b
 	// invariant: a + b + 255 <= 0xffffffff
-	a, b       uint32
-	windowSize int
+	a, b uint32
+
+	// window is treated like a circular buffer, where the oldest element
+	// is indicated by d.oldest
+	window []byte
+	oldest int
 }
 
 // Reset resets the Hash to its initial state.
-func (d *digest) Reset() { d.a, d.b, d.windowSize = 1, 0, 0 }
+func (d *digest) Reset() { d.a, d.b = 1, 0 }
 
 // New returns a new hash.Hash32 computing the rolling Adler-32 checksum.
 // The window size will be determined by the length of the first write.
@@ -71,9 +75,10 @@ func finish(a, b uint32) uint32 {
 // Write (via the embedded io.Writer interface) adds more data to the
 // running hash. It never returns an error.
 func (d *digest) Write(p []byte) (nn int, err error) {
-	d.a, d.b = update(d.a, d.b, p)
-	d.windowSize = len(p)
-	return len(p), nil
+	d.window = make([]byte, len(p))
+	copy(d.window, p)
+	d.a, d.b = update(d.a, d.b, d.window)
+	return len(d.window), nil
 }
 
 func (d *digest) Sum32() uint32 { return finish(d.a, d.b) }
@@ -106,11 +111,15 @@ func roll(a, b uint32, window, oldest, newest uint32) (aa, bb uint32) {
 
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte
-func (d *digest) Roll(oldbyte, newbyte byte) error {
-	if d.windowSize == 0 {
+func (d *digest) Roll(b byte) error {
+	if len(d.window) == 0 {
 		return errors.New(
-			"The window size is 0. It must be initialized with Write() first.")
+			"The window must be initialized with Write() first.")
 	}
-	d.a, d.b = roll(d.a, d.b, uint32(d.windowSize), uint32(oldbyte), uint32(newbyte))
+	newbyte := b
+	oldbyte := d.window[d.oldest]
+	d.window[d.oldest] = b
+	d.oldest = (d.oldest + 1) % len(d.window)
+	d.a, d.b = roll(d.a, d.b, uint32(len(d.window)), uint32(oldbyte), uint32(newbyte))
 	return nil
 }
