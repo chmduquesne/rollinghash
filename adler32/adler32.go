@@ -30,7 +30,9 @@ type digest struct {
 func (d *digest) Reset() { d.a, d.b = 1, 0 }
 
 // New returns a new hash.Hash32 computing the rolling Adler-32 checksum.
-// The window size will be determined by the length of the first write.
+// The window is copied from the last Write(). This window is only used to
+// determine which is the oldest element (leaving the window). The calls
+// to Roll() do not recompute the whole checksum.
 func New() rollinghash.RollingHash32 {
 	d := new(digest)
 	d.Reset()
