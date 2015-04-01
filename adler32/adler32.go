@@ -48,42 +48,34 @@ func (d *digest) Size() int { return Size }
 // writes are a multiple of the block size.
 func (d *digest) BlockSize() int { return 1 }
 
-// Add data to the running checksum.
-func update(a, b uint32, p []byte) (uint32, uint32) {
+// Write (via the embedded io.Writer interface) adds more data to the
+// running hash. It never returns an error.
+func (d *digest) Write(p []byte) (int, error) {
+	// Copy the window
+	d.window = make([]byte, len(p))
+	copy(d.window, p)
 	for _, c := range p {
-		a += uint32(c)
-		b += a
+		d.a += uint32(c)
+		d.b += d.a
 		// invariant: a <= b
-		if b > (0xffffffff-255)/2 {
-			a %= mod
-			b %= mod
+		if d.b > (0xffffffff-255)/2 {
+			d.a %= mod
+			d.b %= mod
 			// invariant: a < mod && b < mod
 		} else {
 			// invariant: a + b + 255 <= 2 * b + 255 <= 0xffffffff
 		}
 	}
-	return a, b
-}
-
-// finish returns the 32-bit checksum corresponding to a, b.
-func finish(a, b uint32) uint32 {
-	if b >= mod {
-		a %= mod
-		b %= mod
-	}
-	return b<<16 | a
-}
-
-// Write (via the embedded io.Writer interface) adds more data to the
-// running hash. It never returns an error.
-func (d *digest) Write(p []byte) (nn int, err error) {
-	d.window = make([]byte, len(p))
-	copy(d.window, p)
-	d.a, d.b = update(d.a, d.b, d.window)
 	return len(d.window), nil
 }
 
-func (d *digest) Sum32() uint32 { return finish(d.a, d.b) }
+func (d *digest) Sum32() uint32 {
+	if d.b >= mod {
+		d.a %= mod
+		d.b %= mod
+	}
+	return d.b<<16 | d.a
+}
 
 func (d *digest) Sum(b []byte) []byte {
 	s := d.Sum32()
@@ -94,34 +86,32 @@ func (d *digest) Sum(b []byte) []byte {
 	return b
 }
 
+// Roll updates the checksum of the window from the leaving byte and the
+// entering byte
 // See http://www.samba.org/~tridge/phd_thesis.pdf (p. 55)
 // See https://groups.google.com/forum/?fromgroups=#!topic/golang-nuts/ZiBcYH3Qw1g
 // See https://github.com/josvazg/slicesync/blob/master/rollingadler32.go
-func roll(a, b uint32, window, oldest, newest uint32) (aa, bb uint32) {
-	a += newest - oldest
-	b += a - (window * oldest) - 1
-	// invariant: a <= b
-	if b > (0xffffffff-255)/2 {
-		a %= mod
-		b %= mod
-		// invariant: a < mod && b < mod
-	} else {
-		// invariant: a + b + 255 <= 2 * b + 255 <= 0xffffffff
-	}
-	return a, b
-}
-
-// Roll updates the checksum of the window from the leaving byte and the
-// entering byte
 func (d *digest) Roll(b byte) error {
 	if len(d.window) == 0 {
 		return errors.New(
 			"The window must be initialized with Write() first.")
 	}
-	newbyte := b
-	oldbyte := d.window[d.oldest]
+	// get the values for the computation and update the window
+	newest := uint32(b)
+	oldest := uint32(d.window[d.oldest])
 	d.window[d.oldest] = b
-	d.oldest = (d.oldest + 1) % len(d.window)
-	d.a, d.b = roll(d.a, d.b, uint32(len(d.window)), uint32(oldbyte), uint32(newbyte))
+	n := len(d.window)
+	d.oldest = (d.oldest + 1) % n
+
+	d.a += newest - oldest
+	d.b += d.a - (uint32(n) * oldest) - 1
+	// invariant: a <= b
+	if d.b > (0xffffffff-255)/2 {
+		d.a %= mod
+		d.b %= mod
+		// invariant: a < mod && b < mod
+	} else {
+		// invariant: a + b + 255 <= 2 * b + 255 <= 0xffffffff
+	}
 	return nil
 }
