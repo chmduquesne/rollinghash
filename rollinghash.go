@@ -42,7 +42,7 @@ import "hash"
 // RollingHash is the common interface implemented by all rolling
 // checksums. A RollingHash can be updated byte by byte, by specifying
 // which byte enters the window.
-type RollingHash interface {
+type Hash interface {
 	hash.Hash
 
 	// Roll updates the hash of a rolling window from the entering byte.
@@ -54,12 +54,26 @@ type RollingHash interface {
 	Roll(b byte) error
 }
 
-type RollingHash32 interface {
-	RollingHash
-	Sum32() uint32
+type Hash32 interface {
+	hash.Hash32
+
+	// Roll updates the hash of a rolling window from the entering byte.
+	// A copy of the window is internally kept from the last Write().
+	// Roll updates this copy and the internal state of the checksum, and
+	// ideally (at least this is true for adler32), determines the new
+	// hash just from the current state, the entering byte, and the
+	// leaving byte.
+	Roll(b byte) error
 }
 
-type RollingHash64 interface {
-	RollingHash
-	Sum64() uint64
+type Hash64 interface {
+	hash.Hash64
+
+	// Roll updates the hash of a rolling window from the entering byte.
+	// A copy of the window is internally kept from the last Write().
+	// Roll updates this copy and the internal state of the checksum, and
+	// ideally (at least this is true for adler32), determines the new
+	// hash just from the current state, the entering byte, and the
+	// leaving byte.
+	Roll(b byte) error
 }

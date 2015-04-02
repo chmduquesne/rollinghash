@@ -33,7 +33,7 @@ func (d *digest) Reset() { d.a, d.b = 1, 0 }
 // The window is copied from the last Write(). This window is only used to
 // determine which is the oldest element (leaving the window). The calls
 // to Roll() do not recompute the whole checksum.
-func New() rollinghash.RollingHash32 {
+func New() rollinghash.Hash32 {
 	d := new(digest)
 	d.Reset()
 	return d
