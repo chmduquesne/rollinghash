@@ -30,7 +30,7 @@ func TestRolling(t *testing.T) {
 		}
 
 		if vanilla.Sum32() != rolling.Sum32() {
-			t.Fatal("%v: expected %x, got %x",
+			t.Fatalf("%v: expected %x, got %x",
 				s[i:i+n], vanilla.Sum32(), rolling.Sum32())
 		}
 
