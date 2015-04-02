@@ -7,7 +7,7 @@ import (
 )
 
 func TestRolling(t *testing.T) {
-	s := []byte("The brown fox jumps over the lazy dog")
+	s := []byte("The quick brown fox jumps over the lazy dog")
 
 	// window len
 	n := 16
