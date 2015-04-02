@@ -11,7 +11,7 @@ const (
 	mod = 65521
 )
 
-// The size of an Adler-32 checksum b bytes.
+// The size of an Adler-32 checksum.
 const Size = 4
 
 // digest represents the partial evaluation of a checksum.
@@ -78,12 +78,8 @@ func (d *digest) Sum32() uint32 {
 }
 
 func (d *digest) Sum(b []byte) []byte {
-	s := d.Sum32()
-	b = append(b, byte(s>>24))
-	b = append(b, byte(s>>16))
-	b = append(b, byte(s>>8))
-	b = append(b, byte(s))
-	return b
+	v := d.Sum32()
+	return append(b, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
 
 // Roll updates the checksum of the window from the leaving byte and the
