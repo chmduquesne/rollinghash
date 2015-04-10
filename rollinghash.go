@@ -12,7 +12,7 @@ Example:
 	)
 
 	func main() {
-		s := []byte("The brown fox jumps over the lazy dog")
+		s := []byte("The quick brown fox jumps over the lazy dog")
 		hash := adler32.New()
 
 		// Arbitrary window len
