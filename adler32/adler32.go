@@ -29,10 +29,10 @@ type digest struct {
 // Reset resets the Hash to its initial state.
 func (d *digest) Reset() { d.a, d.b = 1, 0 }
 
-// New returns a new hash.Hash32 computing the rolling Adler-32 checksum.
-// The window is copied from the last Write(). This window is only used to
-// determine which is the oldest element (leaving the window). The calls
-// to Roll() do not recompute the whole checksum.
+// New returns a new rollinghash.Hash32 computing the rolling Adler-32
+// checksum. The window is copied from the last Write(). This window is
+// only used to determine which is the oldest element (leaving the
+// window). The calls to Roll() do not recompute the whole checksum.
 func New() rollinghash.Hash32 {
 	d := new(digest)
 	d.Reset()
@@ -83,22 +83,23 @@ func (d *digest) Sum(b []byte) []byte {
 }
 
 // Roll updates the checksum of the window from the leaving byte and the
-// entering byte
-// See http://www.samba.org/~tridge/phd_thesis.pdf (p. 55)
-// See https://groups.google.com/forum/?fromgroups=#!topic/golang-nuts/ZiBcYH3Qw1g
-// See https://github.com/josvazg/slicesync/blob/master/rollingadler32.go
+// entering byte. See
+// - http://www.samba.org/~tridge/phd_thesis.pdf (p. 55)
+// - https://groups.google.com/forum/?fromgroups=#!topic/golang-nuts/ZiBcYH3Qw1g
+// - https://github.com/josvazg/slicesync/blob/master/rollingadler32.go
 func (d *digest) Roll(b byte) error {
 	if len(d.window) == 0 {
 		return errors.New(
 			"The window must be initialized with Write() first.")
 	}
-	// get the values for the computation and update the window
+	// extract the oldest and the newest byte, update the circular buffer.
 	newest := uint32(b)
 	oldest := uint32(d.window[d.oldest])
 	d.window[d.oldest] = b
 	n := len(d.window)
 	d.oldest = (d.oldest + 1) % n
 
+	// compute
 	d.a += newest - oldest
 	d.b += d.a - (uint32(n) * oldest) - 1
 	// invariant: a <= b

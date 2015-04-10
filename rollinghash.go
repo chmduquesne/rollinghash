@@ -15,11 +15,11 @@ Example:
 		s := []byte("The brown fox jumps over the lazy dog")
 		hash := adler32.New()
 
-		// window len
+		// Arbitrary window len
 		n := 16
 
 		// Load the window
-		hash.Write(s[0:n])
+		hash.Write(s[:n])
 
 		// Roll it
 		for i := n; i < len(s); i++ {

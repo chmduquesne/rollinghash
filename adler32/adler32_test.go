@@ -6,17 +6,19 @@ import (
 	"testing"
 )
 
-func TestRolling(t *testing.T) {
-	s := []byte("The quick brown fox jumps over the lazy dog")
+const data = "The quick brown fox jumps over the lazy dog"
 
-	// window len
-	n := 16
+func TestRolling(t *testing.T) {
+	s := []byte(data)
 
 	vanilla := adler32.New()
 	rolling := rollsum.New()
 
-	// Load the window
-	rolling.Write(s[0:n])
+	// arbitrary window len
+	n := 16
+
+	// Load the window into the rolling hash
+	rolling.Write(s[:n])
 
 	// Roll it and compare the result with full re-calculus every time
 	for i := n; i < len(s); i++ {
@@ -31,14 +33,14 @@ func TestRolling(t *testing.T) {
 
 		if vanilla.Sum32() != rolling.Sum32() {
 			t.Fatalf("%v: expected %x, got %x",
-				s[i:i+n], vanilla.Sum32(), rolling.Sum32())
+				s[i-n+1:i+1], vanilla.Sum32(), rolling.Sum32())
 		}
 
 	}
 }
 
 func TestUninitialized(t *testing.T) {
-	s := []byte("The brown fox jumps over the lazy dog")
+	s := []byte(data)
 	hash := rollsum.New()
 	err := hash.Roll(s[0])
 
