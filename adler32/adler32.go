@@ -90,7 +90,7 @@ func (d *digest) Sum(b []byte) []byte {
 func (d *digest) Roll(b byte) error {
 	if len(d.window) == 0 {
 		return errors.New(
-			"The window must be initialized with Write() first.")
+			"the rolling window must be initialized with Write() first")
 	}
 	// extract the oldest and the newest byte, update the circular buffer.
 	newest := uint32(b)
