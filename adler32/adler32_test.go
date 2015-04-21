@@ -49,18 +49,74 @@ func TestUninitialized(t *testing.T) {
 	}
 }
 
-func BenchmarkRolling(b *testing.B) {
+// Modified from hash/adler32
+func BenchmarkVanillaKB(b *testing.B) {
+	b.SetBytes(1024)
+	window := make([]byte, 1024)
+	for i := range window {
+		window[i] = byte(i)
+	}
+	h := adler32.New()
+	in := make([]byte, 0, h.Size())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.Reset()
+		h.Write(window)
+		h.Sum(in)
+	}
+}
+
+func BenchmarkRollingKB(b *testing.B) {
+	b.SetBytes(1024)
 	window := make([]byte, 1024)
 	for i := range window {
 		window[i] = byte(i)
 	}
 
-	r := rollsum.New()
-	b.ResetTimer()
+	h := rollsum.New()
+	in := make([]byte, 0, h.Size())
 
-	r.Write(window)
+	b.ResetTimer()
+	h.Write(window)
 	for i := 0; i < b.N; i++ {
-		r.Roll(byte(1024 + i))
-		r.Sum32()
+		h.Roll(byte(1024 + i))
+		h.Sum(in)
+	}
+}
+
+// A common use is to roll over a 128 bytes window
+func BenchmarkVanilla128B(b *testing.B) {
+	b.SetBytes(1024)
+	window := make([]byte, 128)
+	for i := range window {
+		window[i] = byte(i)
+	}
+	h := adler32.New()
+	in := make([]byte, 0, h.Size())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.Reset()
+		h.Write(window)
+		h.Sum(in)
+	}
+}
+
+func BenchmarkRolling128B(b *testing.B) {
+	b.SetBytes(1024)
+	window := make([]byte, 128)
+	for i := range window {
+		window[i] = byte(i)
+	}
+
+	h := rollsum.New()
+	in := make([]byte, 0, h.Size())
+
+	b.ResetTimer()
+	h.Write(window)
+	for i := 0; i < b.N; i++ {
+		h.Roll(byte(128 + i))
+		h.Sum(in)
 	}
 }
