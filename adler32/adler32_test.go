@@ -48,3 +48,19 @@ func TestUninitialized(t *testing.T) {
 		t.Fatal("Rolling with an uninitialized window should trigger an error")
 	}
 }
+
+func BenchmarkRolling(b *testing.B) {
+	window := make([]byte, 1024)
+	for i := range window {
+		window[i] = byte(i)
+	}
+
+	r := rollsum.New()
+	b.ResetTimer()
+
+	r.Write(window)
+	for i := 0; i < b.N; i++ {
+		r.Roll(byte(1024 + i))
+		r.Sum32()
+	}
+}
