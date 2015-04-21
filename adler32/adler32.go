@@ -54,7 +54,7 @@ func (d *digest) Write(p []byte) (int, error) {
 	// Copy the window
 	d.window = make([]byte, len(p))
 	copy(d.window, p)
-	for _, c := range p {
+	for _, c := range d.window {
 		d.a += uint32(c)
 		d.b += d.a
 		// invariant: a <= b
