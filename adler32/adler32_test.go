@@ -2,6 +2,7 @@ package adler32_test
 
 import (
 	rollsum "github.com/chmduquesne/rollinghash/adler32"
+	"hash"
 	"hash/adler32"
 	"strings"
 	"testing"
@@ -58,6 +59,9 @@ var golden = []struct {
 	{0x79660b4d, strings.Repeat("a", 1e5)},
 	{0x110588ee, strings.Repeat("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 1e4)},
 }
+
+// This is a no-op to prove that rollsum.Hash32 implements hash.Hash
+var _ = hash.Hash32(rollsum.New())
 
 func TestGolden(t *testing.T) {
 	for _, g := range golden {
