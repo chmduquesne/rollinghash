@@ -1,39 +1,8 @@
 /*
 Package rollinghash implements rolling versions of some hashes
 
-Example:
+Usage: see http://godoc.org/github.com/chmduquesne/rollinghash/adler32
 
-	package main
-
-	import (
-		"fmt"
-		"github.com/chmduquesne/rollinghash/adler32"
-		"log"
-	)
-
-	func main() {
-		s := []byte("The quick brown fox jumps over the lazy dog")
-		hash := adler32.New()
-
-		// Arbitrary window len
-		n := 16
-
-		// Load the window
-		hash.Write(s[:n])
-
-		// Roll it
-		for i := n; i < len(s); i++ {
-
-			err := hash.Roll(s[i])
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			sum := hash.Sum32()
-
-			fmt.Printf("The adler32sum of %v is %x\n", s[i+1-n : i+1], sum)
-		}
-	}
 */
 package rollinghash
 
