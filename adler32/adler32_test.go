@@ -1,14 +1,13 @@
 package adler32_test
 
 import (
-	rollsum "github.com/chmduquesne/rollinghash/adler32"
 	"hash"
 	"hash/adler32"
 	"strings"
 	"testing"
-)
 
-var data = "The quick brown fox jumps over the lazy dog"
+	rollsum "github.com/chmduquesne/rollinghash/adler32"
+)
 
 // Stolen from hash/adler32
 var golden = []struct {
@@ -60,7 +59,7 @@ var golden = []struct {
 	{0x110588ee, strings.Repeat("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 1e4)},
 }
 
-// This is a no-op to prove that rollsum.Hash32 implements hash.Hash
+// This is a no-op to prove that rollsum.Hash32 implements hash.Hash32
 var _ = hash.Hash32(rollsum.New())
 
 func TestGolden(t *testing.T) {
@@ -87,37 +86,6 @@ func TestGolden(t *testing.T) {
 			t.Errorf("rolling implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
 			continue
 		}
-	}
-}
-
-func TestSimple(t *testing.T) {
-	s := []byte(data)
-
-	vanilla := adler32.New()
-	rolling := rollsum.New()
-
-	// arbitrary window len
-	n := 16
-
-	// Load the window into the rolling hash
-	rolling.Write(s[:n])
-
-	// Roll it and compare the result with full re-calculus every time
-	for i := n; i < len(s); i++ {
-
-		vanilla.Reset()
-		vanilla.Write(s[i-n+1 : i+1])
-
-		err := rolling.Roll(s[i])
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if vanilla.Sum32() != rolling.Sum32() {
-			t.Fatalf("%v: expected %x, got %x",
-				s[i-n+1:i+1], vanilla.Sum32(), rolling.Sum32())
-		}
-
 	}
 }
 
