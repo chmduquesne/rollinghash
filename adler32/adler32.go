@@ -4,6 +4,7 @@ package adler32
 
 import (
 	"errors"
+
 	"github.com/chmduquesne/rollinghash"
 )
 
@@ -92,16 +93,21 @@ func (d *digest) Roll(b byte) error {
 		return errors.New(
 			"the rolling window must be initialized with Write() first")
 	}
-	// extract the oldest and the newest byte, update the circular buffer.
-	newest := uint32(b)
-	oldest := uint32(d.window[d.oldest])
+	// extract the entering/leaving bytes and update the circular buffer.
+	enter := uint32(b)
+	leave := uint32(d.window[d.oldest])
 	d.window[d.oldest] = b
 	n := len(d.window)
-	d.oldest = (d.oldest + 1) % n
+	// d.oldest = (d.oldest + 1) % n // very slow
+	// This is incredibly faster
+	d.oldest += 1
+	if d.oldest >= n {
+		d.oldest = 0
+	}
 
 	// compute
-	d.a += newest - oldest
-	d.b += d.a - (uint32(n) * oldest) - 1
+	d.a += enter - leave
+	d.b += d.a - (uint32(n) * leave) - 1
 	// invariant: a <= b
 	if d.b > (0xffffffff-255)/2 {
 		d.a %= mod
