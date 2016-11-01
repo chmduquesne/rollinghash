@@ -1,7 +1,7 @@
 /*
 Package rollinghash implements rolling versions of some hashes
 
-Usage: see http://godoc.org/github.com/chmduquesne/rollinghash/adler32
+Usage: see https://godoc.org/gopkg.in/chmduquesne/rollinghash.v1/adler32
 
 */
 package rollinghash

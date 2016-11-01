@@ -1,4 +1,4 @@
-Documentation: [http://godoc.org/github.com/chmduquesne/rollinghash](http://godoc.org/github.com/chmduquesne/rollinghash)
+Documentation: [http://godoc.org/gopkg.in/chmduquesne/rollinghash.v1](http://godoc.org/gopkg.in/chmduquesne/rollinghash.v1)
 
 Simply install with
 
