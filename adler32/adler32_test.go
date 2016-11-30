@@ -3,6 +3,7 @@ package adler32_test
 import (
 	"hash"
 	"hash/adler32"
+	"math/rand"
 	"strings"
 	"testing"
 
@@ -85,6 +86,31 @@ func TestGolden(t *testing.T) {
 		if got := rolling.Sum32(); got != g.out {
 			t.Errorf("rolling implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
 			continue
+		}
+	}
+}
+
+func RandomBytes() (res []byte) {
+	n := rand.Intn(8192)
+	res = make([]byte, n)
+	rand.Read(res)
+	return res
+}
+
+func TestBlackBox(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		in := RandomBytes()
+		if len(in) > 0 {
+			vanilla := adler32.New()
+			vanilla.Write(in)
+			q := []byte(" ")
+			q = append(q, in...)
+			roll := rollsum.New()
+			roll.Write(q[:len(q)-1])
+			roll.Roll(q[len(q)-1])
+			if vanilla.Sum32() != roll.Sum32() {
+				t.Errorf("Iteration %d: Different checksums between rolling and vanilla %d", i, len(in))
+			}
 		}
 	}
 }
