@@ -5,7 +5,7 @@ package adler32
 import (
 	"errors"
 
-	"github.com/chmduquesne/rollinghash"
+	rollinghash "gopkg.in/chmduquesne/rollinghash.v1"
 )
 
 const (

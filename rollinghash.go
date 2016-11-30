@@ -1,4 +1,5 @@
 /*
+
 Package rollinghash implements rolling versions of some hashes
 
 Usage: see https://godoc.org/gopkg.in/chmduquesne/rollinghash.v1/adler32
@@ -11,10 +12,8 @@ import "hash"
 type Roller interface {
 	// Roll updates the hash of a rolling window from the entering byte.
 	// A copy of the window is internally kept from the last Write().
-	// Roll updates this copy and the internal state of the checksum, and
-	// ideally (at least this is true for adler32), determines the new
-	// hash just from the current state, the entering byte, and the
-	// leaving byte.
+	// This copy is updated along with the internal state of the checksum
+	// in order to determine the new hash very quickly.
 	Roll(b byte) error
 }
 

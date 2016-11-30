@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	rollsum "github.com/chmduquesne/rollinghash/adler32"
+	rollsum "gopkg.in/chmduquesne/rollinghash.v1/adler32"
 )
 
 // Stolen from hash/adler32

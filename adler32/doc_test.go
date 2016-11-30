@@ -5,7 +5,7 @@ import (
 	"hash/adler32"
 	"log"
 
-	rollsum "github.com/chmduquesne/rollinghash/adler32"
+	rollsum "gopkg.in/chmduquesne/rollinghash.v1/adler32"
 )
 
 var data = "The quick brown fox jumps over the lazy dog"
