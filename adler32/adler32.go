@@ -28,16 +28,19 @@ type digest struct {
 }
 
 // Reset resets the Hash to its initial state.
-func (d *digest) Reset() { d.a, d.b = 1, 0 }
+func (d *digest) Reset() {
+	d.a = 1
+	d.b = 0
+	d.window = nil
+	d.oldest = 0
+}
 
 // New returns a new rollinghash.Hash32 computing the rolling Adler-32
 // checksum. The window is copied from the last Write(). This window is
 // only used to determine which is the oldest element (leaving the
 // window). The calls to Roll() do not recompute the whole checksum.
 func New() rollinghash.Hash32 {
-	d := new(digest)
-	d.Reset()
-	return d
+	return &digest{a: 1, b: 0, window: nil, oldest: 0}
 }
 
 // Size returns the number of bytes Sum will return.
