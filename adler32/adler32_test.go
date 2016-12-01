@@ -1,8 +1,10 @@
 package adler32_test
 
 import (
+	"fmt"
 	"hash"
 	"hash/adler32"
+	"io/ioutil"
 	"math/rand"
 	"strings"
 	"testing"
@@ -63,6 +65,21 @@ var golden = []struct {
 // This is a no-op to prove that rollsum.Hash32 implements hash.Hash32
 var _ = hash.Hash32(rollsum.New())
 
+func Sum32ByWriteAndRoll(b []byte) uint32 {
+	q := []byte(" ")
+	q = append(q, b...)
+	roll := rollsum.New()
+	roll.Write(q[:len(q)-1])
+	roll.Roll(q[len(q)-1])
+	return roll.Sum32()
+}
+
+func Sum32ByWriteOnly(b []byte) uint32 {
+	roll := rollsum.New()
+	roll.Write(b)
+	return roll.Sum32()
+}
+
 func TestGolden(t *testing.T) {
 	for _, g := range golden {
 		in := g.in
@@ -76,14 +93,12 @@ func TestGolden(t *testing.T) {
 			continue
 		}
 
-		// We test the rolling implementation by prefixing the slice by a
-		// space, writing it to our rolling hash, and then rolling once
-		q := []byte(" ")
-		q = append(q, p...)
-		rolling := rollsum.New()
-		rolling.Write(q[:len(q)-1])
-		rolling.Roll(q[len(q)-1])
-		if got := rolling.Sum32(); got != g.out {
+		if got := Sum32ByWriteOnly(p); got != g.out {
+			t.Errorf("rolling implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
+			continue
+		}
+
+		if got := Sum32ByWriteAndRoll(p); got != g.out {
 			t.Errorf("rolling implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
 			continue
 		}
@@ -103,13 +118,21 @@ func TestBlackBox(t *testing.T) {
 		if len(in) > 0 {
 			vanilla := adler32.New()
 			vanilla.Write(in)
-			q := []byte(" ")
-			q = append(q, in...)
-			roll := rollsum.New()
-			roll.Write(q[:len(q)-1])
-			roll.Roll(q[len(q)-1])
-			if vanilla.Sum32() != roll.Sum32() {
-				t.Errorf("Iteration %d: Different checksums between rolling and vanilla %d", i, len(in))
+			ref := vanilla.Sum32()
+
+			wr := Sum32ByWriteAndRoll(in)
+			wo := Sum32ByWriteOnly(in)
+
+			if wo != ref {
+				name := fmt.Sprintf("wo-iteration-%d", i)
+				ioutil.WriteFile(name, in, 0644)
+				t.Errorf("[WO] Expected 0x%x, got 0x%x. Incriminated content saved in ./%s", ref, wo, name)
+			}
+
+			if wr != ref {
+				name := fmt.Sprintf("wr-iteration-%d", i)
+				ioutil.WriteFile(name, in, 0644)
+				t.Errorf("[WR] Expected 0x%x, got 0x%x. Incriminated content saved in ./%s", ref, wr, name)
 			}
 		}
 	}
