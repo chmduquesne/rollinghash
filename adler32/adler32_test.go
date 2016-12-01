@@ -126,13 +126,13 @@ func TestBlackBox(t *testing.T) {
 			if wo != ref {
 				name := fmt.Sprintf("wo-iteration-%d", i)
 				ioutil.WriteFile(name, in, 0644)
-				t.Errorf("[WO] Expected 0x%x, got 0x%x. Incriminated content saved in ./%s", ref, wo, name)
+				t.Errorf("[WO] Expected 0x%x, got 0x%x (difference=0x%x). Incriminated content saved in ./%s", ref, wo, wo-ref, name)
 			}
 
 			if wr != ref {
 				name := fmt.Sprintf("wr-iteration-%d", i)
 				ioutil.WriteFile(name, in, 0644)
-				t.Errorf("[WR] Expected 0x%x, got 0x%x. Incriminated content saved in ./%s", ref, wr, name)
+				t.Errorf("[WR] Expected 0x%x, got 0x%x (difference=0x%x). Incriminated content saved in ./%s", ref, wr, wr-ref, name)
 			}
 		}
 	}
