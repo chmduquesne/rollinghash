@@ -1,4 +1,4 @@
-package rabinkarp_test
+package rabinkarp32_test
 
 import (
 	"hash"

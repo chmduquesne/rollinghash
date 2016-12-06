@@ -1,7 +1,7 @@
 // Package rollinghash/rabinkarp32 implements a particular case of
 // rabin-karp where the modulus is 0xffffffff (32 bits of '1')
 
-package rabinkarp
+package rabinkarp32
 
 import (
 	"errors"
