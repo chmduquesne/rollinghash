@@ -6,7 +6,7 @@ package rabinkarp32
 import (
 	"errors"
 
-	rollinghash "gopkg.in/chmduquesne/rollinghash.v1"
+	rollinghash "github.com/chmduquesne/rollinghash"
 )
 
 // The size of a rabinkarp32 checksum.
