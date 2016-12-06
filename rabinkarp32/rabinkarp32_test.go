@@ -53,24 +53,6 @@ func TestBlackBox(t *testing.T) {
 	}
 }
 
-// Modified from hash/adler32
-func BenchmarkWriteKB(b *testing.B) {
-	b.SetBytes(1024)
-	window := make([]byte, 1024)
-	for i := range window {
-		window[i] = byte(i)
-	}
-	h := NewRollingHash()
-	in := make([]byte, 0, h.Size())
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		h.Reset()
-		h.Write(window)
-		h.Sum(in)
-	}
-}
-
 func BenchmarkRollingKB(b *testing.B) {
 	b.SetBytes(1024)
 	window := make([]byte, 1024)
@@ -85,24 +67,6 @@ func BenchmarkRollingKB(b *testing.B) {
 	h.Write(window)
 	for i := 0; i < b.N; i++ {
 		h.Roll(byte(1024 + i))
-		h.Sum(in)
-	}
-}
-
-// A common use is to roll over a 128 bytes window
-func BenchmarkWrite128B(b *testing.B) {
-	b.SetBytes(1024)
-	window := make([]byte, 128)
-	for i := range window {
-		window[i] = byte(i)
-	}
-	h := NewRollingHash()
-	in := make([]byte, 0, h.Size())
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		h.Reset()
-		h.Write(window)
 		h.Sum(in)
 	}
 }
