@@ -5,6 +5,8 @@ package adler32
 import (
 	"errors"
 
+	vanilla "hash/adler32"
+
 	rollinghash "gopkg.in/chmduquesne/rollinghash.v1"
 )
 
@@ -12,19 +14,16 @@ const (
 	mod = 65521
 )
 
-// The size of an Adler-32 checksum.
 const Size = 4
 
-// digest represents the partial evaluation of a checksum.
 type digest struct {
-	// invariant: (a < mod && b < mod) || a <= b
-	// invariant: a + b + 255 <= 0xffffffff
 	a, b uint32
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
 	window []byte
 	oldest int
+	n      uint32
 }
 
 // Reset resets the Hash to its initial state.
@@ -58,26 +57,17 @@ func (d *digest) Write(p []byte) (int, error) {
 	// Copy the window
 	d.window = make([]byte, len(p))
 	copy(d.window, p)
-	for _, c := range d.window {
-		d.a += uint32(c)
-		d.b += d.a
-		// invariant: a <= b
-		if d.b > (0xffffffff-255)/2 {
-			d.a %= mod
-			d.b %= mod
-			// invariant: a < mod && b < mod
-		} else {
-			// invariant: a + b + 255 <= 2 * b + 255 <= 0xffffffff
-		}
-	}
+
+	// Piggy-back on the core implementation
+	h := vanilla.New()
+	h.Write(p)
+	s := h.Sum32()
+	d.a, d.b = s&0xffff, s>>16
+	d.n = uint32(len(p)) % mod
 	return len(d.window), nil
 }
 
 func (d *digest) Sum32() uint32 {
-	if d.b >= mod {
-		d.a %= mod
-		d.b %= mod
-	}
 	return d.b<<16 | d.a
 }
 
@@ -88,9 +78,7 @@ func (d *digest) Sum(b []byte) []byte {
 
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte. See
-// - http://www.samba.org/~tridge/phd_thesis.pdf (p. 55)
-// - https://groups.google.com/forum/?fromgroups=#!topic/golang-nuts/ZiBcYH3Qw1g
-// - https://github.com/josvazg/slicesync/blob/master/rollingadler32.go
+// http://stackoverflow.com/questions/40985080/why-does-my-rolling-adler32-checksum-not-work-in-go-modulo-arithmetic
 func (d *digest) Roll(b byte) error {
 	if len(d.window) == 0 {
 		return errors.New(
@@ -100,24 +88,13 @@ func (d *digest) Roll(b byte) error {
 	enter := uint32(b)
 	leave := uint32(d.window[d.oldest])
 	d.window[d.oldest] = b
-	n := len(d.window)
-	// d.oldest = (d.oldest + 1) % n // very slow
-	// This is incredibly faster
 	d.oldest += 1
-	if d.oldest >= n {
+	if d.oldest >= len(d.window) {
 		d.oldest = 0
 	}
 
 	// compute
-	d.a += enter - leave
-	d.b += d.a - (uint32(n) * leave) - 1
-	// invariant: a <= b
-	if d.b > (0xffffffff-255)/2 {
-		d.a %= mod
-		d.b %= mod
-		// invariant: a < mod && b < mod
-	} else {
-		// invariant: a + b + 255 <= 2 * b + 255 <= 0xffffffff
-	}
+	d.a = (d.a + mod + enter - leave) % mod
+	d.b = (d.b + (d.n*leave/mod+1)*mod + d.a - (d.n * leave) - 1) % mod
 	return nil
 }

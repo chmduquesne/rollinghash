@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	rollsum "gopkg.in/chmduquesne/rollinghash.v1/adler32"
+	rollsum "github.com/chmduquesne/rollinghash/adler32"
 )
 
 // Stolen from hash/adler32
@@ -66,17 +66,14 @@ var golden = []struct {
 var _ = hash.Hash32(rollsum.New())
 
 func Sum32ByWriteAndRoll(b []byte) uint32 {
+	// Duplicate the input slice and prepend it with ' '
 	q := []byte(" ")
 	q = append(q, b...)
+	// Initialize the window
 	roll := rollsum.New()
 	roll.Write(q[:len(q)-1])
+	// Roll 1 byte
 	roll.Roll(q[len(q)-1])
-	return roll.Sum32()
-}
-
-func Sum32ByWriteOnly(b []byte) uint32 {
-	roll := rollsum.New()
-	roll.Write(b)
 	return roll.Sum32()
 }
 
@@ -90,11 +87,6 @@ func TestGolden(t *testing.T) {
 		vanilla.Write(p)
 		if got := vanilla.Sum32(); got != g.out {
 			t.Errorf("vanilla implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
-			continue
-		}
-
-		if got := Sum32ByWriteOnly(p); got != g.out {
-			t.Errorf("rolling implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
 			continue
 		}
 
@@ -113,26 +105,19 @@ func RandomBytes() (res []byte) {
 }
 
 func TestBlackBox(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		in := RandomBytes()
 		if len(in) > 0 {
 			vanilla := adler32.New()
 			vanilla.Write(in)
 			ref := vanilla.Sum32()
+			sum := Sum32ByWriteAndRoll(in)
 
-			wr := Sum32ByWriteAndRoll(in)
-			wo := Sum32ByWriteOnly(in)
-
-			if wo != ref {
-				name := fmt.Sprintf("wo-iteration-%d", i)
+			if sum != ref {
+				// Save the data in a file for further examination
+				name := fmt.Sprintf("iteration-%d", i)
 				ioutil.WriteFile(name, in, 0644)
-				t.Errorf("[WO] Expected 0x%x, got 0x%x (difference=0x%x). Incriminated content saved in ./%s", ref, wo, wo-ref, name)
-			}
-
-			if wr != ref {
-				name := fmt.Sprintf("wr-iteration-%d", i)
-				ioutil.WriteFile(name, in, 0644)
-				t.Errorf("[WR] Expected 0x%x, got 0x%x (difference=0x%x). Incriminated content saved in ./%s", ref, wr, wr-ref, name)
+				t.Errorf("Expected 0x%x, got 0x%x (difference=0x%x). Incriminated content saved in ./%s", ref, sum, sum-ref, name)
 			}
 		}
 	}
@@ -148,30 +133,10 @@ func TestUninitialized(t *testing.T) {
 	}
 }
 
-// Modified from hash/adler32
-func BenchmarkVanillaKB(b *testing.B) {
-	b.SetBytes(1024)
-	window := make([]byte, 1024)
-	for i := range window {
-		window[i] = byte(i)
-	}
-	h := adler32.New()
-	in := make([]byte, 0, h.Size())
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		h.Reset()
-		h.Write(window)
-		h.Sum(in)
-	}
-}
-
 func BenchmarkRollingKB(b *testing.B) {
 	b.SetBytes(1024)
 	window := make([]byte, 1024)
-	for i := range window {
-		window[i] = byte(i)
-	}
+	rand.Read(window)
 
 	h := rollsum.New()
 	in := make([]byte, 0, h.Size())
@@ -184,30 +149,10 @@ func BenchmarkRollingKB(b *testing.B) {
 	}
 }
 
-// A common use is to roll over a 128 bytes window
-func BenchmarkVanilla128B(b *testing.B) {
-	b.SetBytes(1024)
-	window := make([]byte, 128)
-	for i := range window {
-		window[i] = byte(i)
-	}
-	h := adler32.New()
-	in := make([]byte, 0, h.Size())
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		h.Reset()
-		h.Write(window)
-		h.Sum(in)
-	}
-}
-
 func BenchmarkRolling128B(b *testing.B) {
 	b.SetBytes(1024)
 	window := make([]byte, 128)
-	for i := range window {
-		window[i] = byte(i)
-	}
+	rand.Read(window)
 
 	h := rollsum.New()
 	in := make([]byte, 0, h.Size())

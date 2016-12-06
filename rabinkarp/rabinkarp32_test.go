@@ -1,4 +1,4 @@
-package adler32_test
+package rabinkarp_test
 
 import (
 	"hash"
@@ -10,10 +10,10 @@ import (
 )
 
 func NewRollingHash() rollinghash.Hash32 {
-	return rollsum.New(1, 3)
+	return rollsum.New(65521)
 }
 
-// This is a no-op to prove that rollsum.Hash32 implements hash.Hash32
+// This is a no-op to prove that we implement hash.Hash32
 var _ = hash.Hash32(NewRollingHash())
 
 func Sum32ByWriteAndRoll(b []byte) uint32 {
@@ -39,19 +39,19 @@ func RandomBytes() (res []byte) {
 }
 
 // Commented for now, does not pass yet
-//func TestBlackBox(t *testing.T) {
-//	for i := 0; i < 10; i++ {
-//		in := RandomBytes()
-//		if len(in) > 0 {
-//			wr := Sum32ByWriteAndRoll(in)
-//			wo := Sum32ByWriteOnly(in)
-//
-//			if wo != wr {
-//				t.Errorf("Expected 0x%x, got 0x%x", wo, wr)
-//			}
-//		}
-//	}
-//}
+func TestBlackBox(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		in := RandomBytes()
+		if len(in) > 0 {
+			wr := Sum32ByWriteAndRoll(in)
+			wo := Sum32ByWriteOnly(in)
+
+			if wo != wr {
+				t.Errorf("Expected 0x%x, got 0x%x", wo, wr)
+			}
+		}
+	}
+}
 
 // Modified from hash/adler32
 func BenchmarkWriteKB(b *testing.B) {
