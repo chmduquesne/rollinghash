@@ -32,8 +32,12 @@ func (d *digest) Reset() {
 	d.oldest = 0
 }
 
-func New(a uint32) rollinghash.Hash32 {
+func NewFromInt(a uint32) rollinghash.Hash32 {
 	return &digest{a: a, h: 0, aPowerN: 1, window: nil, oldest: 0}
+}
+
+func New() rollinghash.Hash32 {
+	return NewFromInt(65521) // largest prime fitting in 16 bits
 }
 
 // Size returns the number of bytes Sum will return.

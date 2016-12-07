@@ -10,7 +10,7 @@ import (
 )
 
 func NewRollingHash() rollinghash.Hash32 {
-	return rollsum.New(65521)
+	return rollsum.New()
 }
 
 // This is a no-op to prove that we implement hash.Hash32
