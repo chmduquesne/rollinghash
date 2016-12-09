@@ -3,11 +3,7 @@
 
 package buzhash
 
-import (
-	"errors"
-
-	rollinghash "gopkg.in/chmduquesne/rollinghash.v1"
-)
+import rollinghash "github.com/chmduquesne/rollinghash"
 
 // 256 random integers generated with a dummy python script
 var bytehash = [256]uint32{
@@ -127,10 +123,10 @@ func (d *digest) Sum(b []byte) []byte {
 
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte.
-func (d *digest) Roll(c byte) error {
+func (d *digest) Roll(c byte) {
 	if len(d.window) == 0 {
-		return errors.New(
-			"the rolling window must be initialized with Write() first")
+		d.window = make([]byte, 1)
+		d.window[0] = c
 	}
 	// extract the entering/leaving bytes and update the circular buffer.
 	hn := bytehash[int(c)]
@@ -144,5 +140,4 @@ func (d *digest) Roll(c byte) error {
 	}
 
 	d.sum = (d.sum<<1 | d.sum>>31) ^ (h0<<d.nRotate | h0>>d.nRotateComplement) ^ hn
-	return nil
 }

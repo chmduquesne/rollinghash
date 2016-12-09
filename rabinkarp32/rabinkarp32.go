@@ -3,11 +3,7 @@
 
 package rabinkarp32
 
-import (
-	"errors"
-
-	rollinghash "github.com/chmduquesne/rollinghash"
-)
+import rollinghash "github.com/chmduquesne/rollinghash"
 
 // The size of a rabinkarp32 checksum.
 const Size = 4
@@ -74,10 +70,10 @@ func (d *digest) Sum(b []byte) []byte {
 
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte.
-func (d *digest) Roll(c byte) error {
+func (d *digest) Roll(c byte) {
 	if len(d.window) == 0 {
-		return errors.New(
-			"the rolling window must be initialized with Write() first")
+		d.window = make([]byte, 1)
+		d.window[0] = c
 	}
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := uint32(c)
@@ -90,5 +86,4 @@ func (d *digest) Roll(c byte) error {
 	}
 
 	d.h = d.h*d.a + enter - leave*d.aPowerN
-	return nil
 }

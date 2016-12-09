@@ -14,7 +14,7 @@ type Roller interface {
 	// A copy of the window is internally kept from the last Write().
 	// This copy is updated along with the internal state of the checksum
 	// in order to determine the new hash very quickly.
-	Roll(b byte) error
+	Roll(b byte)
 }
 
 // rollinghash.Hash extends hash.Hash by adding the method Roll. A

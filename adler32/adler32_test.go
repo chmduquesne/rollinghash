@@ -123,16 +123,6 @@ func TestBlackBox(t *testing.T) {
 	}
 }
 
-func TestUninitialized(t *testing.T) {
-	s := []byte(data)
-	hash := rollsum.New()
-	err := hash.Roll(s[0])
-
-	if err == nil {
-		t.Fatal("Rolling with an uninitialized window should trigger an error")
-	}
-}
-
 func BenchmarkRollingKB(b *testing.B) {
 	b.SetBytes(1024)
 	window := make([]byte, 1024)

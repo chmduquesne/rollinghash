@@ -3,8 +3,6 @@
 package adler32
 
 import (
-	"errors"
-
 	vanilla "hash/adler32"
 
 	"github.com/chmduquesne/rollinghash"
@@ -79,10 +77,10 @@ func (d *digest) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte. See
 // http://stackoverflow.com/questions/40985080/why-does-my-rolling-adler32-checksum-not-work-in-go-modulo-arithmetic
-func (d *digest) Roll(b byte) error {
+func (d *digest) Roll(b byte) {
 	if len(d.window) == 0 {
-		return errors.New(
-			"the rolling window must be initialized with Write() first")
+		d.window = make([]byte, 1)
+		d.window[0] = b
 	}
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := uint32(b)
@@ -96,5 +94,4 @@ func (d *digest) Roll(b byte) error {
 	// compute
 	d.a = (d.a + mod + enter - leave) % mod
 	d.b = (d.b + (d.n*leave/mod+1)*mod + d.a - (d.n * leave) - 1) % mod
-	return nil
 }

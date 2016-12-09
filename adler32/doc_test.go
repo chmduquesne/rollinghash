@@ -5,7 +5,7 @@ import (
 	"hash/adler32"
 	"log"
 
-	rollsum "gopkg.in/chmduquesne/rollinghash.v1/adler32"
+	rollsum "github.com/chmduquesne/rollinghash/adler32"
 )
 
 var data = "The quick brown fox jumps over the lazy dog"
@@ -28,10 +28,7 @@ func Example() {
 		vanilla.Reset()
 		vanilla.Write(s[i-n+1 : i+1])
 
-		err := rolling.Roll(s[i])
-		if err != nil {
-			log.Fatal(err)
-		}
+		rolling.Roll(s[i])
 
 		fmt.Printf("%v: checksum %x\n", string(s[i-n+1:i+1]), rolling.Sum32())
 
