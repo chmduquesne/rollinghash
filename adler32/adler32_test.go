@@ -124,7 +124,7 @@ func TestBlackBox(t *testing.T) {
 }
 
 func BenchmarkRollingKB(b *testing.B) {
-	b.SetBytes(1024)
+	b.SetBytes(1)
 	window := make([]byte, 1024)
 	rand.Read(window)
 
@@ -139,8 +139,25 @@ func BenchmarkRollingKB(b *testing.B) {
 	}
 }
 
-func BenchmarkRolling128B(b *testing.B) {
+func BenchmarkWriteKB(b *testing.B) {
 	b.SetBytes(1024)
+	b.ReportAllocs()
+	window := make([]byte, 1024)
+	rand.Read(window)
+
+	h := rollsum.New()
+	in := make([]byte, 0, h.Size())
+
+	b.ResetTimer()
+	h.Write(window)
+	for i := 0; i < b.N; i++ {
+		h.Write(window)
+		h.Sum(in)
+	}
+}
+
+func BenchmarkRolling128B(b *testing.B) {
+	b.SetBytes(1)
 	window := make([]byte, 128)
 	rand.Read(window)
 
