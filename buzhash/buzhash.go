@@ -72,8 +72,9 @@ type digest struct {
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
-	window []byte
-	oldest int
+	window    []byte
+	oldest    int
+	bytearray [256]uint32
 }
 
 // Reset resets the Hash to its initial state.
@@ -84,7 +85,12 @@ func (d *digest) Reset() {
 }
 
 func New() rollinghash.Hash32 {
-	return &digest{sum: 0, window: nil, oldest: 0}
+	return &digest{sum: 0, window: nil, oldest: 0, bytearray: bytehash}
+}
+
+// NewFromByteArray returns a buzhash based on the provided table uint32 values.
+func NewFromByteArray(b [256]uint32) rollinghash.Hash32 {
+	return &digest{sum: 0, window: nil, oldest: 0, bytearray: b}
 }
 
 // Size returns the number of bytes Sum will return.

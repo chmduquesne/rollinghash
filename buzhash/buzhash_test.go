@@ -9,24 +9,28 @@ import (
 	rollsum "github.com/chmduquesne/rollinghash/buzhash"
 )
 
-func NewRollingHash() rollinghash.Hash32 {
-	return rollsum.New()
+func NewRollingHash(b *[256]uint32) rollinghash.Hash32 {
+	if b == nil {
+		return rollsum.New()
+	} else {
+		return rollsum.NewFromByteArray(*b)
+	}
 }
 
 // This is a no-op to prove that we implement hash.Hash32
-var _ = hash.Hash32(NewRollingHash())
+var _ = hash.Hash32(NewRollingHash(nil))
 
-func Sum32ByWriteAndRoll(b []byte) uint32 {
+func Sum32ByWriteAndRoll(b []byte, a *[256]uint32) uint32 {
 	q := []byte(" ")
 	q = append(q, b...)
-	roll := NewRollingHash()
+	roll := NewRollingHash(a)
 	roll.Write(q[:len(q)-1])
 	roll.Roll(q[len(q)-1])
 	return roll.Sum32()
 }
 
-func Sum32ByWriteOnly(b []byte) uint32 {
-	roll := NewRollingHash()
+func Sum32ByWriteOnly(b []byte, a *[256]uint32) uint32 {
+	roll := NewRollingHash(a)
 	roll.Write(b)
 	return roll.Sum32()
 }
@@ -38,15 +42,39 @@ func RandomBytes() (res []byte) {
 	return res
 }
 
-func TestBlackBox(t *testing.T) {
-	for i := 0; i < 1000; i++ {
-		in := RandomBytes()
-		if len(in) > 0 {
-			sum := Sum32ByWriteAndRoll(in)
-			ref := Sum32ByWriteOnly(in)
+func RandomTable() *[256]uint32 {
+	mp := make(map[uint32]bool)
+	var ta [256]uint32
+	var j int
+	for {
+		x := uint32(rand.Int63())
+		if !mp[x] {
+			ta[j] = x
+			j++
+			mp[x] = true
+			break
+		}
+	}
+	return &ta
+}
 
-			if ref != sum {
-				t.Errorf("Expected 0x%x, got 0x%x", ref, sum)
+func TestBlackBox(t *testing.T) {
+	var ta *[256]uint32
+	for i := 0; i < 1000; i++ {
+		for j := 0; j < 2; j++ {
+			in := RandomBytes()
+			if j == 1 {
+				ta = RandomTable()
+			} else {
+				ta = nil
+			}
+			if len(in) > 0 {
+				sum := Sum32ByWriteAndRoll(in, ta)
+				ref := Sum32ByWriteOnly(in, ta)
+
+				if ref != sum {
+					t.Errorf("Expected 0x%x, got 0x%x", ref, sum)
+				}
 			}
 		}
 	}
@@ -59,7 +87,7 @@ func BenchmarkRollingKB(b *testing.B) {
 		window[i] = byte(i)
 	}
 
-	h := NewRollingHash()
+	h := NewRollingHash(nil)
 	in := make([]byte, 0, h.Size())
 
 	b.ResetTimer()
@@ -77,7 +105,7 @@ func BenchmarkRolling128B(b *testing.B) {
 		window[i] = byte(i)
 	}
 
-	h := NewRollingHash()
+	h := NewRollingHash(nil)
 	in := make([]byte, 0, h.Size())
 
 	b.ResetTimer()
