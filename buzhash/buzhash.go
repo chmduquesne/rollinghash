@@ -6,7 +6,7 @@ package buzhash
 import rollinghash "github.com/chmduquesne/rollinghash"
 
 // 256 random integers generated with a dummy python script
-var bytehash = [256]uint32{
+var defaulthash = [256]uint32{
 	0xa5659a00, 0x2dbfda02, 0xac29a407, 0xce942c08, 0x48513609,
 	0x325f158, 0xb54e5e13, 0xa9063618, 0xa5793419, 0x554b081a,
 	0xe5643dac, 0xfb50e41c, 0x2b31661d, 0x335da61f, 0xe702f7b0,
@@ -72,9 +72,9 @@ type digest struct {
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
-	window    []byte
-	oldest    int
-	bytearray [256]uint32
+	window   []byte
+	oldest   int
+	bytehash [256]uint32
 }
 
 // Reset resets the Hash to its initial state.
@@ -85,12 +85,12 @@ func (d *digest) Reset() {
 }
 
 func New() rollinghash.Hash32 {
-	return &digest{sum: 0, window: nil, oldest: 0, bytearray: bytehash}
+	return &digest{sum: 0, window: nil, oldest: 0, bytehash: defaulthash}
 }
 
 // NewFromByteArray returns a buzhash based on the provided table uint32 values.
 func NewFromByteArray(b [256]uint32) rollinghash.Hash32 {
-	return &digest{sum: 0, window: nil, oldest: 0, bytearray: b}
+	return &digest{sum: 0, window: nil, oldest: 0, bytehash: b}
 }
 
 // Size returns the number of bytes Sum will return.
@@ -111,7 +111,7 @@ func (d *digest) Write(data []byte) (int, error) {
 
 	for _, c := range d.window {
 		d.sum = d.sum<<1 | d.sum>>31
-		d.sum ^= bytehash[int(c)]
+		d.sum ^= d.bytehash[int(c)]
 	}
 	d.nRotate = uint(len(d.window)) % 32
 	d.nRotateComplement = 32 - d.nRotate
@@ -135,8 +135,8 @@ func (d *digest) Roll(c byte) {
 		d.window[0] = c
 	}
 	// extract the entering/leaving bytes and update the circular buffer.
-	hn := bytehash[int(c)]
-	h0 := bytehash[int(d.window[d.oldest])]
+	hn := d.bytehash[int(c)]
+	h0 := d.bytehash[int(d.window[d.oldest])]
 
 	d.window[d.oldest] = c
 	l := len(d.window)

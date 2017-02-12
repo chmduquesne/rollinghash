@@ -18,7 +18,7 @@ func NewRollingHash(b *[256]uint32) rollinghash.Hash32 {
 }
 
 // This is a no-op to prove that we implement hash.Hash32
-var _ = hash.Hash32(NewRollingHash(nil))
+var _ = hash.Hash32(rollsum.New())
 
 func Sum32ByWriteAndRoll(b []byte, a *[256]uint32) uint32 {
 	q := []byte(" ")
