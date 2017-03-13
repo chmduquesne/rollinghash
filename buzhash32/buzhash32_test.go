@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/chmduquesne/rollinghash"
-	rollsum "github.com/chmduquesne/rollinghash/buzhash"
+	rollsum "github.com/chmduquesne/rollinghash/buzhash32"
 )
 
 func NewRollingHash(b *[256]uint32) rollinghash.Hash32 {
