@@ -6,7 +6,7 @@ package buzhash
 import rollinghash "github.com/chmduquesne/rollinghash"
 
 // 256 random integers generated with a dummy python script
-var defaulthash = [256]uint32{
+var DefaultHash = [256]uint32{
 	0xa5659a00, 0x2dbfda02, 0xac29a407, 0xce942c08, 0x48513609,
 	0x325f158, 0xb54e5e13, 0xa9063618, 0xa5793419, 0x554b081a,
 	0xe5643dac, 0xfb50e41c, 0x2b31661d, 0x335da61f, 0xe702f7b0,
@@ -85,11 +85,11 @@ func (d *digest) Reset() {
 }
 
 func New() rollinghash.Hash32 {
-	return &digest{sum: 0, window: nil, oldest: 0, bytehash: defaulthash}
+	return NewFromUint32Array(DefaultHash)
 }
 
-// NewFromByteArray returns a buzhash based on the provided table uint32 values.
-func NewFromByteArray(b [256]uint32) rollinghash.Hash32 {
+// NewFromUint32Array returns a buzhash based on the provided table uint32 values.
+func NewFromUint32Array(b [256]uint32) rollinghash.Hash32 {
 	return &digest{sum: 0, window: nil, oldest: 0, bytehash: b}
 }
 
