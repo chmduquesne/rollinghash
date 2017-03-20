@@ -10,10 +10,9 @@ import (
 )
 
 const (
-	mod = 65521
+	mod  = 65521
+	Size = 4
 )
-
-const Size = 4
 
 type digest struct {
 	a, b uint32
@@ -29,9 +28,9 @@ type digest struct {
 
 // Reset resets the Hash to its initial state.
 func (d *digest) Reset() {
+	d.window = d.window[:0]
 	d.a = 1
 	d.b = 0
-	d.window = d.window[:0]
 	d.oldest = 0
 }
 
