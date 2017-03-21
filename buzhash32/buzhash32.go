@@ -90,7 +90,12 @@ func New() rollinghash.Hash32 {
 
 // NewFromUint32Array returns a buzhash based on the provided table uint32 values.
 func NewFromUint32Array(b [256]uint32) rollinghash.Hash32 {
-	return &digest{sum: 0, window: nil, oldest: 0, bytehash: b}
+	return &digest{
+		sum:      0,
+		window:   make([]byte, 0),
+		oldest:   0,
+		bytehash: b,
+	}
 }
 
 // Size returns the number of bytes Sum will return.

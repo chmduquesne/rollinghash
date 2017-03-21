@@ -1,4 +1,4 @@
-package buzhash_test
+package buzhash64_test
 
 import (
 	"hash"
@@ -7,17 +7,17 @@ import (
 	"time"
 
 	"github.com/chmduquesne/rollinghash"
-	rollsum "github.com/chmduquesne/rollinghash/buzhash32"
+	rollsum "github.com/chmduquesne/rollinghash/buzhash64"
 )
 
-var testHash [256]uint32
+var testHash [256]uint64
 
-func RandomHash() (res [256]uint32) {
-	used := make(map[uint32]bool)
+func RandomHash() (res [256]uint64) {
+	used := make(map[uint64]bool)
 	for i, _ := range res {
-		x := uint32(rand.Int63())
+		x := uint64(rand.Int63())
 		for used[x] {
-			x = uint32(rand.Int63())
+			x = uint64(rand.Int63())
 		}
 		used[x] = true
 		res[i] = x
@@ -30,26 +30,26 @@ func init() {
 	testHash = RandomHash()
 }
 
-func NewRollingHash() rollinghash.Hash32 {
-	return rollsum.NewFromUint32Array(testHash)
+func NewRollingHash() rollinghash.Hash64 {
+	return rollsum.NewFromUint64Array(testHash)
 }
 
-// This is a no-op to prove that we implement hash.Hash32
-var _ = hash.Hash32(rollsum.New())
+// This is a no-op to prove that we implement hash.Hash64
+var _ = hash.Hash64(rollsum.New())
 
-func Sum32ByWriteAndRoll(b []byte) uint32 {
+func Sum32ByWriteAndRoll(b []byte) uint64 {
 	q := []byte(" ")
 	q = append(q, b...)
 	roll := NewRollingHash()
 	roll.Write(q[:len(q)-1])
 	roll.Roll(q[len(q)-1])
-	return roll.Sum32()
+	return roll.Sum64()
 }
 
-func Sum32ByWriteOnly(b []byte) uint32 {
+func Sum32ByWriteOnly(b []byte) uint64 {
 	roll := NewRollingHash()
 	roll.Write(b)
-	return roll.Sum32()
+	return roll.Sum64()
 }
 
 func RandomBytes() (res []byte) {
