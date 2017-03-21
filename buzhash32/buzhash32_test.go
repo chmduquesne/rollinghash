@@ -1,4 +1,4 @@
-package buzhash_test
+package buzhash32_test
 
 import (
 	"hash"

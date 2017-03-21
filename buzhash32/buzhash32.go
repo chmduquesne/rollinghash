@@ -1,7 +1,7 @@
 // Package rollinghash/buzhash implements buzhash as described by
 // https://en.wikipedia.org/wiki/Rolling_hash#Cyclic_polynomial
 
-package buzhash
+package buzhash32
 
 import rollinghash "github.com/chmduquesne/rollinghash"
 
