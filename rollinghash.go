@@ -7,6 +7,8 @@ package rollinghash
 
 import "hash"
 
+const DefaultWindowCap = 64
+
 type Roller interface {
 	// Roll updates the hash of a rolling window from the entering byte.
 	// A copy of the window is internally kept from the last Write().

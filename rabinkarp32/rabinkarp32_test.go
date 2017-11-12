@@ -17,7 +17,7 @@ func NewRollingHash() rollinghash.Hash32 {
 var _ = hash.Hash32(NewRollingHash())
 
 func Sum32ByWriteAndRoll(b []byte) uint32 {
-	q := []byte(" ")
+	q := []byte("\x00")
 	q = append(q, b...)
 	roll := NewRollingHash()
 	roll.Write(q[:len(q)-1])

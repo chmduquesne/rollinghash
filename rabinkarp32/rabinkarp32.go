@@ -29,7 +29,13 @@ func (d *digest) Reset() {
 }
 
 func NewFromInt(a uint32) rollinghash.Hash32 {
-	return &digest{a: a, h: 0, aPowerN: 1, window: nil, oldest: 0}
+	return &digest{
+		a:       a,
+		h:       0,
+		aPowerN: 1,
+		window:  make([]byte, 1, rollinghash.DefaultWindowCap),
+		oldest:  0,
+	}
 }
 
 func New() rollinghash.Hash32 {
@@ -49,8 +55,17 @@ func (d *digest) BlockSize() int { return 1 }
 // running hash. It never returns an error.
 func (d *digest) Write(data []byte) (int, error) {
 	// Copy the window
-	d.window = make([]byte, len(data))
+	l := len(data)
+	if l == 0 {
+		l = 1
+	}
+	if len(d.window) >= l {
+		d.window = d.window[:l]
+	} else {
+		d.window = make([]byte, l)
+	}
 	copy(d.window, data)
+
 	for _, c := range d.window {
 		d.h *= d.a
 		d.h += uint32(c)
@@ -71,10 +86,6 @@ func (d *digest) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte.
 func (d *digest) Roll(c byte) {
-	if len(d.window) == 0 {
-		d.window = make([]byte, 1)
-		d.window[0] = c
-	}
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := uint32(c)
 	leave := uint32(d.window[d.oldest])

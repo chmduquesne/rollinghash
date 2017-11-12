@@ -28,7 +28,8 @@ type digest struct {
 
 // Reset resets the Hash to its initial state.
 func (d *digest) Reset() {
-	d.window = d.window[:0] // Reset the size but don't reallocate
+	d.window = d.window[:1] // Reset the size but don't reallocate
+	d.window[0] = 0
 	d.a = 1
 	d.b = 0
 	d.oldest = 0
@@ -42,7 +43,7 @@ func New() rollinghash.Hash32 {
 	return &digest{
 		a:       1,
 		b:       0,
-		window:  make([]byte, 0),
+		window:  make([]byte, 1, rollinghash.DefaultWindowCap),
 		oldest:  0,
 		vanilla: vanilla.New(),
 	}
@@ -61,9 +62,13 @@ func (d *digest) BlockSize() int { return 1 }
 // running hash. It never returns an error.
 func (d *digest) Write(p []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
-	if len(d.window) != len(p) {
-		if cap(d.window) >= len(p) {
-			d.window = d.window[:len(p)]
+	l := len(p)
+	if l == 0 {
+		l = 1
+	}
+	if len(d.window) != l {
+		if cap(d.window) >= l {
+			d.window = d.window[:l]
 		} else {
 			d.window = make([]byte, len(p))
 		}
@@ -92,10 +97,6 @@ func (d *digest) Sum(b []byte) []byte {
 // entering byte. See
 // http://stackoverflow.com/questions/40985080/why-does-my-rolling-adler32-checksum-not-work-in-go-modulo-arithmetic
 func (d *digest) Roll(b byte) {
-	if len(d.window) == 0 {
-		d.window = make([]byte, 1)
-		d.window[0] = b
-	}
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := uint32(b)
 	leave := uint32(d.window[d.oldest])

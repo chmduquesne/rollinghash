@@ -67,7 +67,7 @@ var _ = hash.Hash32(rollsum.New())
 
 func Sum32ByWriteAndRoll(b []byte) uint32 {
 	// Duplicate the input slice and prepend it with ' '
-	q := []byte(" ")
+	q := []byte("\x00")
 	q = append(q, b...)
 	// Initialize the window
 	roll := rollsum.New()
