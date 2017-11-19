@@ -22,6 +22,13 @@ const (
 	GiB = 1024 * MiB
 )
 
+func printProgress(format string, args ...interface{}) {
+	clearline := "\x1b[2K"
+	formatted := fmt.Sprintf(format, args...)
+	toPrint := fmt.Sprintf("%s%s%s", clearline, formatted, "\r")
+	fmt.Print(toPrint)
+}
+
 func genMasks() (res []uint64) {
 	res = make([]uint64, 64)
 	allones := ^uint64(0) // 0xffffffffffffffff
@@ -44,7 +51,7 @@ func main() {
 	dostats := flag.Bool("stats", false, "Do some stats about the rolling sum")
 	flag.Parse()
 
-	bufsize := 8 * KiB
+	bufsize := 512 * KiB
 	rbuf := make([]byte, bufsize)
 	hbuf := make([]byte, 0, 8)
 	t := time.Now()
@@ -86,6 +93,7 @@ func main() {
 	k := 0
 	for n < 256*MiB {
 		if k >= bufsize {
+			printProgress("bytes count: %s", bytefmt.ByteSize(n))
 			io.ReadFull(f, rbuf)
 			k = 0
 		}
