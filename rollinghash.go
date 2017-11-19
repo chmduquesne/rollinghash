@@ -10,10 +10,12 @@ import "hash"
 const DefaultWindowCap = 64
 
 type Roller interface {
-	// Roll updates the hash of a rolling window from the entering byte.
-	// A copy of the window is internally kept from the last Write().
-	// This copy is updated along with the internal state of the checksum
-	// in order to determine the new hash very quickly.
+	// Roll updates the hash of a rolling window from just the entering
+	// byte. You MUST call Write() and provide it with an initial window
+	// of size at least 1 byte before using this method. You can then call
+	// this method for every new byte entering the window. A copy of the
+	// window is internally kept, and is updated along with the internal
+	// state of the checksum every time Roll() is called.
 	Roll(b byte)
 }
 
