@@ -3,7 +3,11 @@
 
 package buzhash32
 
-import rollinghash "github.com/chmduquesne/rollinghash"
+import (
+	"math/rand"
+
+	rollinghash "github.com/chmduquesne/rollinghash"
+)
 
 // 256 random integers generated with a dummy python script
 var DefaultHash = [256]uint32{
@@ -84,8 +88,23 @@ func (d *digest) Reset() {
 	d.sum = 0
 }
 
+// GenerateHashes generates a list of hashes to use with buzhash
+func GenerateHashes(seed int64) (res [256]uint32) {
+	random := rand.New(rand.NewSource(seed))
+	used := make(map[uint32]bool)
+	for i, _ := range res {
+		x := uint32(random.Int63())
+		for used[x] {
+			x = uint32(random.Int63())
+		}
+		used[x] = true
+		res[i] = x
+	}
+	return res
+}
+
 func New() rollinghash.Hash32 {
-	return NewFromUint32Array(DefaultHash)
+	return NewFromUint32Array(GenerateHashes(1))
 }
 
 // NewFromUint32Array returns a buzhash based on the provided table uint32 values.
