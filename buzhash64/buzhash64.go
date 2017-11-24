@@ -3,7 +3,11 @@
 
 package buzhash64
 
-import "math/rand"
+import (
+	"math/rand"
+
+	"github.com/chmduquesne/rollinghash"
+)
 
 // 256 random integers generated with a dummy python script
 var DefaultHash = [256]uint64{
@@ -98,7 +102,9 @@ var DefaultHash = [256]uint64{
 // The size of the checksum.
 const Size = 8
 
-// Buzhash64 represents the partial evaluation of a checksum.
+// Buzhash64 is a digest which satisfies the rollinghash.Hash64 interface.
+// It implements the cyclic polynomial algorithm
+// https://en.wikipedia.org/wiki/Rolling_hash#Cyclic_polynomial
 type Buzhash64 struct {
 	sum               uint64
 	nRotate           uint
@@ -133,38 +139,41 @@ func GenerateHashes(seed int64) (res [256]uint64) {
 	return res
 }
 
+// New returns a buzhash based on a list of hashes provided by a call to
+// GenerateHashes, seeded with the default value 1.
 func New() *Buzhash64 {
 	return NewFromUint64Array(GenerateHashes(1))
 }
 
-// NewFromUint32Array returns a buzhash based on the provided table uint32 values.
+// NewFromUint64Array returns a buzhash based on the provided table uint64 values.
 func NewFromUint64Array(b [256]uint64) *Buzhash64 {
 	return &Buzhash64{
 		sum:      0,
-		window:   make([]byte, 0),
+		window:   make([]byte, 1, rollinghash.DefaultWindowCap),
 		oldest:   0,
 		bytehash: b,
 	}
 }
 
-// Size returns the number of bytes Sum will return.
+// Size is 8 bytes
 func (d *Buzhash64) Size() int { return Size }
 
-// BlockSize returns the hash's underlying block size.
-// The Write method must be able to accept any amount
-// of data, but it may operate more efficiently if all
-// writes are a multiple of the block size.
+// BlockSize is 1 byte
 func (d *Buzhash64) BlockSize() int { return 1 }
 
-// Write (via the embedded io.Writer interface) adds more data to the
-// running hash. It never returns an error.
+// Write (re)initializes the rolling window and adds its data to the
+// digest.
 func (d *Buzhash64) Write(data []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
-	if len(d.window) != len(data) {
-		if cap(d.window) >= len(data) {
-			d.window = d.window[:len(data)]
+	l := len(data)
+	if l == 0 {
+		l = 1
+	}
+	if len(d.window) != l {
+		if cap(d.window) >= l {
+			d.window = d.window[:l]
 		} else {
-			d.window = make([]byte, len(data))
+			d.window = make([]byte, l)
 		}
 	}
 	copy(d.window, data)
@@ -187,8 +196,8 @@ func (d *Buzhash64) Sum(b []byte) []byte {
 	return append(b, byte(v>>56), byte(v>>48), byte(v>>40), byte(v>>32), byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
 
-// Roll updates the checksum of the window from the leaving byte and the
-// entering byte.
+// Roll updates the checksum of the window from the entering byte. You
+// MUST initialize a window with Write() before calling this method.
 func (d *Buzhash64) Roll(c byte) {
 	if len(d.window) == 0 {
 		d.window = make([]byte, 1)

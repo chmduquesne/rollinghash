@@ -14,7 +14,8 @@ const (
 	Size = 4
 )
 
-// Adler32 is a digest which implements rollinghash.Hash32
+// Adler32 is a digest which satisfies the rollinghash.Hash32 interface.
+// It implements the adler32 algorithm https://en.wikipedia.org/wiki/Adler-32
 type Adler32 struct {
 	a, b uint32
 
@@ -27,7 +28,7 @@ type Adler32 struct {
 	vanilla hash.Hash32
 }
 
-// Reset resets the Hash to its initial state.
+// Reset resets the digest to its initial state.
 func (d *Adler32) Reset() {
 	d.window = d.window[:1] // Reset the size but don't reallocate
 	d.window[0] = 0
@@ -36,10 +37,7 @@ func (d *Adler32) Reset() {
 	d.oldest = 0
 }
 
-// New returns a new Adler32 digest for computing the rolling Adler-32
-// checksum. The window is copied from the last Write(). This window is
-// only used to determine which is the oldest element (leaving the
-// window). The calls to Roll() do not recompute the whole checksum.
+// New returns a new Adler32 digest
 func New() *Adler32 {
 	return &Adler32{
 		a:       1,
@@ -50,17 +48,14 @@ func New() *Adler32 {
 	}
 }
 
-// Size returns the number of bytes Sum will return.
+// Size is 4 bytes
 func (d *Adler32) Size() int { return Size }
 
-// BlockSize returns the hash's underlying block size.
-// The Write method must be able to accept any amount
-// of data, but it may operate more efficiently if all
-// writes are a multiple of the block size.
+// BlockSize is 1 byte
 func (d *Adler32) BlockSize() int { return 1 }
 
-// Write (via the embedded io.Writer interface) adds more data to the
-// running hash. It never returns an error.
+// Write (re)initializes the rolling window and adds its data to the
+// digest.
 func (d *Adler32) Write(p []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
 	l := len(p)
@@ -94,9 +89,8 @@ func (d *Adler32) Sum(b []byte) []byte {
 	return append(b, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
 
-// Roll updates the checksum of the window from the leaving byte and the
-// entering byte. See
-// http://stackoverflow.com/questions/40985080/why-does-my-rolling-adler32-checksum-not-work-in-go-modulo-arithmetic
+// Roll updates the checksum of the window from the entering byte. You
+// MUST initialize a window with Write() before calling this method.
 func (d *Adler32) Roll(b byte) {
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := uint32(b)
@@ -107,7 +101,7 @@ func (d *Adler32) Roll(b byte) {
 		d.oldest = 0
 	}
 
-	// compute
+	// See http://stackoverflow.com/questions/40985080/why-does-my-rolling-adler32-checksum-not-work-in-go-modulo-arithmetic
 	d.a = (d.a + Mod + enter - leave) % Mod
 	d.b = (d.b + (d.n*leave/Mod+1)*Mod + d.a - (d.n * leave) - 1) % Mod
 }

@@ -68,7 +68,9 @@ var DefaultHash = [256]uint32{
 // The size of the checksum.
 const Size = 4
 
-// Buzhash32 represents the partial evaluation of a checksum.
+// Buzhash32 is a digest which satisfies the rollinghash.Hash32 interface.
+// It implements the cyclic polynomial algorithm
+// https://en.wikipedia.org/wiki/Rolling_hash#Cyclic_polynomial
 type Buzhash32 struct {
 	sum               uint32
 	nRotate           uint
@@ -103,6 +105,8 @@ func GenerateHashes(seed int64) (res [256]uint32) {
 	return res
 }
 
+// New returns a buzhash based on a list of hashes provided by a call to
+// GenerateHashes, seeded with the default value 1.
 func New() *Buzhash32 {
 	return NewFromUint32Array(GenerateHashes(1))
 }
@@ -117,17 +121,14 @@ func NewFromUint32Array(b [256]uint32) *Buzhash32 {
 	}
 }
 
-// Size returns the number of bytes Sum will return.
+// Size is 4 bytes
 func (d *Buzhash32) Size() int { return Size }
 
-// BlockSize returns the hash's underlying block size.
-// The Write method must be able to accept any amount
-// of data, but it may operate more efficiently if all
-// writes are a multiple of the block size.
+// BlockSize is 1 byte
 func (d *Buzhash32) BlockSize() int { return 1 }
 
-// Write (via the embedded io.Writer interface) adds more data to the
-// running hash. It never returns an error.
+// Write (re)initializes the rolling window and adds its data to the
+// digest.
 func (d *Buzhash32) Write(data []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
 	l := len(data)
@@ -161,8 +162,8 @@ func (d *Buzhash32) Sum(b []byte) []byte {
 	return append(b, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
 
-// Roll updates the checksum of the window from the leaving byte and the
-// entering byte.
+// Roll updates the checksum of the window from the entering byte. You
+// MUST initialize a window with Write() before calling this method.
 func (d *Buzhash32) Roll(c byte) {
 	// extract the entering/leaving bytes and update the circular buffer.
 	hn := d.bytehash[int(c)]
