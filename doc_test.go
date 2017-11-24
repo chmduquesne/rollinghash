@@ -16,7 +16,8 @@ func Example() {
 	// Window len
 	n := 16
 
-	// Load the window into the rolling hash
+	// You MUST load an initial window into the rolling hash before being
+	// able to roll bytes
 	rolling.Write(s[:n])
 
 	// Roll it and compare the result with full re-calculus every time
