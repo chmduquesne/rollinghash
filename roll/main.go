@@ -8,12 +8,13 @@ import (
 	"os"
 	"time"
 
+	"gopkg.in/chmduquesne/rollinghash.v2/rabinkarp32"
+
 	"code.cloudfoundry.org/bytefmt"
 	"github.com/chmduquesne/rollinghash"
 	_adler32 "github.com/chmduquesne/rollinghash/adler32"
 	"github.com/chmduquesne/rollinghash/buzhash32"
 	"github.com/chmduquesne/rollinghash/buzhash64"
-	"github.com/chmduquesne/rollinghash/rabinkarp32"
 )
 
 const (
@@ -74,7 +75,7 @@ func main() {
 	switch *rollsum {
 	case "adler32":
 		roll = _adler32.New()
-	case "rabinkarp32":
+	case "bozo32":
 		roll = rabinkarp32.New()
 	case "buzhash32":
 		roll = buzhash32.New()
