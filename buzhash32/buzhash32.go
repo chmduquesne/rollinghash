@@ -153,10 +153,12 @@ func (d *Buzhash32) Write(data []byte) (int, error) {
 	return len(d.window), nil
 }
 
+// Sum32 returns the hash as a uint32
 func (d *Buzhash32) Sum32() uint32 {
 	return d.sum
 }
 
+// Sum returns the hash as byte slice
 func (d *Buzhash32) Sum(b []byte) []byte {
 	v := d.Sum32()
 	return append(b, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))

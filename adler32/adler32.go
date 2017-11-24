@@ -80,10 +80,12 @@ func (d *Adler32) Write(p []byte) (int, error) {
 	return len(d.window), nil
 }
 
+// Sum32 returns the hash as a uint32
 func (d *Adler32) Sum32() uint32 {
 	return d.b<<16 | d.a
 }
 
+// Sum returns the hash as a byte slice
 func (d *Adler32) Sum(b []byte) []byte {
 	v := d.Sum32()
 	return append(b, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))

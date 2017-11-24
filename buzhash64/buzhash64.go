@@ -187,10 +187,12 @@ func (d *Buzhash64) Write(data []byte) (int, error) {
 	return len(d.window), nil
 }
 
+// Sum64 returns the hash as a uint64
 func (d *Buzhash64) Sum64() uint64 {
 	return d.sum
 }
 
+// Sum returns the hash as a byte slice
 func (d *Buzhash64) Sum(b []byte) []byte {
 	v := d.Sum64()
 	return append(b, byte(v>>56), byte(v>>48), byte(v>>40), byte(v>>32), byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
