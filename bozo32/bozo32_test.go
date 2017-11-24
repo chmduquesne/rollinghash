@@ -1,4 +1,4 @@
-package rabinkarp32_test
+package bozo32_test
 
 import (
 	"hash"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/chmduquesne/rollinghash"
-	rollsum "github.com/chmduquesne/rollinghash/rabinkarp32"
+	rollsum "github.com/chmduquesne/rollinghash/bozo32"
 )
 
 func NewRollingHash() rollinghash.Hash32 {
