@@ -14,6 +14,7 @@ const (
 	Size = 4
 )
 
+// Adler32 is a digest which implements rollinghash.Hash32
 type Adler32 struct {
 	a, b uint32
 
@@ -35,7 +36,7 @@ func (d *Adler32) Reset() {
 	d.oldest = 0
 }
 
-// New returns a new rollinghash.Hash32 computing the rolling Adler-32
+// New returns a new Adler32 digest for computing the rolling Adler-32
 // checksum. The window is copied from the last Write(). This window is
 // only used to determine which is the oldest element (leaving the
 // window). The calls to Roll() do not recompute the whole checksum.

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chmduquesne/rollinghash"
 	rollsum "github.com/chmduquesne/rollinghash/adler32"
 )
 
@@ -62,8 +63,11 @@ var golden = []struct {
 	{0x110588ee, strings.Repeat("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 1e4)},
 }
 
-// This is a no-op to prove that rollsum.Hash32 implements hash.Hash32
+// Prove that Adler32 implements hash.Hash32
 var _ = hash.Hash32(rollsum.New())
+
+// Prove that Adler32 implements rollinghash.Hash32
+var _ = rollinghash.Hash32(rollsum.New())
 
 func Sum32ByWriteAndRoll(b []byte) uint32 {
 	// Duplicate the input slice and prepend it with ' '
