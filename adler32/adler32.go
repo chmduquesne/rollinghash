@@ -54,8 +54,8 @@ func (d *Adler32) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Adler32) BlockSize() int { return 1 }
 
-// Write (re)initializes the rolling window and adds its data to the
-// digest.
+// Write (re)initializes the rolling window with the input byte slice and
+// adds its data to the digest.
 func (d *Adler32) Write(p []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
 	l := len(p)
