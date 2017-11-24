@@ -68,8 +68,8 @@ var DefaultHash = [256]uint32{
 // The size of the checksum.
 const Size = 4
 
-// digest represents the partial evaluation of a checksum.
-type digest struct {
+// Buzhash32 represents the partial evaluation of a checksum.
+type Buzhash32 struct {
 	sum               uint32
 	nRotate           uint
 	nRotateComplement uint // redundant, but pre-computed to spare an operation
@@ -82,7 +82,7 @@ type digest struct {
 }
 
 // Reset resets the Hash to its initial state.
-func (d *digest) Reset() {
+func (d *Buzhash32) Reset() {
 	d.window = d.window[:0]
 	d.oldest = 0
 	d.sum = 0
@@ -103,13 +103,13 @@ func GenerateHashes(seed int64) (res [256]uint32) {
 	return res
 }
 
-func New() rollinghash.Hash32 {
+func New() *Buzhash32 {
 	return NewFromUint32Array(GenerateHashes(1))
 }
 
 // NewFromUint32Array returns a buzhash based on the provided table uint32 values.
-func NewFromUint32Array(b [256]uint32) rollinghash.Hash32 {
-	return &digest{
+func NewFromUint32Array(b [256]uint32) *Buzhash32 {
+	return &Buzhash32{
 		sum:      0,
 		window:   make([]byte, 1, rollinghash.DefaultWindowCap),
 		oldest:   0,
@@ -118,17 +118,17 @@ func NewFromUint32Array(b [256]uint32) rollinghash.Hash32 {
 }
 
 // Size returns the number of bytes Sum will return.
-func (d *digest) Size() int { return Size }
+func (d *Buzhash32) Size() int { return Size }
 
 // BlockSize returns the hash's underlying block size.
 // The Write method must be able to accept any amount
 // of data, but it may operate more efficiently if all
 // writes are a multiple of the block size.
-func (d *digest) BlockSize() int { return 1 }
+func (d *Buzhash32) BlockSize() int { return 1 }
 
 // Write (via the embedded io.Writer interface) adds more data to the
 // running hash. It never returns an error.
-func (d *digest) Write(data []byte) (int, error) {
+func (d *Buzhash32) Write(data []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
 	l := len(data)
 	if l == 0 {
@@ -152,18 +152,18 @@ func (d *digest) Write(data []byte) (int, error) {
 	return len(d.window), nil
 }
 
-func (d *digest) Sum32() uint32 {
+func (d *Buzhash32) Sum32() uint32 {
 	return d.sum
 }
 
-func (d *digest) Sum(b []byte) []byte {
+func (d *Buzhash32) Sum(b []byte) []byte {
 	v := d.Sum32()
 	return append(b, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
 
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte.
-func (d *digest) Roll(c byte) {
+func (d *Buzhash32) Roll(c byte) {
 	// extract the entering/leaving bytes and update the circular buffer.
 	hn := d.bytehash[int(c)]
 	h0 := d.bytehash[int(d.window[d.oldest])]

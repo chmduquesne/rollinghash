@@ -14,7 +14,7 @@ const (
 	Size = 4
 )
 
-type digest struct {
+type Adler32 struct {
 	a, b uint32
 
 	// window is treated like a circular buffer, where the oldest element
@@ -27,7 +27,7 @@ type digest struct {
 }
 
 // Reset resets the Hash to its initial state.
-func (d *digest) Reset() {
+func (d *Adler32) Reset() {
 	d.window = d.window[:1] // Reset the size but don't reallocate
 	d.window[0] = 0
 	d.a = 1
@@ -39,8 +39,8 @@ func (d *digest) Reset() {
 // checksum. The window is copied from the last Write(). This window is
 // only used to determine which is the oldest element (leaving the
 // window). The calls to Roll() do not recompute the whole checksum.
-func New() rollinghash.Hash32 {
-	return &digest{
+func New() *Adler32 {
+	return &Adler32{
 		a:       1,
 		b:       0,
 		window:  make([]byte, 1, rollinghash.DefaultWindowCap),
@@ -50,17 +50,17 @@ func New() rollinghash.Hash32 {
 }
 
 // Size returns the number of bytes Sum will return.
-func (d *digest) Size() int { return Size }
+func (d *Adler32) Size() int { return Size }
 
 // BlockSize returns the hash's underlying block size.
 // The Write method must be able to accept any amount
 // of data, but it may operate more efficiently if all
 // writes are a multiple of the block size.
-func (d *digest) BlockSize() int { return 1 }
+func (d *Adler32) BlockSize() int { return 1 }
 
 // Write (via the embedded io.Writer interface) adds more data to the
 // running hash. It never returns an error.
-func (d *digest) Write(p []byte) (int, error) {
+func (d *Adler32) Write(p []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
 	l := len(p)
 	if l == 0 {
@@ -84,11 +84,11 @@ func (d *digest) Write(p []byte) (int, error) {
 	return len(d.window), nil
 }
 
-func (d *digest) Sum32() uint32 {
+func (d *Adler32) Sum32() uint32 {
 	return d.b<<16 | d.a
 }
 
-func (d *digest) Sum(b []byte) []byte {
+func (d *Adler32) Sum(b []byte) []byte {
 	v := d.Sum32()
 	return append(b, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
@@ -96,7 +96,7 @@ func (d *digest) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte. See
 // http://stackoverflow.com/questions/40985080/why-does-my-rolling-adler32-checksum-not-work-in-go-modulo-arithmetic
-func (d *digest) Roll(b byte) {
+func (d *Adler32) Roll(b byte) {
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := uint32(b)
 	leave := uint32(d.window[d.oldest])

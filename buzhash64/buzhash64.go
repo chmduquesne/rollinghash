@@ -3,11 +3,7 @@
 
 package buzhash64
 
-import (
-	"math/rand"
-
-	rollinghash "github.com/chmduquesne/rollinghash"
-)
+import "math/rand"
 
 // 256 random integers generated with a dummy python script
 var DefaultHash = [256]uint64{
@@ -102,8 +98,8 @@ var DefaultHash = [256]uint64{
 // The size of the checksum.
 const Size = 8
 
-// digest represents the partial evaluation of a checksum.
-type digest struct {
+// Buzhash64 represents the partial evaluation of a checksum.
+type Buzhash64 struct {
 	sum               uint64
 	nRotate           uint
 	nRotateComplement uint // redundant, but pre-computed to spare an operation
@@ -116,7 +112,7 @@ type digest struct {
 }
 
 // Reset resets the Hash to its initial state.
-func (d *digest) Reset() {
+func (d *Buzhash64) Reset() {
 	d.window = d.window[:0]
 	d.oldest = 0
 	d.sum = 0
@@ -137,13 +133,13 @@ func GenerateHashes(seed int64) (res [256]uint64) {
 	return res
 }
 
-func New() rollinghash.Hash64 {
+func New() *Buzhash64 {
 	return NewFromUint64Array(GenerateHashes(1))
 }
 
 // NewFromUint32Array returns a buzhash based on the provided table uint32 values.
-func NewFromUint64Array(b [256]uint64) rollinghash.Hash64 {
-	return &digest{
+func NewFromUint64Array(b [256]uint64) *Buzhash64 {
+	return &Buzhash64{
 		sum:      0,
 		window:   make([]byte, 0),
 		oldest:   0,
@@ -152,17 +148,17 @@ func NewFromUint64Array(b [256]uint64) rollinghash.Hash64 {
 }
 
 // Size returns the number of bytes Sum will return.
-func (d *digest) Size() int { return Size }
+func (d *Buzhash64) Size() int { return Size }
 
 // BlockSize returns the hash's underlying block size.
 // The Write method must be able to accept any amount
 // of data, but it may operate more efficiently if all
 // writes are a multiple of the block size.
-func (d *digest) BlockSize() int { return 1 }
+func (d *Buzhash64) BlockSize() int { return 1 }
 
 // Write (via the embedded io.Writer interface) adds more data to the
 // running hash. It never returns an error.
-func (d *digest) Write(data []byte) (int, error) {
+func (d *Buzhash64) Write(data []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
 	if len(d.window) != len(data) {
 		if cap(d.window) >= len(data) {
@@ -182,18 +178,18 @@ func (d *digest) Write(data []byte) (int, error) {
 	return len(d.window), nil
 }
 
-func (d *digest) Sum64() uint64 {
+func (d *Buzhash64) Sum64() uint64 {
 	return d.sum
 }
 
-func (d *digest) Sum(b []byte) []byte {
+func (d *Buzhash64) Sum(b []byte) []byte {
 	v := d.Sum64()
 	return append(b, byte(v>>56), byte(v>>48), byte(v>>40), byte(v>>32), byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
 
 // Roll updates the checksum of the window from the leaving byte and the
 // entering byte.
-func (d *digest) Roll(c byte) {
+func (d *Buzhash64) Roll(c byte) {
 	if len(d.window) == 0 {
 		d.window = make([]byte, 1)
 		d.window[0] = c
