@@ -54,7 +54,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	bufsize := 1 * MiB
+	bufsize := 16 * MiB
 	rbuf := make([]byte, bufsize)
 	hbuf := make([]byte, 0, 8)
 	t := time.Now()
@@ -112,7 +112,10 @@ func main() {
 				fmt.Printf(status)
 				fmt.Printf("\r")
 			}
-			io.ReadFull(f, rbuf)
+			_, err := io.ReadFull(f, rbuf)
+			if err != nil {
+				panic(err)
+			}
 			k = 0
 		}
 		roll.Roll(rbuf[k])
