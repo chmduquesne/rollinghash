@@ -7,7 +7,8 @@ package rollinghash
 
 import "hash"
 
-// DefaultWindowCap is the initial capacity of the internal window.
+// DefaultWindowCap is the default capacity of the internal window of a
+// new Hash.
 const DefaultWindowCap = 64
 
 type Roller interface {
