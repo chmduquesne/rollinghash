@@ -9,6 +9,12 @@ import (
 	rollinghash "github.com/chmduquesne/rollinghash"
 )
 
+var defaultHashes [256]uint32
+
+func init() {
+	defaultHashes = GenerateHashes(1)
+}
+
 // The size of the checksum.
 const Size = 4
 
@@ -52,7 +58,7 @@ func GenerateHashes(seed int64) (res [256]uint32) {
 // New returns a buzhash based on a list of hashes provided by a call to
 // GenerateHashes, seeded with the default value 1.
 func New() *Buzhash32 {
-	return NewFromUint32Array(GenerateHashes(1))
+	return NewFromUint32Array(defaultHashes)
 }
 
 // NewFromUint32Array returns a buzhash based on the provided table uint32 values.
