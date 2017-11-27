@@ -109,9 +109,9 @@ func BenchmarkRolling64B(b *testing.B) {
 
 	h := rollsum.New()
 	in := make([]byte, 0, h.Size())
+	h.Write(window)
 
 	b.ResetTimer()
-	h.Write(window)
 	for i := 0; i < b.N; i++ {
 		h.Roll(byte(i))
 		h.Sum(in)
@@ -140,9 +140,9 @@ func BenchmarkReadUrandom(b *testing.B) {
 
 	h := rollsum.New()
 	in := make([]byte, 0, h.Size())
+	h.Write(window)
 
 	b.ResetTimer()
-	h.Write(window)
 	for i := 0; i < b.N; i++ {
 		c, err := r.ReadByte()
 		if err != nil {
