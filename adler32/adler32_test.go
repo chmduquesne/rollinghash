@@ -1,11 +1,11 @@
 package adler32_test
 
 import (
-	"fmt"
+	"bufio"
 	"hash"
 	"hash/adler32"
-	"io/ioutil"
-	"math/rand"
+	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -63,20 +63,20 @@ var golden = []struct {
 	{0x110588ee, strings.Repeat("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 1e4)},
 }
 
-// Prove that Adler32 implements hash.Hash32
+// Prove that we implement hash.Hash32
 var _ = hash.Hash32(rollsum.New())
 
-// Prove that Adler32 implements rollinghash.Hash32
+// Prove that we implement rollinghash.Hash32
 var _ = rollinghash.Hash32(rollsum.New())
 
+// Sum32ByWriteAndRoll computes the sum by prepending the input slice with
+// a '\0', writing the first bytes of this slice into the sum, then
+// sliding on the last byte and returning the result of Sum32
 func Sum32ByWriteAndRoll(b []byte) uint32 {
-	// Duplicate the input slice and prepend it with ' '
 	q := []byte("\x00")
 	q = append(q, b...)
-	// Initialize the window
 	roll := rollsum.New()
 	roll.Write(q[:len(q)-1])
-	// Roll 1 byte
 	roll.Roll(q[len(q)-1])
 	return roll.Sum32()
 }
@@ -85,12 +85,12 @@ func TestGolden(t *testing.T) {
 	for _, g := range golden {
 		in := g.in
 
-		// We test the vanilla implementation
+		// We test the classic implementation
 		p := []byte(g.in)
-		vanilla := adler32.New()
-		vanilla.Write(p)
-		if got := vanilla.Sum32(); got != g.out {
-			t.Errorf("vanilla implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
+		classic := hash.Hash32(adler32.New())
+		classic.Write(p)
+		if got := classic.Sum32(); got != g.out {
+			t.Errorf("classic implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
 			continue
 		}
 
@@ -101,53 +101,13 @@ func TestGolden(t *testing.T) {
 	}
 }
 
-func RandomBytes() (res []byte) {
-	n := rand.Intn(8192)
-	res = make([]byte, n)
-	rand.Read(res)
-	return res
-}
-
-func TestBlackBox(t *testing.T) {
-	for i := 0; i < 1000; i++ {
-		in := RandomBytes()
-		if len(in) > 0 {
-			vanilla := adler32.New()
-			vanilla.Write(in)
-			ref := vanilla.Sum32()
-			sum := Sum32ByWriteAndRoll(in)
-
-			if sum != ref {
-				// Save the data in a file for further examination
-				name := fmt.Sprintf("iteration-%d", i)
-				ioutil.WriteFile(name, in, 0644)
-				t.Errorf("Expected 0x%x, got 0x%x (difference=0x%x). Incriminated content saved in ./%s", ref, sum, sum-ref, name)
-			}
-		}
-	}
-}
-
-func BenchmarkRollingKB(b *testing.B) {
-	b.SetBytes(1)
-	window := make([]byte, 1024)
-	rand.Read(window)
-
-	h := rollsum.New()
-	in := make([]byte, 0, h.Size())
-
-	b.ResetTimer()
-	h.Write(window)
-	for i := 0; i < b.N; i++ {
-		h.Roll(byte(1024 + i))
-		h.Sum(in)
-	}
-}
-
-func BenchmarkWriteKB(b *testing.B) {
+func BenchmarkRolling64B(b *testing.B) {
 	b.SetBytes(1024)
 	b.ReportAllocs()
-	window := make([]byte, 1024)
-	rand.Read(window)
+	window := make([]byte, 64)
+	for i := range window {
+		window[i] = byte(i)
+	}
 
 	h := rollsum.New()
 	in := make([]byte, 0, h.Size())
@@ -155,15 +115,30 @@ func BenchmarkWriteKB(b *testing.B) {
 	b.ResetTimer()
 	h.Write(window)
 	for i := 0; i < b.N; i++ {
-		h.Write(window)
+		h.Roll(byte(i))
 		h.Sum(in)
 	}
 }
 
-func BenchmarkRolling128B(b *testing.B) {
-	b.SetBytes(1)
-	window := make([]byte, 128)
-	rand.Read(window)
+func BenchmarkReadUrandom(b *testing.B) {
+	b.SetBytes(1024)
+	b.ReportAllocs()
+	f, err := os.Open("/dev/urandom")
+	if err != nil {
+		b.Errorf("Could not open /dev/urandom")
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	r := bufio.NewReader(f)
+	ws := 64
+	window := make([]byte, ws)
+	n, err := r.Read(window)
+	if n != ws || err != nil {
+		b.Errorf("Could not read %d bytes", ws)
+	}
 
 	h := rollsum.New()
 	in := make([]byte, 0, h.Size())
@@ -171,7 +146,11 @@ func BenchmarkRolling128B(b *testing.B) {
 	b.ResetTimer()
 	h.Write(window)
 	for i := 0; i < b.N; i++ {
-		h.Roll(byte(128 + i))
+		c, err := r.ReadByte()
+		if err != nil {
+			b.Errorf("%s", err)
+		}
+		h.Roll(c)
 		h.Sum(in)
 	}
 }

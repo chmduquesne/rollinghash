@@ -1,6 +1,7 @@
 package rollinghash_test
 
 import (
+	"hash"
 	"log"
 
 	_adler32 "github.com/chmduquesne/rollinghash/adler32"
@@ -10,7 +11,7 @@ func Example() {
 	s := []byte("The quick brown fox jumps over the lazy dog")
 
 	// You can substitute _adler32 for any other subpackage
-	classic := _adler32.New()
+	classic := hash.Hash32(_adler32.New())
 	rolling := _adler32.New()
 
 	// Window len
