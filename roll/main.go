@@ -8,13 +8,11 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/chmduquesne/rollinghash.v2/rabinkarp32"
-
 	"code.cloudfoundry.org/bytefmt"
-	"github.com/chmduquesne/rollinghash"
-	_adler32 "github.com/chmduquesne/rollinghash/adler32"
-	"github.com/chmduquesne/rollinghash/buzhash32"
-	"github.com/chmduquesne/rollinghash/buzhash64"
+	//rollsum "github.com/chmduquesne/rollinghash/adler32"
+	//rollsum "github.com/chmduquesne/rollinghash/buzhash32"
+	rollsum "github.com/chmduquesne/rollinghash/buzhash64"
+	//rollsum "github.com/chmduquesne/rollinghash/bozo32"
 )
 
 const (
@@ -44,7 +42,6 @@ func hash2uint64(s []byte) (res uint64) {
 }
 
 func main() {
-	rollsum := flag.String("sum", "adler32", "adler32|rabinkarb32|buzhash32|buzhash64")
 	dostats := flag.Bool("stats", false, "Do some stats about the rolling sum")
 	size := flag.String("size", "256M", "How much data to read")
 	flag.Parse()
@@ -71,19 +68,7 @@ func main() {
 
 	io.ReadFull(f, rbuf)
 
-	var roll rollinghash.Hash
-	switch *rollsum {
-	case "adler32":
-		roll = _adler32.New()
-	case "bozo32":
-		roll = rabinkarp32.New()
-	case "buzhash32":
-		roll = buzhash32.New()
-	case "buzhash64":
-		roll = buzhash64.New()
-	default:
-		log.Fatalf("%s: unrecognized checksum", *rollsum)
-	}
+	roll := rollsum.New()
 	roll.Write(rbuf[:64])
 
 	masks := genMasks()
