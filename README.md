@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/chmduquesne/rollinghash.svg?branch=master)](https://travis-ci.org/chmduquesne/rollinghash)
 [![Coverage Status](https://coveralls.io/repos/github/chmduquesne/rollinghash/badge.svg?branch=master)](https://coveralls.io/github/chmduquesne/rollinghash?branch=master)
-[![GoDoc Reference](http://godoc.org/gopkg.in/chmduquesne/rollinghash.v3?status.svg)](https://godoc.org/gopkg.in/chmduquesne/rollinghash.v3)
+[![GoDoc Reference](http://godoc.org/github.com/chmduquesne/rollinghash?status.svg)](https://godoc.org/github.com/chmduquesne/rollinghash)
 
 This package contains several various rolling checksums for you to play
 with crazy ideas. The API design philosophy was to stick as closely as
