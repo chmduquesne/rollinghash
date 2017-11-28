@@ -21,7 +21,7 @@ type RabinKarp64 struct {
 	pol      Pol
 	tables   tables
 	polShift uint
-	value    uint64
+	value    Pol
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
@@ -43,8 +43,6 @@ func init() {
 func (d *RabinKarp64) initTables() {
 	windowsize := len(d.window)
 	idx := index{d.pol, windowsize}
-	cache.Lock()
-	defer cache.Unlock()
 	if t, ok := cache.entries[idx]; ok {
 		d.tables = t
 		return
@@ -88,6 +86,8 @@ func (d *RabinKarp64) initTables() {
 		d.tables.mod[b] = Pol(uint64(b)<<uint(k)).Mod(d.pol) | (Pol(b) << uint(k))
 	}
 
+	cache.Lock()
+	defer cache.Unlock()
 	cache.entries[idx] = d.tables
 }
 
@@ -135,8 +135,8 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 
 	for _, b := range d.window {
 		d.value <<= 8
-		d.value |= uint64(b)
-		d.value = uint64(Pol(d.value).Mod(d.pol))
+		d.value |= Pol(b)
+		d.value = d.value.Mod(d.pol)
 	}
 
 	d.initTables()
@@ -147,7 +147,7 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 
 // Sum64 returns the hash as a uint64
 func (d *RabinKarp64) Sum64() uint64 {
-	return d.value
+	return uint64(d.value)
 }
 
 // Sum returns the hash as byte slice
@@ -168,9 +168,9 @@ func (d *RabinKarp64) Roll(c byte) {
 		d.oldest = 0
 	}
 
-	d.value ^= uint64(d.tables.out[leave])
+	d.value ^= d.tables.out[leave]
 	index := byte(d.value >> d.polShift)
 	d.value <<= 8
-	d.value |= uint64(enter)
-	d.value ^= uint64(d.tables.mod[index])
+	d.value |= Pol(enter)
+	d.value ^= d.tables.mod[index]
 }
