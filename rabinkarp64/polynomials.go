@@ -1,11 +1,13 @@
+// Stolen from https://github.com/restic/chunker
+
 package rabinkarp64
 
 import (
-	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"strconv"
 )
 
@@ -178,10 +180,10 @@ func (x Pol) Mod(d Pol) Pol {
 const randPolMaxTries = 1e6
 
 // RandomPolynomial returns a new random irreducible polynomial
-// of degree 53 using the default System CSPRNG as source.
+// of degree 53 using the input seed as a source.
 // It is equivalent to calling DerivePolynomial(rand.Reader).
-func RandomPolynomial() (Pol, error) {
-	return DerivePolynomial(rand.Reader)
+func RandomPolynomial(seed int64) (Pol, error) {
+	return DerivePolynomial(rand.New(rand.NewSource(seed)))
 }
 
 // DerivePolynomial returns an irreducible polynomial of degree 53
@@ -287,25 +289,4 @@ func qp(p uint, g Pol) Pol {
 
 	// add x
 	return res.Add(2).Mod(g)
-}
-
-// MarshalJSON returns the JSON representation of the Pol.
-func (x Pol) MarshalJSON() ([]byte, error) {
-	buf := strconv.AppendUint([]byte{'"'}, uint64(x), 16)
-	buf = append(buf, '"')
-	return buf, nil
-}
-
-// UnmarshalJSON parses a Pol from the JSON data.
-func (x *Pol) UnmarshalJSON(data []byte) error {
-	if len(data) < 2 {
-		return errors.New("invalid string for polynomial")
-	}
-	n, err := strconv.ParseUint(string(data[1:len(data)-1]), 16, 64)
-	if err != nil {
-		return err
-	}
-	*x = Pol(n)
-
-	return nil
 }

@@ -248,7 +248,7 @@ func BenchmarkPolDeg(t *testing.B) {
 }
 
 func TestRandomPolynomial(t *testing.T) {
-	_, err := RandomPolynomial()
+	_, err := RandomPolynomial(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestRandomPolynomial(t *testing.T) {
 
 func BenchmarkRandomPolynomial(t *testing.B) {
 	for i := 0; i < t.N; i++ {
-		_, err := RandomPolynomial()
+		_, err := RandomPolynomial(1)
 		if err != nil {
 			t.Fatal(err)
 		}

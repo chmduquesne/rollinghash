@@ -22,6 +22,7 @@ var allHashes = []struct {
 	{"buzhash32", buzhash32.New(), buzhash32.New()},
 	{"buzhash64", buzhash64.New(), buzhash64.New()},
 	{"bozo32", bozo32.New(), bozo32.New()},
+	//{"rabinkarp64", rabinkarp64.New(), rabinkarp64.New()},
 }
 
 // Converts a byte hash into a uint64
