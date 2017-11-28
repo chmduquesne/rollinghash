@@ -70,7 +70,7 @@ func init() {
 	cache.entries = make(map[index]*tables)
 }
 
-func (d *RabinKarp64) initTables() {
+func (d *RabinKarp64) buildTables() {
 	windowsize := len(d.window)
 	idx := index{d.pol, windowsize}
 
@@ -97,7 +97,6 @@ func (d *RabinKarp64) initTables() {
 	// Afterwards a new byte can be shifted in.
 	for b := 0; b < 256; b++ {
 		var h Pol
-
 		h <<= 8
 		h |= Pol(b)
 		h = h.Mod(d.pol)
@@ -128,18 +127,23 @@ func (d *RabinKarp64) initTables() {
 	cache.Unlock()
 }
 
+// NewFromPol returns a RabinKarp64 digest from a polynomial over GF(2).
+// It is assumed that the input polynomial is irreducible. You can obtain
+// such a polynomial using the RandomPolynomial function.
 func NewFromPol(p Pol) *RabinKarp64 {
 	res := &RabinKarp64{
 		pol:      p,
 		tables:   nil,
 		polShift: uint(p.Deg() - 8),
-		window:   make([]byte, 0, rollinghash.DefaultWindowCap),
 		value:    0,
+		window:   make([]byte, 0, rollinghash.DefaultWindowCap),
+		oldest:   0,
 	}
-	res.Reset()
 	return res
 }
 
+// New returns a RabinKarp64 digest from the default polynomial obtained
+// when using RandomPolynomial with the seed 1.
 func New() *RabinKarp64 {
 	p, err := RandomPolynomial(1)
 	if err != nil {
@@ -148,12 +152,13 @@ func New() *RabinKarp64 {
 	return NewFromPol(p)
 }
 
+// Reset resets the running hash to its initial state
 func (d *RabinKarp64) Reset() {
+	d.tables = nil
+	d.value = 0
 	d.window = d.window[:1]
 	d.window[0] = 0
 	d.oldest = 0
-	d.tables = nil
-	d.value = 0
 }
 
 // Size is 8 bytes
@@ -183,9 +188,8 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 		d.value = d.value.Mod(d.pol)
 	}
 
-	d.initTables()
+	d.buildTables()
 
-	// TODO: compute the checksum
 	return len(d.window), nil
 }
 
