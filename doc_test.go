@@ -10,7 +10,9 @@ import (
 func Example() {
 	s := []byte("The quick brown fox jumps over the lazy dog")
 
-	// You can substitute _adler32 for any other subpackage
+	// This example works with adler32, but the api is identical for all
+	// other rolling checksums. Consult the documentation of the checksum
+	// you are interested in to find similar examples.
 	classic := hash.Hash32(_adler32.New())
 	rolling := _adler32.New()
 
