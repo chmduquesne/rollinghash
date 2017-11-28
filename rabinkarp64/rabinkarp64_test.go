@@ -1,3 +1,5 @@
+// Copyright (c) 2017 Christophe-Marie Duquesne <chmd@chmd.fr>
+
 package rabinkarp64_test
 
 import (

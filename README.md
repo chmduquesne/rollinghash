@@ -27,3 +27,7 @@ the interest of speed, so that we don't have to check whether a window
 exists for every call, sparing an operation that is useless when the hash
 is correctly used, in a function likely to be called millions of times per
 second.
+
+In terms of LICENSING, be aware that the RabinKarp64 subpackage has a
+different license from the rest of this package (BSD 2-clause "Simplified"
+License)
