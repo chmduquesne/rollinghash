@@ -12,7 +12,7 @@ func Example() {
 
 	// This example works with adler32, but the api is identical for all
 	// other rolling checksums. Consult the documentation of the checksum
-	// you are interested in to find similar examples.
+	// of interest.
 	classic := hash.Hash32(_adler32.New())
 	rolling := _adler32.New()
 
