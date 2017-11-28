@@ -47,7 +47,11 @@ func init() {
 func (d *RabinKarp64) initTables() {
 	windowsize := len(d.window)
 	idx := index{d.pol, windowsize}
-	if t, ok := cache.entries[idx]; ok {
+
+	cache.Lock()
+	t, ok := cache.entries[idx]
+	cache.Unlock()
+	if ok {
 		d.tables = t
 		return
 	}
@@ -91,8 +95,8 @@ func (d *RabinKarp64) initTables() {
 	}
 
 	cache.Lock()
-	defer cache.Unlock()
 	cache.entries[idx] = d.tables
+	cache.Unlock()
 }
 
 func NewFromPol(p Pol) *RabinKarp64 {
