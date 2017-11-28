@@ -49,7 +49,7 @@ type index struct {
 
 type RabinKarp64 struct {
 	pol      Pol
-	tables   tables
+	tables   *tables
 	polShift uint
 	value    Pol
 
@@ -62,12 +62,12 @@ type RabinKarp64 struct {
 // cache precomputed tables, these are read-only anyway
 var cache struct {
 	// For a given polynom and a given window size, we get a table
-	entries map[index]tables
+	entries map[index]*tables
 	sync.Mutex
 }
 
 func init() {
-	cache.entries = make(map[index]tables)
+	cache.entries = make(map[index]*tables)
 }
 
 func (d *RabinKarp64) initTables() {
@@ -81,6 +81,8 @@ func (d *RabinKarp64) initTables() {
 		d.tables = t
 		return
 	}
+
+	t = &tables{}
 
 	// calculate table for sliding out bytes. The byte to slide out is used as
 	// the index for the table, the value contains the following:
@@ -104,7 +106,7 @@ func (d *RabinKarp64) initTables() {
 			h |= Pol(0)
 			h = h.Mod(d.pol)
 		}
-		d.tables.out[b] = h
+		t.out[b] = h
 	}
 
 	// calculate table for reduction mod Polynomial
@@ -117,9 +119,10 @@ func (d *RabinKarp64) initTables() {
 		// two parts: Part A contains the result of the modulus operation, part
 		// B is used to cancel out the 8 top bits so that one XOR operation is
 		// enough to reduce modulo Polynomial
-		d.tables.mod[b] = Pol(uint64(b)<<uint(k)).Mod(d.pol) | (Pol(b) << uint(k))
+		t.mod[b] = Pol(uint64(b)<<uint(k)).Mod(d.pol) | (Pol(b) << uint(k))
 	}
 
+	d.tables = t
 	cache.Lock()
 	cache.entries[idx] = d.tables
 	cache.Unlock()
@@ -128,7 +131,7 @@ func (d *RabinKarp64) initTables() {
 func NewFromPol(p Pol) *RabinKarp64 {
 	res := &RabinKarp64{
 		pol:      p,
-		tables:   tables{},
+		tables:   nil,
 		polShift: uint(p.Deg() - 8),
 		window:   make([]byte, 0, rollinghash.DefaultWindowCap),
 		value:    0,
@@ -149,6 +152,7 @@ func (d *RabinKarp64) Reset() {
 	d.window = d.window[:1]
 	d.window[0] = 0
 	d.oldest = 0
+	d.tables = nil
 	d.value = 0
 }
 
