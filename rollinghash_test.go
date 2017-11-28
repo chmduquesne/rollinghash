@@ -11,6 +11,7 @@ import (
 	"github.com/chmduquesne/rollinghash/bozo32"
 	"github.com/chmduquesne/rollinghash/buzhash32"
 	"github.com/chmduquesne/rollinghash/buzhash64"
+	"github.com/chmduquesne/rollinghash/rabinkarp64"
 )
 
 var allHashes = []struct {
@@ -22,7 +23,7 @@ var allHashes = []struct {
 	{"buzhash32", buzhash32.New(), buzhash32.New()},
 	{"buzhash64", buzhash64.New(), buzhash64.New()},
 	{"bozo32", bozo32.New(), bozo32.New()},
-	//{"rabinkarp64", rabinkarp64.New(), rabinkarp64.New()},
+	{"rabinkarp64", rabinkarp64.New(), rabinkarp64.New()},
 }
 
 // Converts a byte hash into a uint64

@@ -2,7 +2,11 @@
 
 package rabinkarp64
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/chmduquesne/rollinghash"
+)
 
 const Size = 8
 
@@ -93,7 +97,11 @@ func (d *RabinKarp64) initTables() {
 
 func NewFromPol(p Pol) *RabinKarp64 {
 	res := &RabinKarp64{
-		pol: p,
+		pol:      p,
+		tables:   tables{},
+		polShift: uint(p.Deg() - 8),
+		window:   make([]byte, 0, rollinghash.DefaultWindowCap),
+		value:    0,
 	}
 	res.Reset()
 	return res
@@ -108,8 +116,10 @@ func New() *RabinKarp64 {
 }
 
 func (d *RabinKarp64) Reset() {
+	d.window = d.window[:1]
+	d.window[0] = 0
+	d.oldest = 0
 	d.value = 0
-	d.polShift = uint(d.pol.Deg() - 8)
 }
 
 // Size is 8 bytes
