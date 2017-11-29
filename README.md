@@ -2,6 +2,12 @@
 [![Coverage Status](https://coveralls.io/repos/github/chmduquesne/rollinghash/badge.svg?branch=master)](https://coveralls.io/github/chmduquesne/rollinghash?branch=master)
 [![GoDoc Reference](http://godoc.org/github.com/chmduquesne/rollinghash?status.svg)](https://godoc.org/github.com/chmduquesne/rollinghash)
 
+rolling checksums
+=================
+
+Philosophy
+----------
+
 This package contains several various rolling checksums for you to play
 with crazy ideas. The API design philosophy was to stick as closely as
 possible to the interface provided by the builtin hash package, while
@@ -12,6 +18,9 @@ and `Hash64`, so that you can use them as drop in replacements. On top of
 the builtin methods, these interfaces also implement `Roller`, which
 consists in the single method `Roll(b byte)`, designed to update the
 rolling checksum with the byte entering the rolling window.
+
+Usage
+-----
 
 The rolling window MUST be initialized by calling `Write` first (which
 saves a copy). Several calls to `Write` will overwrite this window every
@@ -28,6 +37,18 @@ exists for every call, sparing an operation that is useless when the hash
 is correctly used, in a function likely to be called millions of times per
 second.
 
-In terms of LICENSING, be aware that the RabinKarp64 subpackage has a
-different license from the rest of this package (BSD 2-clause "Simplified"
-License)
+License
+-------
+
+This code is delivered to you under the terms of the MIT public license,
+except the RabinKarp64 subpackage, which has been adapted from
+[restic](https://github.com/restic/chunker) (BSD 2-clause "Simplified")
+
+Notable users
+-------------
+
+As far as I know, this code is used in
+[syncthing](https://syncthing.net/), a decentralized synchronisation
+solution and in [muscato](https://github.com/kshedden/muscato), a genome
+analysis tool. If you are using this code in production or for research,
+let me know and I will happily link it here!
