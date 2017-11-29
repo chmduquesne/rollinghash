@@ -42,13 +42,13 @@ License
 
 This code is delivered to you under the terms of the MIT public license,
 except the RabinKarp64 subpackage, which has been adapted from
-[restic](https://github.com/restic/chunker) (BSD 2-clause "Simplified")
+[restic](https://github.com/restic/chunker) (BSD 2-clause "Simplified").
 
 Notable users
 -------------
 
-As far as I know, this code is used in
-[syncthing](https://syncthing.net/), a decentralized synchronisation
-solution and in [muscato](https://github.com/kshedden/muscato), a genome
-analysis tool. If you are using this code in production or for research,
-let me know and I will happily link it here!
+This code is used in [syncthing](https://syncthing.net/), a decentralized
+synchronisation solution and in
+[muscato](https://github.com/kshedden/muscato), a genome analysis tool. If
+you are using this in production or for research, let me know and I will
+happily put a link here!
