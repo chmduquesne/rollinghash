@@ -43,7 +43,6 @@ Be also aware that if you `Write` an empty window, the size of the
 internal rolling window will be reduced to 1 (and not 0) and `Sum` will
 yield incorrect results.
 
-
 License
 -------
 
