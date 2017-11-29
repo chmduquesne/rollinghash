@@ -19,29 +19,33 @@ the builtin methods, these interfaces also implement `Roller`, which
 consists in the single method `Roll(b byte)`, designed to update the
 rolling checksum with the byte entering the rolling window.
 
-Usage
------
+Usage warnings
+--------------
 
 The rolling window MUST be initialized by calling `Write` first (which
 saves a copy). Several calls to `Write` will overwrite this window every
 time. The byte leaving the rolling window is inferred from the internal
 copy of the rolling window, which is updated with every call to `Roll`.
 
-Be aware that `Roll` never fails: whenever no Rolling window has been
-initialized, the implementation assumes a rolling window of 1 byte,
-initialized with the null byte. As a consequence, rolling an empty window
-returns an incorrect answer. In previous versions of this library, `Roll`
-would return an error for this particular case. This change was made in
-the interest of speed, so that we don't have to check whether a window
-exists for every call, sparing an operation that is useless when the hash
-is correctly used, in a function likely to be called millions of times per
-second.
+Be aware that `Roll` never fails: whenever no rolling window has been
+initialized, the implementation assumes a 1 byte window, initialized with
+the null byte.
+
+Be also aware that if you `Write` an empty window, the size of the
+internal rolling window will be reduced to 1 (and not 0) and `Sum` will
+yield incorrect results.
+
+In previous versions of this library, `Roll` would return an error for an
+empty window. This change was made in the interest of speed, so that we
+don't have to check whether a window exists for every call, sparing an
+operation that is useless when the hash is correctly used, in a function
+likely to be called millions of times per second.
 
 License
 -------
 
 This code is delivered to you under the terms of the MIT public license,
-except the rabinkarp64 subpackage, which has been adapted from
+except the `rabinkarp64` subpackage, which has been adapted from
 [restic](https://github.com/restic/chunker) (BSD 2-clause "Simplified").
 
 Notable users
