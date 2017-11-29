@@ -29,8 +29,8 @@ copy of the rolling window, which is updated with every call to `Roll`.
 
 In previous versions of this library, `Roll` would return an error for an
 empty window. The interface has been later changed to never return an error
-and it forces the internal rolling window to always have a minimal size of
-1. This change was made in the interest of speed, so that we don't have to
+and it forces the internal rolling window to always have a minimal size of 1.
+This change was made in the interest of speed, so that we don't have to
 check whether a window exists for every call, sparing an operation that is
 useless when the hash is correctly used, in a function likely to be called
 millions of times per second. As a consequence:
