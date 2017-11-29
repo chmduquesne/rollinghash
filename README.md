@@ -47,8 +47,9 @@ except the RabinKarp64 subpackage, which has been adapted from
 Notable users
 -------------
 
-This code is used in [syncthing](https://syncthing.net/), a decentralized
-synchronisation solution and in
-[muscato](https://github.com/kshedden/muscato), a genome analysis tool. If
-you are using this in production or for research, let me know and I will
-happily put a link here!
+* [syncthing](https://syncthing.net/), a decentralized synchronisation
+  solution
+* [muscato](https://github.com/kshedden/muscato), a genome analysis tool
+
+If you are using this in production or for research, let me know and I
+will happily put a link here!
