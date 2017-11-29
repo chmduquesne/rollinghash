@@ -27,6 +27,14 @@ saves a copy). Several calls to `Write` will overwrite this window every
 time. The byte leaving the rolling window is inferred from the internal
 copy of the rolling window, which is updated with every call to `Roll`.
 
+In previous versions of this library, `Roll` would return an error for an
+empty window. The interface has been later changed to never return an error
+and it forces the internal rolling window to always have a minimal size of
+1. This change was made in the interest of speed, so that we don't have to
+check whether a window exists for every call, sparing an operation that is
+useless when the hash is correctly used, in a function likely to be called
+millions of times per second. As a consequence:
+
 Be aware that `Roll` never fails: whenever no rolling window has been
 initialized, the implementation assumes a 1 byte window, initialized with
 the null byte.
@@ -35,11 +43,6 @@ Be also aware that if you `Write` an empty window, the size of the
 internal rolling window will be reduced to 1 (and not 0) and `Sum` will
 yield incorrect results.
 
-In previous versions of this library, `Roll` would return an error for an
-empty window. This change was made in the interest of speed, so that we
-don't have to check whether a window exists for every call, sparing an
-operation that is useless when the hash is correctly used, in a function
-likely to be called millions of times per second.
 
 License
 -------
