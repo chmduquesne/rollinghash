@@ -41,7 +41,7 @@ License
 -------
 
 This code is delivered to you under the terms of the MIT public license,
-except the RabinKarp64 subpackage, which has been adapted from
+except the rabinkarp64 subpackage, which has been adapted from
 [restic](https://github.com/restic/chunker) (BSD 2-clause "Simplified").
 
 Notable users
