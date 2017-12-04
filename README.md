@@ -43,6 +43,26 @@ Be also aware that if you `Write` an empty window, the size of the
 internal rolling window will be reduced to 1 (and not 0) and `Sum` will
 yield incorrect results.
 
+Optimization
+------------
+
+If you want this code to run at the highest speed, do not cast the result
+of a `New()` as a rollinghash.Hash. Instead, use the native type returned
+by `New()`. This is because the go compiler cannot inline calls from an
+interface. When later you call Roll(), the native type call will be
+inlined by the compiler, but not the casted type call.
+
+```golang
+var h1 rollinghash.Hash
+h1 = buzhash32.New()
+h2 := buzhash32.New()
+
+[...]
+
+h1.Roll(b) // Not inlined
+h2.Roll(b) // inlined
+```
+
 License
 -------
 
