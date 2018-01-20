@@ -36,7 +36,7 @@ func Example() {
 
 		// Compare the hashes
 		if classic.Sum32() != rolling.Sum32() {
-			log.Fatalf("%v: expected %s, got %s",
+			log.Fatalf("%v: expected %x, got %x",
 				s[i-n+1:i+1], classic.Sum32(), rolling.Sum32())
 		}
 	}
