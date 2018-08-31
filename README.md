@@ -1,6 +1,7 @@
 [![Build Status](https://travis-ci.org/chmduquesne/rollinghash.svg?branch=master)](https://travis-ci.org/chmduquesne/rollinghash)
 [![Coverage Status](https://coveralls.io/repos/github/chmduquesne/rollinghash/badge.svg?branch=master)](https://coveralls.io/github/chmduquesne/rollinghash?branch=master)
 [![GoDoc Reference](http://godoc.org/github.com/chmduquesne/rollinghash?status.svg)](https://godoc.org/github.com/chmduquesne/rollinghash)
+![Go 1.7+](https://img.shields.io/badge/go-1.7%2B-orange.svg)
 
 rolling checksums
 =================
@@ -42,6 +43,17 @@ the null byte.
 Be also aware that if you `Write` an empty window, the size of the
 internal rolling window will be reduced to 1 (and not 0) and `Sum` will
 yield incorrect results.
+
+Go versions
+-----------
+
+The `RabinKarp64` rollinghash does not yield consistent results before
+go1.7. This is because it uses `Rand.Read()` from the builtin `math/rand`.
+This function was [fixed in go
+1.7](https://golang.org/doc/go1.7#math_rand) to produce a consistent
+stream of bytes that is independant of the size of the input buffer. If
+you depend on this hash, it is strongly recommended to stick to versions
+of go superior to 1.7.
 
 Optimization
 ------------
