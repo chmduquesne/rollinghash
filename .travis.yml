@@ -1,7 +1,13 @@
 language: go
+go:
+  - "1.10"
+  - "1.9"
+  - "1.8"
+  - "1.7"
+  - "1.6"
 before_install:
-    - go get github.com/mattn/goveralls
+  - go get github.com/mattn/goveralls
 script:
-    - go test -v ./...
-    - go test -bench=. ./...
-    - $HOME/gopath/bin/goveralls -package=./... -service=travis-ci
+  - go test -v ./...
+  - go test -bench=. ./...
+  - $HOME/gopath/bin/goveralls -package=./... -service=travis-ci
