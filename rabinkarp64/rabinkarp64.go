@@ -136,9 +136,10 @@ func NewFromPol(p Pol) *RabinKarp64 {
 		tables:   nil,
 		polShift: uint(p.Deg() - 8),
 		value:    0,
-		window:   make([]byte, 0, rollinghash.DefaultWindowCap),
+		window:   make([]byte, 1, rollinghash.DefaultWindowCap),
 		oldest:   0,
 	}
+	res.buildTables()
 	return res
 }
 
@@ -173,7 +174,7 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 	// Copy the window
 	l := len(data)
 	if l == 0 {
-		l = 1
+		return 0, nil
 	}
 	if len(d.window) >= l {
 		d.window = d.window[:l]
