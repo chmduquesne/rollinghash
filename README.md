@@ -20,6 +20,33 @@ the builtin methods, these interfaces also implement `Roller`, which
 consists in the single method `Roll(b byte)`, designed to update the
 rolling checksum with the byte entering the rolling window.
 
+Usage
+-----
+
+A `rollinghash.Hash` is just a `hash.Hash` with a `Roll(b byte)` method.
+Here are the main steps typically involved:
+* Initialize the window by using the `Write` method from `hash.Hash`
+* Use `Roll(b)`, where `b` is the entering byte, to slide the window and
+  update the hash
+* At any point, use `Sum` from hash.Hash (or `Sum32` /`Sum64` if your hash
+  supports it) to get the hash of the current window
+
+```golang
+// Example
+n := 16
+data := []byte("here is some data to roll on")
+
+h := buzhash64.New()
+
+// initialize the window
+h.Write(data[:n])
+for _, c := range(data[n:]) {
+    h.Roll(c)
+    fmt.Println(h.Sum64())
+}
+fmt.Println("Hello, playground")
+```
+
 Usage warnings
 --------------
 
