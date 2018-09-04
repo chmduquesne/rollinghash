@@ -58,7 +58,7 @@ func (d *Bozo32) Write(data []byte) (int, error) {
 	// Copy the window
 	l := len(data)
 	if l == 0 {
-		l = 1
+		return 0, nil
 	}
 	if len(d.window) >= l {
 		d.window = d.window[:l]
