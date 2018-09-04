@@ -21,9 +21,10 @@ type Adler32 struct {
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
-	window []byte
-	oldest int
-	n      uint32
+	written bool
+	window  []byte
+	oldest  int
+	n       uint32
 
 	vanilla hash.Hash32
 }
@@ -35,6 +36,7 @@ func (d *Adler32) Reset() {
 	d.a = 1
 	d.b = 0
 	d.oldest = 0
+	d.written = false
 	d.vanilla.Reset()
 }
 
@@ -45,6 +47,7 @@ func New() *Adler32 {
 		b:       0,
 		window:  make([]byte, 1, rollinghash.DefaultWindowCap),
 		oldest:  0,
+		written: false,
 		vanilla: vanilla.New(),
 	}
 }
@@ -57,28 +60,44 @@ func (d *Adler32) BlockSize() int { return 1 }
 
 // Write (re)initializes the rolling window with the input byte slice and
 // adds its data to the digest.
-func (d *Adler32) Write(p []byte) (int, error) {
-	// Copy the window, avoiding allocations where possible
-	l := len(p)
+func (d *Adler32) Write(data []byte) (int, error) {
+	l := len(data)
 	if l == 0 {
 		return 0, nil
 	}
-	if len(d.window) != l {
-		if cap(d.window) >= l {
-			d.window = d.window[:l]
-		} else {
-			d.window = make([]byte, len(p))
-		}
+	// If the window is not written, make it zero-sized
+	if !d.written {
+		d.window = d.window[:0]
+		d.written = true
 	}
-	copy(d.window, p)
+	// re-arrange the window so that the leftmost element is at index 0
+	n := len(d.window)
+	if d.oldest != 0 {
+		tmp := make([]byte, d.oldest)
+		copy(tmp, d.window[:d.oldest])
+		copy(d.window, d.window[d.oldest:])
+		copy(d.window[n-d.oldest:], tmp)
+		d.oldest = 0
+		//panic(string(d.window))
+	}
+	// Append the slice to the window. Avoid unnecessary allocation.
+	if l+n <= cap(d.window) {
+		d.window = d.window[:n+l]
+		copy(d.window[n:], data)
+	} else {
+		w := d.window
+		d.window = make([]byte, n+l)
+		copy(d.window, w)
+		copy(d.window[n:], data)
+	}
 
 	// Piggy-back on the core implementation
 	d.vanilla.Reset()
-	d.vanilla.Write(p)
+	d.vanilla.Write(d.window)
 	s := d.vanilla.Sum32()
 	d.a, d.b = s&0xffff, s>>16
-	d.n = uint32(len(p)) % Mod
-	return len(d.window), nil
+	d.n = uint32(len(data)) % Mod
+	return len(data), nil
 }
 
 // Sum32 returns the hash as a uint32

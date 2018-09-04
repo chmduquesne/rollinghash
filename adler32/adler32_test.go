@@ -90,14 +90,107 @@ func TestGolden(t *testing.T) {
 		classic := hash.Hash32(adler32.New())
 		classic.Write(p)
 		if got := classic.Sum32(); got != g.out {
-			t.Errorf("classic implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
+			t.Errorf("classic implementation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
 			continue
 		}
 
 		if got := Sum32ByWriteAndRoll(p); got != g.out {
-			t.Errorf("rolling implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
+			t.Errorf("rolling implementation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
 			continue
 		}
+	}
+}
+
+func TestWriteTwice(t *testing.T){
+	r1 := rollsum.New()
+	r1.Write([]byte("hello "))
+	r1.Write([]byte("world"))
+
+	r2 := rollsum.New()
+	r2.Write([]byte("hello world"))
+
+	if r1.Sum32() != r2.Sum32(){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func TestWriteRollWrite(t *testing.T){
+	r1 := rollsum.New()
+	r1.Write([]byte(" hello"))
+	r1.Roll(byte(' '))
+	r1.Write([]byte("world"))
+
+	r2 := rollsum.New()
+	r2.Write([]byte("hello world"))
+
+	if r1.Sum32() != r2.Sum32(){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func TestWriteResetWriteSameSize(t *testing.T){
+	r1 := rollsum.New()
+	r1.Write([]byte("hello"))
+	r1.Reset()
+	r1.Write([]byte("world"))
+
+	r2 := rollsum.New()
+	r2.Write([]byte("world"))
+
+	if r1.Sum32() != r2.Sum32(){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func TestWriteResetWriteMore(t *testing.T){
+	r1 := rollsum.New()
+	r1.Write([]byte("a"))
+	r1.Reset()
+	r1.Write([]byte("aa"))
+
+	r2 := rollsum.New()
+	r2.Write([]byte("aa"))
+
+	if r1.Sum32() != r2.Sum32(){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func TestWriteResetWriteLess(t *testing.T){
+	r1 := rollsum.New()
+	r1.Write([]byte("aa"))
+	r1.Reset()
+	r1.Write([]byte("a"))
+
+	r2 := rollsum.New()
+	r2.Write([]byte("a"))
+
+	if r1.Sum32() != r2.Sum32(){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func TestWriteThenWriteNothing(t *testing.T){
+	r1 := rollsum.New()
+	r1.Write([]byte("hello"))
+	r1.Write([]byte(""))
+
+	r2 := rollsum.New()
+	r2.Write([]byte("hello"))
+
+	if r1.Sum32() != r2.Sum32(){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func TestWriteNothing(t *testing.T){
+	r1 := rollsum.New()
+	r1.Write([]byte(""))
+
+	r2 := rollsum.New()
+
+	if r1.Sum32() != r2.Sum32(){
+		t.Errorf("Expected same results on r1 and r2")
 	}
 }
 
