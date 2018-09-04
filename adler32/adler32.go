@@ -35,6 +35,7 @@ func (d *Adler32) Reset() {
 	d.a = 1
 	d.b = 0
 	d.oldest = 0
+	d.vanilla.Reset()
 }
 
 // New returns a new Adler32 digest
@@ -60,7 +61,7 @@ func (d *Adler32) Write(p []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
 	l := len(p)
 	if l == 0 {
-		l = 1
+		return 0, nil
 	}
 	if len(d.window) != l {
 		if cap(d.window) >= l {
