@@ -70,7 +70,7 @@ func (d *Adler32) Write(data []byte) (int, error) {
 		d.window = d.window[:0]
 		d.written = true
 	}
-	// re-arrange the window so that the leftmost element is at index 0
+	// Re-arrange the window so that the leftmost element is at index 0
 	n := len(d.window)
 	if d.oldest != 0 {
 		tmp := make([]byte, d.oldest)
@@ -78,18 +78,17 @@ func (d *Adler32) Write(data []byte) (int, error) {
 		copy(d.window, d.window[d.oldest:])
 		copy(d.window[n-d.oldest:], tmp)
 		d.oldest = 0
-		//panic(string(d.window))
 	}
-	// Append the slice to the window. Avoid unnecessary allocation.
-	if l+n <= cap(d.window) {
+	// Expand the window, avoiding unnecessary allocation.
+	if n+l <= cap(d.window) {
 		d.window = d.window[:n+l]
-		copy(d.window[n:], data)
 	} else {
 		w := d.window
 		d.window = make([]byte, n+l)
 		copy(d.window, w)
-		copy(d.window[n:], data)
 	}
+	// Append the slice to the window.
+	copy(d.window[n:], data)
 
 	// Piggy-back on the core implementation
 	d.vanilla.Reset()
