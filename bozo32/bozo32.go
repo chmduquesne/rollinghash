@@ -29,8 +29,9 @@ type Bozo32 struct {
 func (d *Bozo32) Reset() {
 	d.h = 0
 	d.aPowerN = 1
-	d.window = nil
 	d.oldest = 0
+	d.window = d.window[:1]
+	d.window[0] = 0
 	d.written = false
 }
 

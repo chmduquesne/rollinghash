@@ -160,6 +160,7 @@ func (d *RabinKarp64) Reset() {
 	d.window = d.window[:1]
 	d.window[0] = 0
 	d.oldest = 0
+	d.buildTables()
 }
 
 // Size is 8 bytes

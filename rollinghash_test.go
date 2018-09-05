@@ -119,6 +119,11 @@ func foxDog(t *testing.T, hashname string, classic hash.Hash, rolling rollinghas
 	}
 }
 
+func rollEmptyWindow(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
+	rolling.Reset()
+	rolling.Roll(byte('x'))
+}
+
 func TestFoxDog(t *testing.T) {
 	for _, h := range allHashes {
 		foxDog(t, h.name, h.classic, h.rolling)
@@ -128,5 +133,11 @@ func TestFoxDog(t *testing.T) {
 func TestBlackBox(t *testing.T) {
 	for _, h := range allHashes {
 		blackBox(t, h.name, h.classic, h.rolling)
+	}
+}
+
+func TestRollEmptyWindow(t *testing.T){
+	for _, h := range allHashes {
+		rollEmptyWindow(t, h.name, h.classic, h.rolling)
 	}
 }
