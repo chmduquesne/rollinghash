@@ -83,7 +83,7 @@ func (d *Buzhash32) Write(data []byte) (int, error) {
 	// Copy the window, avoiding allocations where possible
 	l := len(data)
 	if l == 0 {
-		l = 1
+		return 0, nil
 	}
 	if len(d.window) != l {
 		if cap(d.window) >= l {
