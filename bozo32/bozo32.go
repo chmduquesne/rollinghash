@@ -22,6 +22,7 @@ type Bozo32 struct {
 	// is indicated by d.oldest
 	window []byte
 	oldest int
+	written bool
 }
 
 // Reset resets the Hash to its initial state.
@@ -30,6 +31,7 @@ func (d *Bozo32) Reset() {
 	d.aPowerN = 1
 	d.window = nil
 	d.oldest = 0
+	d.written = false
 }
 
 func NewFromInt(a uint32) *Bozo32 {
@@ -39,6 +41,7 @@ func NewFromInt(a uint32) *Bozo32 {
 		aPowerN: 1,
 		window:  make([]byte, 1, rollinghash.DefaultWindowCap),
 		oldest:  0,
+		written: false,
 	}
 }
 
@@ -55,17 +58,34 @@ func (d *Bozo32) BlockSize() int { return 1 }
 // Write (re)initializes the rolling window with the input byte slice and
 // adds its data to the digest. It never returns an error.
 func (d *Bozo32) Write(data []byte) (int, error) {
-	// Copy the window
 	l := len(data)
 	if l == 0 {
 		return 0, nil
 	}
-	if len(d.window) >= l {
-		d.window = d.window[:l]
-	} else {
-		d.window = make([]byte, l)
+	// If the window is not written, make it zero-sized
+	if !d.written {
+		d.window = d.window[:0]
+		d.written = true
 	}
-	copy(d.window, data)
+	// Re-arrange the window so that the leftmost element is at index 0
+	n := len(d.window)
+	if d.oldest != 0 {
+		tmp := make([]byte, d.oldest)
+		copy(tmp, d.window[:d.oldest])
+		copy(d.window, d.window[d.oldest:])
+		copy(d.window[n-d.oldest:], tmp)
+		d.oldest = 0
+	}
+	// Expand the window, avoiding unnecessary allocation.
+	if n+l <= cap(d.window) {
+		d.window = d.window[:n+l]
+	} else {
+		w := d.window
+		d.window = make([]byte, n+l)
+		copy(d.window, w)
+	}
+	// Append the slice to the window.
+	copy(d.window[n:], data)
 
 	for _, c := range d.window {
 		d.h *= d.a
