@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime/pprof"
 	"time"
 
 	"code.cloudfoundry.org/bytefmt"
@@ -42,9 +43,19 @@ func hash2uint64(s []byte) (res uint64) {
 }
 
 func main() {
+	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	dostats := flag.Bool("stats", false, "Do some stats about the rolling sum")
 	size := flag.String("size", "256M", "How much data to read")
 	flag.Parse()
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	fileSize, err := bytefmt.ToBytes(*size)
 	if err != nil {
