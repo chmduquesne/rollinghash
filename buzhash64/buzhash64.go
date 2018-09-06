@@ -30,16 +30,14 @@ type Buzhash64 struct {
 	// is indicated by d.oldest
 	window   []byte
 	oldest   int
-	written  bool
 	bytehash [256]uint64
 }
 
 // Reset resets the Hash to its initial state.
 func (d *Buzhash64) Reset() {
-	d.window = d.window[:1]
+	d.window = d.window[:0]
 	d.oldest = 0
 	d.sum = 0
-	d.written = false
 }
 
 // GenerateHashes generates a list of hashes to use with buzhash
@@ -67,10 +65,9 @@ func New() *Buzhash64 {
 func NewFromUint64Array(b [256]uint64) *Buzhash64 {
 	return &Buzhash64{
 		sum:      0,
-		window:   make([]byte, 1, rollinghash.DefaultWindowCap),
+		window:   make([]byte, 0, rollinghash.DefaultWindowCap),
 		oldest:   0,
 		bytehash: b,
-		written:  false,
 	}
 }
 
@@ -86,11 +83,6 @@ func (d *Buzhash64) Write(data []byte) (int, error) {
 	l := len(data)
 	if l == 0 {
 		return 0, nil
-	}
-	// If the window is not written, make it zero-sized
-	if !d.written {
-		d.window = d.window[:0]
-		d.written = true
 	}
 	// Re-arrange the window so that the leftmost element is at index 0
 	n := len(d.window)
@@ -135,6 +127,9 @@ func (d *Buzhash64) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
 func (d *Buzhash64) Roll(c byte) {
+	if len(d.window) == 0 {
+		return
+	}
 	// extract the entering/leaving bytes and update the circular buffer.
 	hn := d.bytehash[int(c)]
 	h0 := d.bytehash[int(d.window[d.oldest])]

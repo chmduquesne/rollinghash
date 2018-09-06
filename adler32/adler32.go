@@ -22,7 +22,6 @@ type Adler32 struct {
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
-	written bool
 	window  []byte
 	oldest  int
 
@@ -31,10 +30,8 @@ type Adler32 struct {
 
 // Reset resets the digest to its initial state.
 func (d *Adler32) Reset() {
-	d.window = d.window[:1] // Reset the size but don't reallocate
+	d.window = d.window[:0] // Reset the size but don't reallocate
 	d.oldest = 0
-	d.written = false
-	d.window[0] = 0
 	d.a = 1
 	d.b = 0
 	d.n = 0
@@ -47,9 +44,8 @@ func New() *Adler32 {
 		a:       1,
 		b:       0,
 		n:       0,
-		window:  make([]byte, 1, rollinghash.DefaultWindowCap),
+		window:  make([]byte, 0, rollinghash.DefaultWindowCap),
 		oldest:  0,
-		written: false,
 		vanilla: vanilla.New(),
 	}
 }
@@ -66,11 +62,6 @@ func (d *Adler32) Write(data []byte) (int, error) {
 	l := len(data)
 	if l == 0 {
 		return 0, nil
-	}
-	// If the window is not written, make it zero-sized
-	if !d.written {
-		d.window = d.window[:0]
-		d.written = true
 	}
 	// Re-arrange the window so that the leftmost element is at index 0
 	n := len(d.window)
@@ -115,6 +106,9 @@ func (d *Adler32) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
 func (d *Adler32) Roll(b byte) {
+	if len(d.window) == 0 {
+		return
+	}
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := uint32(b)
 	leave := uint32(d.window[d.oldest])

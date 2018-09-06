@@ -57,7 +57,6 @@ type RabinKarp64 struct {
 	// is indicated by d.oldest
 	window []byte
 	oldest int
-	written bool
 }
 
 // cache precomputed tables, these are read-only anyway
@@ -143,9 +142,8 @@ func NewFromPol(p Pol) *RabinKarp64 {
 		tables:   nil,
 		polShift: uint(p.Deg() - 8),
 		value:    0,
-		window:   make([]byte, 1, rollinghash.DefaultWindowCap),
+		window:   make([]byte, 0, rollinghash.DefaultWindowCap),
 		oldest:   0,
-		written:  false,
 	}
 	res.updateTables()
 	return res
@@ -165,10 +163,8 @@ func New() *RabinKarp64 {
 func (d *RabinKarp64) Reset() {
 	d.tables = nil
 	d.value = 0
-	d.window = d.window[:1]
-	d.window[0] = 0
+	d.window = d.window[:0]
 	d.oldest = 0
-	d.written = false
 	d.updateTables()
 }
 
@@ -184,11 +180,6 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 	l := len(data)
 	if l == 0 {
 		return 0, nil
-	}
-	// If the window is not written, make it zero-sized
-	if !d.written {
-		d.window = d.window[:0]
-		d.written = true
 	}
 	// Re-arrange the window so that the leftmost element is at index 0
 	n := len(d.window)
@@ -236,6 +227,9 @@ func (d *RabinKarp64) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
 func (d *RabinKarp64) Roll(c byte) {
+	if len(d.window) == 0 {
+		return
+	}
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := c
 	leave := uint64(d.window[d.oldest])
