@@ -18,13 +18,13 @@ const (
 // It implements the adler32 algorithm https://en.wikipedia.org/wiki/Adler-32
 type Adler32 struct {
 	a, b uint32
+	n uint32
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
 	written bool
 	window  []byte
 	oldest  int
-	n       uint32
 
 	vanilla hash.Hash32
 }
@@ -32,11 +32,12 @@ type Adler32 struct {
 // Reset resets the digest to its initial state.
 func (d *Adler32) Reset() {
 	d.window = d.window[:1] // Reset the size but don't reallocate
+	d.oldest = 0
+	d.written = false
 	d.window[0] = 0
 	d.a = 1
 	d.b = 0
-	d.oldest = 0
-	d.written = false
+	d.n = 0
 	d.vanilla.Reset()
 }
 
@@ -45,6 +46,7 @@ func New() *Adler32 {
 	return &Adler32{
 		a:       1,
 		b:       0,
+		n:       0,
 		window:  make([]byte, 1, rollinghash.DefaultWindowCap),
 		oldest:  0,
 		written: false,
@@ -95,7 +97,7 @@ func (d *Adler32) Write(data []byte) (int, error) {
 	d.vanilla.Write(d.window)
 	s := d.vanilla.Sum32()
 	d.a, d.b = s&0xffff, s>>16
-	d.n = uint32(len(data)) % Mod
+	d.n = uint32(len(d.window)) % Mod
 	return len(data), nil
 }
 
