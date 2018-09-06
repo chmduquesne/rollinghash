@@ -1,7 +1,6 @@
 package rollinghash_test
 
 import (
-	"fmt"
 	"hash"
 	"math/rand"
 	"testing"
@@ -26,11 +25,10 @@ var allHashes = []struct {
 	{"rabinkarp64", rabinkarp64.New(), rabinkarp64.New()},
 }
 
-// Converts a byte hash into a uint64
-func hash2uint64(s []byte) (res uint64) {
-	if len(s) > 8 {
-		panic(fmt.Errorf("Input has more than 8 bytes and does not fit in a uint64"))
-	}
+// Gets the hash sum as a uint64
+func sum64(h hash.Hash) (res uint64){
+	buf := make([]byte, 0, 8)
+	s := h.Sum(buf)
 	for _, b := range s {
 		res <<= 8
 		res |= uint64(b)
@@ -45,19 +43,17 @@ func SumByWriteAndRoll(h rollinghash.Hash, b []byte) uint64 {
 	q := []byte("\x00")
 	q = append(q, b...)
 
-	buf := make([]byte, 0, 8)
 	h.Reset()
 	h.Write(q[:len(q)-1])
 	h.Roll(q[len(q)-1])
-	return hash2uint64(h.Sum(buf))
+	return sum64(h)
 }
 
 // Compute the hash the classic way
 func SumByWriteOnly(h hash.Hash, b []byte) uint64 {
-	buf := make([]byte, 0, 8)
 	h.Reset()
 	h.Write(b)
-	return hash2uint64(h.Sum(buf))
+	return sum64(h)
 }
 
 // Create some random slice (length betwen 0 and 8KB, random content)
@@ -89,10 +85,6 @@ func blackBox(t *testing.T, hashname string, classic hash.Hash, rolling rollingh
 func foxDog(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
 	s := []byte("The quick brown fox jumps over the lazy dog")
 
-	// buffers to write the sums
-	bufc := make([]byte, 0, 8)
-	bufr := make([]byte, 0, 8)
-
 	// Window len
 	n := 16
 
@@ -110,8 +102,8 @@ func foxDog(t *testing.T, hashname string, classic hash.Hash, rolling rollinghas
 		rolling.Roll(s[i])
 
 		// Compare the hashes
-		sumc := hash2uint64(classic.Sum(bufc))
-		sumr := hash2uint64(rolling.Sum(bufr))
+		sumc := sum64(classic)
+		sumr := sum64(rolling)
 		if sumc != sumr {
 			t.Errorf("[%s] %v: expected %x, got %x",
 				hashname, s[i-n+1:i+1], sumc, sumr)
@@ -120,24 +112,104 @@ func foxDog(t *testing.T, hashname string, classic hash.Hash, rolling rollinghas
 }
 
 func rollEmptyWindow(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
-	rolling.Reset()
+	// This should not crash
 	rolling.Roll(byte('x'))
+}
+
+func writeTwice(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash){
+	rolling.Write([]byte("hello "))
+	rolling.Write([]byte("world"))
+
+	classic.Write([]byte("hello world"))
+
+	if sum64(rolling) != sum64(classic){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func writeRollWrite(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash){
+	rolling.Write([]byte(" hello"))
+	rolling.Roll(byte(' '))
+	rolling.Write([]byte("world"))
+
+	classic.Write([]byte("hello world"))
+
+	if sum64(rolling) != sum64(classic){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func writeThenWriteNothing(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash){
+	rolling.Write([]byte("hello"))
+	rolling.Write([]byte(""))
+
+	classic.Write([]byte("hello"))
+
+	if sum64(rolling) != sum64(classic){
+		t.Errorf("Expected same results on r1 and r2")
+	}
+}
+
+func writeNothing(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash){
+	rolling.Write([]byte(""))
+
+	if sum64(rolling) != sum64(classic){
+		t.Errorf("Expected same results on r1 and r2")
+	}
 }
 
 func TestFoxDog(t *testing.T) {
 	for _, h := range allHashes {
+		h.classic.Reset()
+		h.rolling.Reset()
 		foxDog(t, h.name, h.classic, h.rolling)
 	}
 }
 
 func TestBlackBox(t *testing.T) {
 	for _, h := range allHashes {
+		h.classic.Reset()
+		h.rolling.Reset()
 		blackBox(t, h.name, h.classic, h.rolling)
 	}
 }
 
 func TestRollEmptyWindow(t *testing.T){
 	for _, h := range allHashes {
+		h.classic.Reset()
+		h.rolling.Reset()
 		rollEmptyWindow(t, h.name, h.classic, h.rolling)
+	}
+}
+
+func TestwriteTwice(t *testing.T){
+	for _, h := range allHashes {
+		h.classic.Reset()
+		h.rolling.Reset()
+		writeTwice(t, h.name, h.classic, h.rolling)
+	}
+}
+
+func TestwriteRollWrite(t *testing.T){
+	for _, h := range allHashes {
+		h.classic.Reset()
+		h.rolling.Reset()
+		writeRollWrite(t, h.name, h.classic, h.rolling)
+	}
+}
+
+func TestWriteThenWriteNothing(t *testing.T){
+	for _, h := range allHashes {
+		h.classic.Reset()
+		h.rolling.Reset()
+		writeThenWriteNothing(t, h.name, h.classic, h.rolling)
+	}
+}
+
+func TestWriteNothing(t *testing.T){
+	for _, h := range allHashes {
+		h.classic.Reset()
+		h.rolling.Reset()
+		writeNothing(t, h.name, h.classic, h.rolling)
 	}
 }
