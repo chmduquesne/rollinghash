@@ -70,8 +70,10 @@ func init() {
 	cache.entries = make(map[index]*tables)
 }
 
-func (d *RabinKarp64) buildTables() {
+func (d *RabinKarp64) updateTables() {
 	windowsize := len(d.window)
+	pol := d.pol
+
 	idx := index{d.pol, windowsize}
 
 	cache.Lock()
@@ -82,8 +84,15 @@ func (d *RabinKarp64) buildTables() {
 		return
 	}
 
-	t = &tables{}
+	d.tables = buildTables(pol, windowsize)
+	cache.Lock()
+	cache.entries[idx] = d.tables
+	cache.Unlock()
+	return
+}
 
+func buildTables(pol Pol, windowsize int)(t *tables) {
+	t = &tables{}
 	// calculate table for sliding out bytes. The byte to slide out is used as
 	// the index for the table, the value contains the following:
 	// out_table[b] = Hash(b || 0 ||        ...        || 0)
@@ -99,17 +108,17 @@ func (d *RabinKarp64) buildTables() {
 		var h Pol
 		h <<= 8
 		h |= Pol(b)
-		h = h.Mod(d.pol)
+		h = h.Mod(pol)
 		for i := 0; i < windowsize-1; i++ {
 			h <<= 8
 			h |= Pol(0)
-			h = h.Mod(d.pol)
+			h = h.Mod(pol)
 		}
 		t.out[b] = h
 	}
 
 	// calculate table for reduction mod Polynomial
-	k := d.pol.Deg()
+	k := pol.Deg()
 	for b := 0; b < 256; b++ {
 		// mod_table[b] = A | B, where A = (b(x) * x^k mod pol) and  B = b(x) * x^k
 		//
@@ -118,13 +127,10 @@ func (d *RabinKarp64) buildTables() {
 		// two parts: Part A contains the result of the modulus operation, part
 		// B is used to cancel out the 8 top bits so that one XOR operation is
 		// enough to reduce modulo Polynomial
-		t.mod[b] = Pol(uint64(b)<<uint(k)).Mod(d.pol) | (Pol(b) << uint(k))
+		t.mod[b] = Pol(uint64(b)<<uint(k)).Mod(pol) | (Pol(b) << uint(k))
 	}
 
-	d.tables = t
-	cache.Lock()
-	cache.entries[idx] = d.tables
-	cache.Unlock()
+	return t
 }
 
 // NewFromPol returns a RabinKarp64 digest from a polynomial over GF(2).
@@ -139,7 +145,7 @@ func NewFromPol(p Pol) *RabinKarp64 {
 		window:   make([]byte, 1, rollinghash.DefaultWindowCap),
 		oldest:   0,
 	}
-	res.buildTables()
+	res.updateTables()
 	return res
 }
 
@@ -160,7 +166,7 @@ func (d *RabinKarp64) Reset() {
 	d.window = d.window[:1]
 	d.window[0] = 0
 	d.oldest = 0
-	d.buildTables()
+	d.updateTables()
 }
 
 // Size is 8 bytes
@@ -190,7 +196,7 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 		d.value = d.value.Mod(d.pol)
 	}
 
-	d.buildTables()
+	d.updateTables()
 
 	return len(d.window), nil
 }
