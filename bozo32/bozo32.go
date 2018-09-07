@@ -14,9 +14,9 @@ const Size = 4
 
 // Bozo32 is a digest which satisfies the rollinghash.Hash32 interface.
 type Bozo32 struct {
-	a       uint32
-	aPowerN uint32
-	h       uint32
+	a     uint32
+	aⁿ    uint32
+	value uint32
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
@@ -26,19 +26,19 @@ type Bozo32 struct {
 
 // Reset resets the Hash to its initial state.
 func (d *Bozo32) Reset() {
-	d.h = 0
-	d.aPowerN = 1
+	d.value = 0
+	d.aⁿ = 1
 	d.oldest = 0
 	d.window = d.window[:0]
 }
 
 func NewFromInt(a uint32) *Bozo32 {
 	return &Bozo32{
-		a:       a,
-		h:       0,
-		aPowerN: 1,
-		window:  make([]byte, 0, rollinghash.DefaultWindowCap),
-		oldest:  0,
+		a:      a,
+		value:  0,
+		aⁿ:     1,
+		window: make([]byte, 0, rollinghash.DefaultWindowCap),
+		oldest: 0,
 	}
 }
 
@@ -79,19 +79,19 @@ func (d *Bozo32) Write(data []byte) (int, error) {
 	// Append the slice to the window.
 	copy(d.window[n:], data)
 
-	d.h = 0
-	d.aPowerN = 1
+	d.value = 0
+	d.aⁿ = 1
 	for _, c := range d.window {
-		d.h *= d.a
-		d.h += uint32(c)
-		d.aPowerN *= d.a
+		d.value *= d.a
+		d.value += uint32(c)
+		d.aⁿ *= d.a
 	}
 	return len(d.window), nil
 }
 
 // Sum32 returns the hash as a uint32
 func (d *Bozo32) Sum32() uint32 {
-	return d.h
+	return d.value
 }
 
 // Sum returns the hash as byte slice
@@ -119,5 +119,5 @@ func (d *Bozo32) Roll(c byte) {
 		d.oldest = 0
 	}
 
-	d.h = d.h*d.a + enter - leave*d.aPowerN
+	d.value = d.value*d.a + enter - leave*d.aⁿ
 }
