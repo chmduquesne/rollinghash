@@ -18,12 +18,12 @@ const (
 // It implements the adler32 algorithm https://en.wikipedia.org/wiki/Adler-32
 type Adler32 struct {
 	a, b uint32
-	n uint32
+	n    uint32
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
-	window  []byte
-	oldest  int
+	window []byte
+	oldest int
 
 	vanilla hash.Hash32
 }
@@ -56,8 +56,7 @@ func (d *Adler32) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Adler32) BlockSize() int { return 1 }
 
-// Write (re)initializes the rolling window with the input byte slice and
-// adds its data to the digest.
+// Write appends data to the rolling window and updates the digest.
 func (d *Adler32) Write(data []byte) (int, error) {
 	l := len(data)
 	if l == 0 {
@@ -106,6 +105,9 @@ func (d *Adler32) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
 func (d *Adler32) Roll(b byte) {
+	// This check costs 10-15% performance. If we disable it, we crash
+	// when the window is empty. If we enable it, we are always correct
+	// (an empty window never changes no matter how much you roll it).
 	if len(d.window) == 0 {
 		return
 	}

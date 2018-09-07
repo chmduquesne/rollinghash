@@ -77,8 +77,8 @@ func (d *Buzhash64) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Buzhash64) BlockSize() int { return 1 }
 
-// Write (re)initializes the rolling window with the input byte slice and
-// adds its data to the digest.
+// Write appends data to the rolling window and updates the digest. It
+// never returns an error.
 func (d *Buzhash64) Write(data []byte) (int, error) {
 	l := len(data)
 	if l == 0 {
@@ -104,6 +104,7 @@ func (d *Buzhash64) Write(data []byte) (int, error) {
 	// Append the slice to the window.
 	copy(d.window[n:], data)
 
+	d.sum = 0
 	for _, c := range d.window {
 		d.sum = d.sum<<1 | d.sum>>63
 		d.sum ^= d.bytehash[int(c)]
@@ -127,9 +128,13 @@ func (d *Buzhash64) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
 func (d *Buzhash64) Roll(c byte) {
+	// This check costs 10-15% performance. If we disable it, we crash
+	// when the window is empty. If we enable it, we are always correct
+	// (an empty window never changes no matter how much you roll it).
 	if len(d.window) == 0 {
 		return
 	}
+
 	// extract the entering/leaving bytes and update the circular buffer.
 	hn := d.bytehash[int(c)]
 	h0 := d.bytehash[int(d.window[d.oldest])]

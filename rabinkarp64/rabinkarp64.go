@@ -91,7 +91,7 @@ func (d *RabinKarp64) updateTables() {
 	return
 }
 
-func buildTables(pol Pol, windowsize int)(t *tables) {
+func buildTables(pol Pol, windowsize int) (t *tables) {
 	t = &tables{}
 	// calculate table for sliding out bytes. The byte to slide out is used as
 	// the index for the table, the value contains the following:
@@ -174,8 +174,7 @@ func (d *RabinKarp64) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *RabinKarp64) BlockSize() int { return 1 }
 
-// Write (re)initializes the rolling window with the input byte slice and
-// adds its data to the digest. It never returns an error.
+// Write appends data to the rolling window and updates the digest.
 func (d *RabinKarp64) Write(data []byte) (int, error) {
 	l := len(data)
 	if l == 0 {
@@ -201,7 +200,7 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 	// Append the slice to the window.
 	copy(d.window[n:], data)
 
-
+	d.value = 0
 	for _, b := range d.window {
 		d.value <<= 8
 		d.value |= Pol(b)
@@ -227,6 +226,9 @@ func (d *RabinKarp64) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
 func (d *RabinKarp64) Roll(c byte) {
+	// This check costs 10-15% performance. If we disable it, we crash
+	// when the window is empty. If we enable it, we are always correct
+	// (an empty window never changes no matter how much you roll it).
 	if len(d.window) == 0 {
 		return
 	}

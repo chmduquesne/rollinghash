@@ -15,8 +15,8 @@ const Size = 4
 // Bozo32 is a digest which satisfies the rollinghash.Hash32 interface.
 type Bozo32 struct {
 	a       uint32
-	h       uint32
 	aPowerN uint32
+	h       uint32
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
@@ -52,8 +52,8 @@ func (d *Bozo32) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Bozo32) BlockSize() int { return 1 }
 
-// Write (re)initializes the rolling window with the input byte slice and
-// adds its data to the digest. It never returns an error.
+// Write appends data to the rolling window and updates the digest. It
+// never returns an error.
 func (d *Bozo32) Write(data []byte) (int, error) {
 	l := len(data)
 	if l == 0 {
@@ -79,6 +79,8 @@ func (d *Bozo32) Write(data []byte) (int, error) {
 	// Append the slice to the window.
 	copy(d.window[n:], data)
 
+	d.h = 0
+	d.aPowerN = 1
 	for _, c := range d.window {
 		d.h *= d.a
 		d.h += uint32(c)
@@ -101,6 +103,9 @@ func (d *Bozo32) Sum(b []byte) []byte {
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
 func (d *Bozo32) Roll(c byte) {
+	// This check costs 10-15% performance. If we disable it, we crash
+	// when the window is empty. If we enable it, we are always correct
+	// (an empty window never changes no matter how much you roll it).
 	if len(d.window) == 0 {
 		return
 	}
