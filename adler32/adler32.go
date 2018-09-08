@@ -71,16 +71,7 @@ func (d *Adler32) Write(data []byte) (int, error) {
 		copy(d.window[n-d.oldest:], tmp)
 		d.oldest = 0
 	}
-	// Expand the window, avoiding unnecessary allocation.
-	if n+l <= cap(d.window) {
-		d.window = d.window[:n+l]
-	} else {
-		w := d.window
-		d.window = make([]byte, n+l)
-		copy(d.window, w)
-	}
-	// Append the slice to the window.
-	copy(d.window[n:], data)
+	d.window = append(d.window, data...)
 
 	// Piggy-back on the core implementation
 	d.vanilla.Reset()
