@@ -39,8 +39,8 @@ for _, c := range(data[n:]) {
 }
 ```
 
-Usage warnings
---------------
+Gotchas
+-------
 
 The rolling window MUST be initialized by calling `Write` first (which
 saves a copy). The byte leaving the rolling window is inferred from the
@@ -64,8 +64,8 @@ h1.Roll(b) // Not inlined (slow)
 h2.Roll(b) // inlined (fast)
 ```
 
-What is new in v4
------------------
+What's new in v4
+----------------
 
 In v4, `Write` has become fully consistent with `hash.Hash`. As opposed to
 previous versions, where writing data would reinitialize the window, it
