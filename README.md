@@ -18,7 +18,7 @@ Usage
 -----
 
 A `rollinghash.Hash` is just a `hash.Hash` which implements the
-`[Roller](https://godoc.org/github.com/chmduquesne/rollinghash#Roller)`
+[`Roller`](https://godoc.org/github.com/chmduquesne/rollinghash#Roller)
 interface. Here is how it is typically used:
 
 ```golang
