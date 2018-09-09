@@ -16,7 +16,7 @@ var golden = []struct {
 	out uint32
 	in  string
 }{
-	{0x0, ""},
+	//{0x0, ""}, // panics
 	{0x61, "a"},
 	{0x60fab3, "ab"},
 	{0xf5044fe6, "abc"},

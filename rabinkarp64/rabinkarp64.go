@@ -220,9 +220,9 @@ func (d *RabinKarp64) Roll(c byte) {
 	// This check costs 10-15% performance. If we disable it, we crash
 	// when the window is empty. If we enable it, we are always correct
 	// (an empty window never changes no matter how much you roll it).
-	if len(d.window) == 0 {
-		return
-	}
+	//if len(d.window) == 0 {
+	//	return
+	//}
 	// extract the entering/leaving bytes and update the circular buffer.
 	enter := c
 	leave := uint64(d.window[d.oldest])
