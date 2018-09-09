@@ -3,16 +3,18 @@
 [![GoDoc Reference](http://godoc.org/github.com/chmduquesne/rollinghash?status.svg)](https://godoc.org/github.com/chmduquesne/rollinghash)
 ![Go 1.7+](https://img.shields.io/badge/go-1.7%2B-orange.svg)
 
-rolling hashes
+Rolling Hashes
 ==============
 
 Philosophy
 ----------
 
 This package contains several various rolling hashes for you to play with
-crazy ideas. The API design philosophy was to stick as closely as possible
-to the interface provided by the builtin hash package, while providing
-simultaneously the highest speed and simplicity.
+crazy ideas. The API design philosophy is to stick as closely as possible
+to the interface provided by the builtin hash package (the hashes
+implemented here are effectively drop-in replacements for their builtin
+counterparts), while providing simultaneously the highest speed and
+simplicity.
 
 Usage
 -----
