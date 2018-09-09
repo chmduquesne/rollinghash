@@ -3,89 +3,51 @@
 [![GoDoc Reference](http://godoc.org/github.com/chmduquesne/rollinghash?status.svg)](https://godoc.org/github.com/chmduquesne/rollinghash)
 ![Go 1.7+](https://img.shields.io/badge/go-1.7%2B-orange.svg)
 
-rolling checksums
-=================
+rolling hashes
+==============
 
 Philosophy
 ----------
 
-This package contains several various rolling checksums for you to play
-with crazy ideas. The API design philosophy was to stick as closely as
-possible to the interface provided by the builtin hash package, while
-providing simultaneously the highest speed and simplicity.
-
-The `Hash32` and `Hash64` interfaces both implement the builtin `Hash32`
-and `Hash64`, so that you can use them as drop in replacements. On top of
-the builtin methods, these interfaces also implement `Roller`, which
-consists in the single method `Roll(b byte)`, designed to update the
-rolling checksum with the byte entering the rolling window.
+This package contains several various rolling hashes for you to play with
+crazy ideas. The API design philosophy was to stick as closely as possible
+to the interface provided by the builtin hash package, while providing
+simultaneously the highest speed and simplicity.
 
 Usage
 -----
 
-A `rollinghash.Hash` is just a `hash.Hash` with a `Roll(b byte)` method.
-Here are the main steps typically involved:
-* Initialize the window by using the `Write` method from `hash.Hash`
-* Use `Roll(b)`, where `b` is the entering byte, to slide the window and
-  update the hash
-* At any point, use `Sum` from hash.Hash (or `Sum32` /`Sum64` if your hash
-  supports it) to get the hash of the current window
+A `rollinghash.Hash` is just a `hash.Hash` which implements the
+`[Roller](https://godoc.org/github.com/chmduquesne/rollinghash#Roller)`
+interface. Here is how it is typically used:
 
 ```golang
-// Example
-n := 16
 data := []byte("here is some data to roll on")
-
 h := buzhash64.New()
+n := 16
 
-// initialize the window
+// Initialize the rolling window
 h.Write(data[:n])
+
 for _, c := range(data[n:]) {
+
+    // Slide the window and update the hash
     h.Roll(c)
+
+    // Get the updated hash value
     fmt.Println(h.Sum64())
 }
-fmt.Println("Hello, playground")
 ```
 
 Usage warnings
 --------------
 
 The rolling window MUST be initialized by calling `Write` first (which
-saves a copy). Several calls to `Write` will overwrite this window every
-time. The byte leaving the rolling window is inferred from the internal
-copy of the rolling window, which is updated with every call to `Roll`.
+saves a copy). The byte leaving the rolling window is inferred from the
+internal copy of the rolling window, which is updated with every call to
+`Roll`.
 
-In previous versions of this library, `Roll` would return an error for an
-empty window. The interface has been later changed to never return an error
-and it forces the internal rolling window to always have a minimal size of 1.
-This change was made in the interest of speed, so that we don't have to
-check whether a window exists for every call, sparing an operation that is
-useless when the hash is correctly used, in a function likely to be called
-millions of times per second. As a consequence:
-
-Be aware that `Roll` never fails: whenever no rolling window has been
-initialized, the implementation assumes a 1 byte window, initialized with
-the null byte.
-
-Be also aware that if you `Write` an empty window, the size of the
-internal rolling window will be reduced to 1 (and not 0) and `Sum` will
-yield incorrect results.
-
-Go versions
------------
-
-The `RabinKarp64` rollinghash does not yield consistent results before
-go1.7. This is because it uses `Rand.Read()` from the builtin `math/rand`.
-This function was [fixed in go
-1.7](https://golang.org/doc/go1.7#math_rand) to produce a consistent
-stream of bytes that is independant of the size of the input buffer. If
-you depend on this hash, it is strongly recommended to stick to versions
-of go superior to 1.7.
-
-Optimization
-------------
-
-If you want this code to run at the highest speed, do not cast the result
+If you want your code to run at the highest speed, do NOT cast the result
 of a `New()` as a rollinghash.Hash. Instead, use the native type returned
 by `New()`. This is because the go compiler cannot inline calls from an
 interface. When later you call Roll(), the native type call will be
@@ -98,9 +60,38 @@ h2 := buzhash32.New()
 
 [...]
 
-h1.Roll(b) // Not inlined
-h2.Roll(b) // inlined
+h1.Roll(b) // Not inlined (slow)
+h2.Roll(b) // inlined (fast)
 ```
+
+What is new in v4
+-----------------
+
+In v4, `Write` has become fully consistent with `hash.Hash`. As opposed to
+previous versions, where writing data would reinitialize the window, it
+now appends this data to the existing window. In order to reset the
+window, one should instead use the `Reset` method.
+
+Here is a brief reminder of the behaviors in previous versions:
+
+* From v0.x.x to v2.x.x: `Roll` returns an error for an empty window.
+  `Write` reinitializes the rolling window.
+
+* v3.x.x : `Roll` does not return anything. `Write` still reinitializes
+  the rolling window. The rolling window always has a minimum size of 1,
+  which yields wrong results when using roll before having initialized the
+  window.
+
+Go versions
+-----------
+
+The `RabinKarp64` rollinghash does not yield consistent results before
+go1.7. This is because it uses `Rand.Read()` from the builtin `math/rand`.
+This function was [fixed in go
+1.7](https://golang.org/doc/go1.7#math_rand) to produce a consistent
+stream of bytes that is independant of the size of the input buffer. If
+you depend on this hash, it is strongly recommended to stick to versions
+of go superior to 1.7.
 
 License
 -------
