@@ -128,7 +128,7 @@ func writeTwice(t *testing.T, hashname string, classic hash.Hash, rolling rollin
 	classic.Write([]byte("hello world"))
 
 	if sum64(rolling) != sum64(classic) {
-		t.Errorf("Expected same results on r1 and r2")
+		t.Errorf("[%s] Expected same results on rolling and classic", hashname)
 	}
 }
 
@@ -140,7 +140,7 @@ func writeRollWrite(t *testing.T, hashname string, classic hash.Hash, rolling ro
 	classic.Write([]byte("hello world"))
 
 	if sum64(rolling) != sum64(classic) {
-		t.Errorf("Expected same results on r1 and r2")
+		t.Errorf("[%s] Expected same results on rolling and classic", hashname)
 	}
 }
 
@@ -151,7 +151,7 @@ func writeThenWriteNothing(t *testing.T, hashname string, classic hash.Hash, rol
 	classic.Write([]byte("hello"))
 
 	if sum64(rolling) != sum64(classic) {
-		t.Errorf("Expected same results on r1 and r2")
+		t.Errorf("[%s] Expected same results on rolling and classic", hashname)
 	}
 }
 
@@ -159,7 +159,7 @@ func writeNothing(t *testing.T, hashname string, classic hash.Hash, rolling roll
 	rolling.Write([]byte(""))
 
 	if sum64(rolling) != sum64(classic) {
-		t.Errorf("Expected same results on r1 and r2")
+		t.Errorf("[%s] Expected same results on rolling and classic", hashname)
 	}
 }
 
