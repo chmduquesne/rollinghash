@@ -69,12 +69,17 @@ h2.Roll(b) // inlined (fast)
 What's new in v4
 ----------------
 
-In v4, `Write` has become fully consistent with `hash.Hash`. As opposed to
-previous versions, where writing data would reinitialize the window, it
-now appends this data to the existing window. In order to reset the
-window, one should instead use the `Reset` method.
+In v4:
 
-Here is a brief reminder of the behaviors in previous versions:
+* `Write` has become fully consistent with `hash.Hash`. As opposed to
+  previous versions, where writing data would reinitialize the window, it
+  now appends this data to the existing window. In order to reset the
+  window, one should instead use the `Reset` method.
+
+* Calling `Roll` on an empty window is considered a bug, and now triggers
+  a panic.
+
+Brief reminder of the behaviors in previous versions:
 
 * From v0.x.x to v2.x.x: `Roll` returns an error for an empty window.
   `Write` reinitializes the rolling window.
