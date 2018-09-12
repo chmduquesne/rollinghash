@@ -200,7 +200,7 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 
 	d.updateTables()
 
-	return len(d.window), nil
+	return len(data), nil
 }
 
 // Sum64 returns the hash as a uint64

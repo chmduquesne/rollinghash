@@ -101,7 +101,7 @@ func (d *Buzhash32) Write(data []byte) (int, error) {
 	}
 	d.nRotate = uint(len(d.window)) % 32
 	d.nRotateComplement = 32 - d.nRotate
-	return len(d.window), nil
+	return len(data), nil
 }
 
 // Sum32 returns the hash as a uint32

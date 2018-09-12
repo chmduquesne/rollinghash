@@ -77,7 +77,7 @@ func (d *Bozo32) Write(data []byte) (int, error) {
 		d.value += uint32(c)
 		d.aⁿ *= d.a
 	}
-	return len(d.window), nil
+	return len(data), nil
 }
 
 // Sum32 returns the hash as a uint32

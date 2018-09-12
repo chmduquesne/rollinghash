@@ -102,7 +102,7 @@ func (d *Buzhash64) Write(data []byte) (int, error) {
 	}
 	d.nRotate = uint(len(d.window)) % 64
 	d.nRotateComplement = 64 - d.nRotate
-	return len(d.window), nil
+	return len(data), nil
 }
 
 // Sum64 returns the hash as a uint64
