@@ -18,18 +18,14 @@ type Bozo32 struct {
 	aⁿ    uint32
 	value uint32
 
-	// window is treated like a circular buffer, where the oldest element
-	// is indicated by d.oldest
-	window []byte
-	oldest int
+	window *rollinghash.RollingWindow
 }
 
 // Reset resets the Hash to its initial state.
 func (d *Bozo32) Reset() {
 	d.value = 0
 	d.aⁿ = 1
-	d.oldest = 0
-	d.window = d.window[:0]
+	d.window.Reset()
 }
 
 func NewFromInt(a uint32) *Bozo32 {
@@ -37,8 +33,7 @@ func NewFromInt(a uint32) *Bozo32 {
 		a:      a,
 		value:  0,
 		aⁿ:     1,
-		window: make([]byte, 0, rollinghash.DefaultWindowCap),
-		oldest: 0,
+		window: rollinghash.NewRollingWindow(),
 	}
 }
 
@@ -55,24 +50,14 @@ func (d *Bozo32) BlockSize() int { return 1 }
 // Write appends data to the rolling window and updates the digest. It
 // never returns an error.
 func (d *Bozo32) Write(data []byte) (int, error) {
-	l := len(data)
-	if l == 0 {
+	if len(data) == 0 {
 		return 0, nil
 	}
-	// Re-arrange the window so that the leftmost element is at index 0
-	n := len(d.window)
-	if d.oldest != 0 {
-		tmp := make([]byte, d.oldest)
-		copy(tmp, d.window[:d.oldest])
-		copy(d.window, d.window[d.oldest:])
-		copy(d.window[n-d.oldest:], tmp)
-		d.oldest = 0
-	}
-	d.window = append(d.window, data...)
+	d.window.Write(data)
 
 	d.value = 0
 	d.aⁿ = 1
-	for _, c := range d.window {
+	for _, c := range d.window.Bytes {
 		d.value *= d.a
 		d.value += uint32(c)
 		d.aⁿ *= d.a
@@ -93,22 +78,7 @@ func (d *Bozo32) Sum(b []byte) []byte {
 
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
-func (d *Bozo32) Roll(c byte) {
-	// This check costs 10-15% performance. If we disable it, we crash
-	// when the window is empty. If we enable it, we are always correct
-	// (an empty window never changes no matter how much you roll it).
-	//if len(d.window) == 0 {
-	//	return
-	//}
-	// extract the entering/leaving bytes and update the circular buffer.
-	enter := uint32(c)
-	leave := uint32(d.window[d.oldest])
-	d.window[d.oldest] = c
-	l := len(d.window)
-	d.oldest += 1
-	if d.oldest >= l {
-		d.oldest = 0
-	}
-
+func (d *Bozo32) Roll(b byte) {
+	enter, leave := uint32(b), uint32(d.window.Roll(b))
 	d.value = d.value*d.a + enter - leave*d.aⁿ
 }

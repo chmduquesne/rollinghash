@@ -53,10 +53,7 @@ type RabinKarp64 struct {
 	polShift uint
 	value    Pol
 
-	// window is treated like a circular buffer, where the oldest element
-	// is indicated by d.oldest
-	window []byte
-	oldest int
+	window *rollinghash.RollingWindow
 }
 
 // cache precomputed tables, these are read-only anyway
@@ -71,7 +68,7 @@ func init() {
 }
 
 func (d *RabinKarp64) updateTables() {
-	windowsize := len(d.window)
+	windowsize := len(d.window.Bytes)
 	pol := d.pol
 
 	idx := index{d.pol, windowsize}
@@ -142,8 +139,7 @@ func NewFromPol(p Pol) *RabinKarp64 {
 		tables:   nil,
 		polShift: uint(p.Deg() - 8),
 		value:    0,
-		window:   make([]byte, 0, rollinghash.DefaultWindowCap),
-		oldest:   0,
+		window:   rollinghash.NewRollingWindow(),
 	}
 	res.updateTables()
 	return res
@@ -163,8 +159,7 @@ func New() *RabinKarp64 {
 func (d *RabinKarp64) Reset() {
 	d.tables = nil
 	d.value = 0
-	d.window = d.window[:0]
-	d.oldest = 0
+	d.window.Reset()
 	d.updateTables()
 }
 
@@ -176,23 +171,13 @@ func (d *RabinKarp64) BlockSize() int { return 1 }
 
 // Write appends data to the rolling window and updates the digest.
 func (d *RabinKarp64) Write(data []byte) (int, error) {
-	l := len(data)
-	if l == 0 {
+	if len(data) == 0 {
 		return 0, nil
 	}
-	// Re-arrange the window so that the leftmost element is at index 0
-	n := len(d.window)
-	if d.oldest != 0 {
-		tmp := make([]byte, d.oldest)
-		copy(tmp, d.window[:d.oldest])
-		copy(d.window, d.window[d.oldest:])
-		copy(d.window[n-d.oldest:], tmp)
-		d.oldest = 0
-	}
-	d.window = append(d.window, data...)
+	d.window.Write(data)
 
 	d.value = 0
-	for _, b := range d.window {
+	for _, b := range d.window.Bytes {
 		d.value <<= 8
 		d.value |= Pol(b)
 		d.value = d.value.Mod(d.pol)
@@ -216,23 +201,10 @@ func (d *RabinKarp64) Sum(b []byte) []byte {
 
 // Roll updates the checksum of the window from the entering byte. You
 // MUST initialize a window with Write() before calling this method.
-func (d *RabinKarp64) Roll(c byte) {
-	// This check costs 10-15% performance. If we disable it, we crash
-	// when the window is empty. If we enable it, we are always correct
-	// (an empty window never changes no matter how much you roll it).
-	//if len(d.window) == 0 {
-	//	return
-	//}
-	// extract the entering/leaving bytes and update the circular buffer.
-	enter := c
-	leave := uint64(d.window[d.oldest])
-	d.window[d.oldest] = c
-	d.oldest += 1
-	if d.oldest >= len(d.window) {
-		d.oldest = 0
-	}
+func (d *RabinKarp64) Roll(b byte) {
+	enter, leave := b, d.window.Roll(b)
 
-	d.value ^= d.tables.out[leave]
+	d.value ^= d.tables.out[int(leave)]
 	index := byte(d.value >> d.polShift)
 	d.value <<= 8
 	d.value |= Pol(enter)

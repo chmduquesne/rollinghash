@@ -46,3 +46,45 @@ type Hash64 interface {
 	hash.Hash64
 	Roller
 }
+
+type RollingWindow struct {
+	Bytes  []byte
+	oldest int
+}
+
+func (r *RollingWindow) Reset() {
+	r.Bytes = r.Bytes[:0]
+	r.oldest = 0
+}
+
+func (r *RollingWindow) ReIndex() {
+	if r.oldest != 0 {
+		tmp := make([]byte, r.oldest)
+		copy(tmp, r.Bytes[:r.oldest])
+		copy(r.Bytes, r.Bytes[r.oldest:])
+		copy(r.Bytes[len(r.Bytes)-r.oldest:], tmp)
+		r.oldest = 0
+	}
+}
+
+func (r *RollingWindow) Write(data []byte) {
+	r.ReIndex()
+	r.Bytes = append(r.Bytes, data...)
+}
+
+func (r *RollingWindow) Roll(enter byte) (leave byte) {
+	leave = r.Bytes[r.oldest]
+	r.Bytes[r.oldest] = enter
+	r.oldest += 1
+	if r.oldest >= len(r.Bytes) {
+		r.oldest = 0
+	}
+	return
+}
+
+func NewRollingWindow() *RollingWindow {
+	return &RollingWindow{
+		Bytes:  make([]byte, 0, DefaultWindowCap),
+		oldest: 0,
+	}
+}
