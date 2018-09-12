@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"hash"
 	"io"
 	"log"
 	"os"
@@ -34,7 +35,10 @@ func genMasks() (res []uint64) {
 	return
 }
 
-func hash2uint64(s []byte) (res uint64) {
+// Gets the hash sum as a uint64
+func sum64(h hash.Hash) (res uint64) {
+	buf := make([]byte, 0, 8)
+	s := h.Sum(buf)
 	for _, b := range s {
 		res <<= 8
 		res |= uint64(b)
@@ -63,8 +67,7 @@ func main() {
 	}
 
 	bufsize := 16 * MiB
-	rbuf := make([]byte, bufsize)
-	hbuf := make([]byte, 0, 8)
+	buf := make([]byte, bufsize)
 	t := time.Now()
 
 	f, err := os.Open("/dev/urandom")
@@ -77,10 +80,10 @@ func main() {
 		}
 	}()
 
-	io.ReadFull(f, rbuf)
+	io.ReadFull(f, buf)
 
 	roll := rollsum.New()
-	roll.Write(rbuf[:64])
+	roll.Write(buf[:64])
 
 	masks := genMasks()
 	hits := make(map[uint64]uint64)
@@ -108,15 +111,15 @@ func main() {
 				fmt.Printf(status)
 				fmt.Printf("\r")
 			}
-			_, err := io.ReadFull(f, rbuf)
+			_, err := io.ReadFull(f, buf)
 			if err != nil {
 				panic(err)
 			}
 			k = 0
 		}
-		roll.Roll(rbuf[k])
+		roll.Roll(buf[k])
 		if *dostats {
-			s := hash2uint64(roll.Sum(hbuf))
+			s := sum64(roll)
 			for _, m := range masks {
 				if s&m == m {
 					hits[m] += 1
