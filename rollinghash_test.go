@@ -166,12 +166,47 @@ func writeNothing(t *testing.T, hashname string, classic hash.Hash, rolling roll
 
 func read(t *testing.T, hashname string, rolling rollinghash.Hash) {
 	rolling.Write([]byte("hello "))
+
 	rolling.Roll(byte('w'))
-
 	window, _ := ioutil.ReadAll(rolling)
+	expected := "ello w"
+	if string(window) != expected {
+		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
+	}
 
-	if string(window) != "ello w" {
-		t.Errorf("[%s] Unexpect read from the hash", hashname)
+	rolling.Roll(byte('o'))
+	window, _ = ioutil.ReadAll(rolling)
+	expected = "llo wo"
+	if string(window) != expected {
+		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
+	}
+
+	rolling.Roll(byte('r'))
+	window, _ = ioutil.ReadAll(rolling)
+	expected = "lo wor"
+	if string(window) != expected {
+		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
+	}
+
+	rolling.Roll(byte('l'))
+	window, _ = ioutil.ReadAll(rolling)
+	expected = "o worl"
+	if string(window) != expected {
+		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
+	}
+
+	rolling.Roll(byte('d'))
+	window, _ = ioutil.ReadAll(rolling)
+	expected = " world"
+	if string(window) != expected {
+		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
+	}
+
+	rolling.Roll(byte('!'))
+	window, _ = ioutil.ReadAll(rolling)
+	expected = "world!"
+	if string(window) != expected {
+		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
 	}
 }
 
