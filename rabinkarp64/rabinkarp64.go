@@ -29,6 +29,7 @@
 package rabinkarp64
 
 import (
+	"io"
 	"sync"
 
 	"github.com/chmduquesne/rollinghash"
@@ -174,8 +175,8 @@ func (d *RabinKarp64) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *RabinKarp64) BlockSize() int { return 1 }
 
-// Read reads the content of the rolling window into p. It never returns
-// an error
+// Read reads the content of the rolling window into p. The error returned
+// is always io.EOF
 func (d *RabinKarp64) Read(p []byte) (int, error) {
 	// Copy the newer bytes
 	n := copy(p, d.window[d.oldest:])
@@ -183,7 +184,7 @@ func (d *RabinKarp64) Read(p []byte) (int, error) {
 	if n < len(p) {
 		n += copy(p[n:], d.window[:d.oldest])
 	}
-	return n, nil
+	return n, io.EOF
 }
 
 // Write appends data to the rolling window and updates the digest.

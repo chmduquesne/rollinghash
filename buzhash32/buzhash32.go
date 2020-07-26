@@ -4,6 +4,7 @@
 package buzhash32
 
 import (
+	"io"
 	"math/rand"
 
 	rollinghash "github.com/chmduquesne/rollinghash"
@@ -77,8 +78,8 @@ func (d *Buzhash32) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Buzhash32) BlockSize() int { return 1 }
 
-// Read reads the content of the rolling window into p. It never returns
-// an error
+// Read reads the content of the rolling window into p. The error returned
+// is always io.EOF
 func (d *Buzhash32) Read(p []byte) (int, error) {
 	// Copy the newer bytes
 	n := copy(p, d.window[d.oldest:])
@@ -86,7 +87,7 @@ func (d *Buzhash32) Read(p []byte) (int, error) {
 	if n < len(p) {
 		n += copy(p[n:], d.window[:d.oldest])
 	}
-	return n, nil
+	return n, io.EOF
 }
 
 // Write appends data to the rolling window and updates the digest.
