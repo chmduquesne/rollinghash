@@ -3,6 +3,7 @@ package bozo32_test
 import (
 	"bufio"
 	"hash"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -61,11 +62,13 @@ var golden = []struct {
 	{0xc7d4c4f0, strings.Repeat("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 1e4)},
 }
 
-// Prove that we implement rollinghash.Hash32
-var _ = rollinghash.Hash32(rollsum.New())
-
-// Prove that we implement hash.Hash32
-var _ = hash.Hash32(rollsum.New())
+// Prove that we implement various standard interfaces
+var (
+	_ hash.Hash32        = rollsum.New()
+	_ rollinghash.Hash32 = rollsum.New()
+	_ io.Writer          = rollsum.New()
+	_ io.Reader          = rollsum.New()
+)
 
 // Sum32ByWriteAndRoll computes the sum by prepending the input slice with
 // a '\0', writing the first bytes of this slice into the sum, then

@@ -5,6 +5,7 @@ package rabinkarp64_test
 import (
 	"bufio"
 	"hash"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -63,11 +64,13 @@ var golden = []struct {
 	{0x2b16296a7e5a6, strings.Repeat("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 1e4)},
 }
 
-// Prove that we implement rollinghash.Hash64
-var _ = rollinghash.Hash64(rollsum.New())
-
-// Prove that we implement hash.Hash64
-var _ = hash.Hash64(rollsum.New())
+// Prove that we implement various standard interfaces
+var (
+	_ hash.Hash64        = rollsum.New()
+	_ rollinghash.Hash64 = rollsum.New()
+	_ io.Writer          = rollsum.New()
+	_ io.Reader          = rollsum.New()
+)
 
 // Sum64ByWriteAndRoll computes the sum by prepending the input slice with
 // a '\0', writing the first bytes of this slice into the sum, then

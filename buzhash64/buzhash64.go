@@ -77,6 +77,18 @@ func (d *Buzhash64) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Buzhash64) BlockSize() int { return 1 }
 
+// Read reads the content of the rolling window into p. It never returns
+// an error
+func (d *Buzhash64) Read(p []byte) (int, error) {
+	// Copy the newer bytes
+	n := copy(p, d.window[d.oldest:])
+	// If there is space left, also copy the older bytes
+	if n < len(p) {
+		n += copy(p[n:], d.window[:d.oldest])
+	}
+	return n, nil
+}
+
 // Write appends data to the rolling window and updates the digest. It
 // never returns an error.
 func (d *Buzhash64) Write(data []byte) (int, error) {

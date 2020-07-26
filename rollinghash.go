@@ -5,7 +5,10 @@ Package rollinghash implements rolling versions of some hashes
 */
 package rollinghash
 
-import "hash"
+import (
+	"hash"
+	"io"
+)
 
 // DefaultWindowCap is the default capacity of the internal window of a
 // new Hash.
@@ -26,23 +29,38 @@ type Roller interface {
 // rollinghash.Hash extends hash.Hash by adding the method Roll. A
 // rollinghash.Hash can be updated byte by byte, by specifying which byte
 // enters the window.
+// A rollinghash.Hash internally maintains a copy of the rolling window in
+// order to keep track of the value of the byte exiting the window. This
+// copy is updated with every call to Roll. The rolling window can be
+// accessed through the io.Reader interface.
 type Hash interface {
 	hash.Hash
+	io.Reader
 	Roller
 }
 
 // rollinghash.Hash32 extends hash.Hash by adding the method Roll. A
 // rollinghash.Hash32 can be updated byte by byte, by specifying which
 // byte enters the window.
+// A rollinghash.Hash32 internally maintains a copy of the rolling window in
+// order to keep track of the value of the byte exiting the window. This
+// copy is updated with every call to Roll. The rolling window can be
+// accessed through the io.Reader interface.
 type Hash32 interface {
 	hash.Hash32
+	io.Reader
 	Roller
 }
 
 // rollinghash.Hash64 extends hash.Hash by adding the method Roll. A
 // rollinghash.Hash64 can be updated byte by byte, by specifying which
 // byte enters the window.
+// A rollinghash.Hash32 internally maintains a copy of the rolling window in
+// order to keep track of the value of the byte exiting the window. This
+// copy is updated with every call to Roll. The rolling window can be
+// accessed through the io.Reader interface.
 type Hash64 interface {
 	hash.Hash64
+	io.Reader
 	Roller
 }

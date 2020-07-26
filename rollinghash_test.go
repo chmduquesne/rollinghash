@@ -2,6 +2,7 @@ package rollinghash_test
 
 import (
 	"hash"
+	"io/ioutil"
 	"math/rand"
 	"testing"
 
@@ -163,6 +164,17 @@ func writeNothing(t *testing.T, hashname string, classic hash.Hash, rolling roll
 	}
 }
 
+func read(t *testing.T, hashname string, rolling rollinghash.Hash) {
+	rolling.Write([]byte("hello "))
+	rolling.Roll(byte('w'))
+
+	window, _ := ioutil.ReadAll(rolling)
+
+	if string(window) != "ello w" {
+		t.Errorf("[%s] Unexpect read from the hash", hashname)
+	}
+}
+
 func TestFoxDog(t *testing.T) {
 	for _, h := range allHashes {
 		h.classic.Reset()
@@ -216,5 +228,12 @@ func TestWriteNothing(t *testing.T) {
 		h.classic.Reset()
 		h.rolling.Reset()
 		writeNothing(t, h.name, h.classic, h.rolling)
+	}
+}
+
+func TestRead(t *testing.T) {
+	for _, h := range allHashes {
+		h.rolling.Reset()
+		read(t, h.name, h.rolling)
 	}
 }
