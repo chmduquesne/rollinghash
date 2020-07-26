@@ -46,10 +46,11 @@ for _, c := range(data[n:]) {
 Accessing the rolling window
 ----------------------------
 
-A [`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash#Hash)
+A
+[`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash#Hash)
 maintains a copy of the rolling window in order to keep track of the value
-of the byte exiting the window. It can be accessed through the `io.Reader`
-interface of the hash.
+of the byte exiting the window. It can be accessed through the
+[`io.Reader`](https://golang.org/pkg/io/#Reader) interface of the hash.
 
 ```golang
 // err is always nil
