@@ -57,9 +57,9 @@ func SumByWriteOnly(h hash.Hash, b []byte) uint64 {
 	return sum64(h)
 }
 
-// Create some random slice (length betwen 0 and 8KB, random content)
+// Create some random slice (length betwen 0 and 1KB, random content)
 func RandomBytes() (res []byte) {
-	n := rand.Intn(8192)
+	n := rand.Intn(1024)
 	res = make([]byte, n)
 	rand.Read(res)
 	return res
@@ -68,7 +68,7 @@ func RandomBytes() (res []byte) {
 // Verify that, on random inputs, the classic hash and the rollinghash
 // return the same values
 func blackBox(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100; i++ {
 		in := RandomBytes()
 		if len(in) > 0 {
 			sum := SumByWriteAndRoll(rolling, in)
