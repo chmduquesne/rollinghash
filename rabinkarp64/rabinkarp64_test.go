@@ -69,7 +69,6 @@ var (
 	_ hash.Hash64        = rollsum.New()
 	_ rollinghash.Hash64 = rollsum.New()
 	_ io.Writer          = rollsum.New()
-	_ io.Reader          = rollsum.New()
 )
 
 // Sum64ByWriteAndRoll computes the sum by prepending the input slice with

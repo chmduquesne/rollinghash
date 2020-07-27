@@ -57,16 +57,19 @@ func (d *Adler32) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Adler32) BlockSize() int { return 1 }
 
-// Read reads the content of the rolling window into p. The error returned
-// is always io.EOF
-func (d *Adler32) Read(p []byte) (int, error) {
-	// Copy the newer bytes
-	n := copy(p, d.window[d.oldest:])
-	// If there is space left, also copy the older bytes
-	if n < len(p) {
-		n += copy(p[n:], d.window[:d.oldest])
+// WriteWindow writes the contents of the current window to w.
+func (d *Adler32) WriteWindow(w io.Writer) (n int, err error) {
+	// Copy the older bytes.
+	if d.oldest < len(d.window) {
+		n, err = w.Write(d.window[d.oldest:])
 	}
-	return n, io.EOF
+	// Then the newer bytes.
+	if err == nil && d.oldest > 0 {
+		var n2 int
+		n2, err = w.Write(d.window[:d.oldest])
+		n += n2
+	}
+	return
 }
 
 // Write appends data to the rolling window and updates the digest.

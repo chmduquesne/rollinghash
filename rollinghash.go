@@ -24,6 +24,12 @@ const DefaultWindowCap = 64
 // every time Roll() is called.
 type Roller interface {
 	Roll(b byte)
+
+	// WriteWindow writes the contents of the current window to w.
+	//
+	// It returns the number of bytes written and any error returned by
+	// w.Write.
+	WriteWindow(w io.Writer) (int, error)
 }
 
 // rollinghash.Hash extends hash.Hash by adding the method Roll. A
@@ -35,7 +41,6 @@ type Roller interface {
 // accessed through the io.Reader interface.
 type Hash interface {
 	hash.Hash
-	io.Reader
 	Roller
 }
 
@@ -48,7 +53,6 @@ type Hash interface {
 // accessed through the io.Reader interface.
 type Hash32 interface {
 	hash.Hash32
-	io.Reader
 	Roller
 }
 
@@ -61,6 +65,5 @@ type Hash32 interface {
 // accessed through the io.Reader interface.
 type Hash64 interface {
 	hash.Hash64
-	io.Reader
 	Roller
 }

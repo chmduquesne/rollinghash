@@ -54,8 +54,10 @@ of the byte exiting the window. It can be accessed through the
 [`io.Reader`](https://golang.org/pkg/io/#Reader) interface of the hash.
 
 ```golang
-// err is always nil
-window, _ := ioutil.ReadAll(h)
+var buf bytes.Buffer
+// The error is always nil for a bytes.Buffer.
+h.WriteWindow(&buf)
+window := buf.Bytes()
 ```
 
 Gotchas
