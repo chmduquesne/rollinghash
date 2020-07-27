@@ -32,7 +32,9 @@ func Example() {
 		// Roll the incoming byte in rolling
 		rolling.Roll(s[i])
 
-		fmt.Printf("%v: checksum %x\n", string(s[i-n+1:i+1]), rolling.Sum32())
+		// Retrieve the current window
+		win := string(rolling.Window(nil))
+		fmt.Printf("%v: checksum %x\n", win, rolling.Sum32())
 
 		// Compare the hashes
 		if classic.Sum32() != rolling.Sum32() {

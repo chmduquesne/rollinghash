@@ -7,11 +7,7 @@
 
 package bozo32
 
-import (
-	"io"
-
-	rollinghash "github.com/chmduquesne/rollinghash"
-)
+import rollinghash "github.com/chmduquesne/rollinghash"
 
 // The size of the checksum.
 const Size = 4
@@ -56,16 +52,11 @@ func (d *Bozo32) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Bozo32) BlockSize() int { return 1 }
 
-// Read reads the content of the rolling window into p. The error returned
-// is always io.EOF
-func (d *Bozo32) Read(p []byte) (int, error) {
-	// Copy the newer bytes
-	n := copy(p, d.window[d.oldest:])
-	// If there is space left, also copy the older bytes
-	if n < len(p) {
-		n += copy(p[n:], d.window[:d.oldest])
-	}
-	return n, io.EOF
+// Window appends the content of the rolling window to p and returns the result.
+func (d *Bozo32) Window(p []byte) []byte {
+	p = append(p, d.window[d.oldest:]...)
+	p = append(p, d.window[:d.oldest]...)
+	return p
 }
 
 // Write appends data to the rolling window and updates the digest. It

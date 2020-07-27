@@ -50,13 +50,8 @@ Accessing the rolling window
 A
 [`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash#Hash)
 maintains a copy of the rolling window in order to keep track of the value
-of the byte exiting the window. It can be accessed through the
-[`io.Reader`](https://golang.org/pkg/io/#Reader) interface of the hash.
-
-```golang
-// err is always nil
-window, _ := ioutil.ReadAll(h)
-```
+of the byte exiting the window. It can be accessed through the `Window`
+method on the hash.
 
 Gotchas
 -------

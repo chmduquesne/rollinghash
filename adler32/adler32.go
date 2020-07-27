@@ -5,7 +5,6 @@ package adler32
 import (
 	"hash"
 	vanilla "hash/adler32"
-	"io"
 
 	"github.com/chmduquesne/rollinghash"
 )
@@ -57,16 +56,11 @@ func (d *Adler32) Size() int { return Size }
 // BlockSize is 1 byte
 func (d *Adler32) BlockSize() int { return 1 }
 
-// Read reads the content of the rolling window into p. The error returned
-// is always io.EOF
-func (d *Adler32) Read(p []byte) (int, error) {
-	// Copy the newer bytes
-	n := copy(p, d.window[d.oldest:])
-	// If there is space left, also copy the older bytes
-	if n < len(p) {
-		n += copy(p[n:], d.window[:d.oldest])
-	}
-	return n, io.EOF
+// Window appends the content of the rolling window to p and returns the result.
+func (d *Adler32) Window(p []byte) []byte {
+	p = append(p, d.window[d.oldest:]...)
+	p = append(p, d.window[:d.oldest]...)
+	return p
 }
 
 // Write appends data to the rolling window and updates the digest.
