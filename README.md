@@ -115,6 +115,7 @@ Notable users
 * [syncthing](https://syncthing.net/), a decentralized synchronisation
   solution
 * [muscato](https://github.com/kshedden/muscato), a genome analysis tool
+* [kopia](https://github.com/kopia/kopia), a backup tool
 
 If you are using this in production or for research, let me know and I
 will happily put a link here!
