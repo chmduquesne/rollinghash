@@ -1,8 +1,8 @@
 package rollinghash_test
 
 import (
+	"bytes"
 	"hash"
-	"io/ioutil"
 	"math/rand"
 	"testing"
 
@@ -167,43 +167,50 @@ func writeNothing(t *testing.T, hashname string, classic hash.Hash, rolling roll
 func read(t *testing.T, hashname string, rolling rollinghash.Hash) {
 	rolling.Write([]byte("hello "))
 
+	var buf bytes.Buffer
+	readWindow := func() []byte {
+		buf.Reset()
+		rolling.WriteWindow(&buf)
+		return buf.Bytes()
+	}
+
 	rolling.Roll(byte('w'))
-	window, _ := ioutil.ReadAll(rolling)
+	window := readWindow()
 	expected := "ello w"
 	if string(window) != expected {
 		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
 	}
 
 	rolling.Roll(byte('o'))
-	window, _ = ioutil.ReadAll(rolling)
+	window = readWindow()
 	expected = "llo wo"
 	if string(window) != expected {
 		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
 	}
 
 	rolling.Roll(byte('r'))
-	window, _ = ioutil.ReadAll(rolling)
+	window = readWindow()
 	expected = "lo wor"
 	if string(window) != expected {
 		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
 	}
 
 	rolling.Roll(byte('l'))
-	window, _ = ioutil.ReadAll(rolling)
+	window = readWindow()
 	expected = "o worl"
 	if string(window) != expected {
 		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
 	}
 
 	rolling.Roll(byte('d'))
-	window, _ = ioutil.ReadAll(rolling)
+	window = readWindow()
 	expected = " world"
 	if string(window) != expected {
 		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
 	}
 
 	rolling.Roll(byte('!'))
-	window, _ = ioutil.ReadAll(rolling)
+	window = readWindow()
 	expected = "world!"
 	if string(window) != expected {
 		t.Errorf("[%s] Expected the window to be '%s'", hashname, expected)
