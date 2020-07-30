@@ -7,7 +7,8 @@ import (
 	"io"
 	"math/rand"
 
-	rollinghash "github.com/chmduquesne/rollinghash"
+	"github.com/chmduquesne/rollinghash"
+	"github.com/chmduquesne/rollinghash/internal/window"
 )
 
 var defaultHashes [256]uint32
@@ -80,17 +81,7 @@ func (d *Buzhash32) BlockSize() int { return 1 }
 
 // WriteWindow writes the contents of the current window to w.
 func (d *Buzhash32) WriteWindow(w io.Writer) (n int, err error) {
-	// Copy the older bytes.
-	if d.oldest < len(d.window) {
-		n, err = w.Write(d.window[d.oldest:])
-	}
-	// Then the newer bytes.
-	if err == nil && d.oldest > 0 {
-		var n2 int
-		n2, err = w.Write(d.window[:d.oldest])
-		n += n2
-	}
-	return
+	return window.Write(w, d.window, d.oldest)
 }
 
 // Write appends data to the rolling window and updates the digest.
