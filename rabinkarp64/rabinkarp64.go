@@ -33,6 +33,7 @@ import (
 	"sync"
 
 	"github.com/chmduquesne/rollinghash"
+	"github.com/chmduquesne/rollinghash/internal/window"
 )
 
 const Size = 8
@@ -177,17 +178,7 @@ func (d *RabinKarp64) BlockSize() int { return 1 }
 
 // WriteWindow writes the contents of the current window to w.
 func (d *RabinKarp64) WriteWindow(w io.Writer) (n int, err error) {
-	// Copy the older bytes.
-	if d.oldest < len(d.window) {
-		n, err = w.Write(d.window[d.oldest:])
-	}
-	// Then the newer bytes.
-	if err == nil && d.oldest > 0 {
-		var n2 int
-		n2, err = w.Write(d.window[:d.oldest])
-		n += n2
-	}
-	return
+	return window.Write(w, d.window, d.oldest)
 }
 
 // Write appends data to the rolling window and updates the digest.
@@ -197,12 +188,8 @@ func (d *RabinKarp64) Write(data []byte) (int, error) {
 		return 0, nil
 	}
 	// Re-arrange the window so that the leftmost element is at index 0
-	n := len(d.window)
 	if d.oldest != 0 {
-		tmp := make([]byte, d.oldest)
-		copy(tmp, d.window[:d.oldest])
-		copy(d.window, d.window[d.oldest:])
-		copy(d.window[n-d.oldest:], tmp)
+		window.MoveLeft(d.window, d.oldest)
 		d.oldest = 0
 	}
 	d.window = append(d.window, data...)
