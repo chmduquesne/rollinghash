@@ -133,6 +133,8 @@ Notable users
   solution
 * [muscato](https://github.com/kshedden/muscato), a genome analysis tool
 * [kopia](https://github.com/kopia/kopia), a backup tool
+* [pachyderm](https://github.com/pachyderm/pachyderm), a data science
+  platform
 
 If you are using this in production or for research, let me know and I
 will happily put a link here!
