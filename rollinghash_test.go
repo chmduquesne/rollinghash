@@ -241,7 +241,7 @@ func TestRollEmptyWindow(t *testing.T) {
 	}
 }
 
-func TestwriteTwice(t *testing.T) {
+func TestWriteTwice(t *testing.T) {
 	for _, h := range allHashes {
 		h.classic.Reset()
 		h.rolling.Reset()
@@ -249,7 +249,7 @@ func TestwriteTwice(t *testing.T) {
 	}
 }
 
-func TestwriteRollWrite(t *testing.T) {
+func TestWriteRollWrite(t *testing.T) {
 	for _, h := range allHashes {
 		h.classic.Reset()
 		h.rolling.Reset()

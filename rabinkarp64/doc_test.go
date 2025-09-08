@@ -43,7 +43,6 @@ func Example() {
 	}
 
 	// Output:
-
 	// he quick brown f: checksum 1ab89e68de7c15
 	// e quick brown fo: checksum 1d26864e21619f
 	//  quick brown fox: checksum 13fdc4aaefcf91

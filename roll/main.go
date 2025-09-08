@@ -10,7 +10,7 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"code.cloudfoundry.org/bytefmt"
+	"github.com/dustin/go-humanize"
 	//rollsum "github.com/chmduquesne/rollinghash/adler32"
 	//rollsum "github.com/chmduquesne/rollinghash/buzhash32"
 	rollsum "github.com/chmduquesne/rollinghash/buzhash64"
@@ -61,7 +61,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	fileSize, err := bytefmt.ToBytes(*size)
+	fileSize, err := humanize.ParseBytes(*size)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -95,14 +95,14 @@ func main() {
 	k := 0
 	for n < fileSize {
 		if k >= bufsize {
-			status := fmt.Sprintf("Byte count: %s", bytefmt.ByteSize(n))
+			status := fmt.Sprintf("Byte count: %s", humanize.Bytes(n))
 			if *dostats {
 				fmt.Printf(clearscreen)
 				fmt.Println(status)
 				for i, m := range masks {
 					frequency := "NaN"
 					if hits[m] != 0 {
-						frequency = bytefmt.ByteSize(n / hits[m])
+						frequency = humanize.Bytes(n / hits[m])
 					}
 					fmt.Printf("0x%016x (%02d bits): every %s\n", m, i+1, frequency)
 				}
@@ -133,8 +133,8 @@ func main() {
 	}
 	duration := time.Since(t)
 	fmt.Printf("Rolled %s of data in %v (%s/s).\n",
-		bytefmt.ByteSize(n),
+		humanize.Bytes(n),
 		duration,
-		bytefmt.ByteSize(n*1e9/uint64(duration)),
+		humanize.Bytes(n*1e9/uint64(duration)),
 	)
 }

@@ -1,7 +1,7 @@
-[![Build Status](https://travis-ci.org/chmduquesne/rollinghash.svg?branch=master)](https://travis-ci.org/chmduquesne/rollinghash)
-[![Coverage Status](https://coveralls.io/repos/github/chmduquesne/rollinghash/badge.svg?branch=master)](https://coveralls.io/github/chmduquesne/rollinghash?branch=master)
-[![GoDoc Reference](http://godoc.org/github.com/chmduquesne/rollinghash?status.svg)](https://godoc.org/github.com/chmduquesne/rollinghash)
-![Go 1.7+](https://img.shields.io/badge/go-1.7%2B-orange.svg)
+[![CI](https://github.com/chmduquesne/rollinghash/actions/workflows/ci.yml/badge.svg)](https://github.com/chmduquesne/rollinghash/actions/workflows/ci.yml)
+[![Coverage Status](https://codecov.io/gh/chmduquesne/rollinghash/branch/master/graph/badge.svg)](https://codecov.io/gh/chmduquesne/rollinghash)
+[![GoDoc Reference](https://pkg.go.dev/badge/github.com/chmduquesne/rollinghash.svg)](https://pkg.go.dev/github.com/chmduquesne/rollinghash)
+![Go 1.21+](https://img.shields.io/badge/go-1.21%2B-blue.svg)
 
 Rolling Hashes
 ==============
