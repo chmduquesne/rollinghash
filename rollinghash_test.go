@@ -279,3 +279,12 @@ func TestRead(t *testing.T) {
 		read(t, h.name, h.rolling)
 	}
 }
+
+func TestBlockSize(t *testing.T) {
+	for _, h := range allHashes {
+		n := h.rolling.BlockSize()
+		if n != 1 {
+			t.Errorf("[%s] Expected BlockSize to return 1, got %v", h.name, n)
+		}
+	}
+}
