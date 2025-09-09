@@ -288,3 +288,26 @@ func TestBlockSize(t *testing.T) {
 		}
 	}
 }
+
+func TestSize(t *testing.T) {
+	expectedSizes := map[string]int{
+		"adler32":     4, // 32-bit hash
+		"bozo32":      4, // 32-bit hash
+		"buzhash32":   4, // 32-bit hash
+		"buzhash64":   8, // 64-bit hash
+		"rabinkarp64": 8, // 64-bit hash
+	}
+
+	for _, h := range allHashes {
+		expectedSize, exists := expectedSizes[h.name]
+		if !exists {
+			t.Errorf("[%s] No expected size defined for this hash", h.name)
+			continue
+		}
+
+		actualSize := h.rolling.Size()
+		if actualSize != expectedSize {
+			t.Errorf("[%s] Expected Size to return %d, got %d", h.name, expectedSize, actualSize)
+		}
+	}
+}
