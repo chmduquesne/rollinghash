@@ -454,3 +454,24 @@ func TestPolMulMod(t *testing.T) {
 		}
 	}
 }
+
+var stringTests = []struct {
+	pol      Pol
+	expected string
+}{
+	{0, "0x0"},
+	{1, "0x1"},
+	{10, "0xa"},
+	{255, "0xff"},
+	{0x3DA3358B4DC173, "0x3da3358b4dc173"},
+	{0x8000000000000000, "0x8000000000000000"},
+}
+
+func TestString(t *testing.T) {
+	for i, test := range stringTests {
+		result := test.pol.String()
+		if result != test.expected {
+			t.Errorf("test %d failed: got %v, want %v", i, result, test.expected)
+		}
+	}
+}
