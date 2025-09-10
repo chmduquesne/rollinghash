@@ -471,6 +471,18 @@ var polMulModTests = []struct {
 		0xdd2bda3b77c9,
 		0x425ae8595b7a,
 	},
+	{
+		0,
+		0x230,
+		0x55,
+		0,
+	},
+	{
+		0x1230,
+		0,
+		0x55,
+		0,
+	},
 }
 
 func TestPolMulMod(t *testing.T) {
