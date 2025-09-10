@@ -102,6 +102,11 @@ var polMulTests = []struct {
 		parseBin("110101"),
 		parseBin("1100001111"),
 	},
+	{
+		0,
+		0,
+		0,
+	},
 }
 
 func TestPolMul(t *testing.T) {
