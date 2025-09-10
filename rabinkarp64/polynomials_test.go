@@ -28,6 +28,7 @@
 package rabinkarp64
 
 import (
+	"bytes"
 	"errors"
 	"strconv"
 	"testing"
@@ -521,16 +522,34 @@ func TestString(t *testing.T) {
 func TestDerivePolynomialWithReaderError(t *testing.T) {
 	reader := iotest.ErrReader(errors.New("read error"))
 	pol, err := DerivePolynomial(reader)
-	
+
 	if pol != 0 {
 		t.Errorf("expected polynomial to be 0, got %v", pol)
 	}
-	
+
 	if err == nil {
 		t.Error("expected an error but got nil")
 	}
-	
+
 	if err.Error() != "read error" {
 		t.Errorf("expected error message 'read error', got '%v'", err.Error())
+	}
+}
+
+func TestDerivePolynomialWithZeroReader(t *testing.T) {
+	// reads a stream of zero (one million times)
+	zeroReader := bytes.NewReader(make([]byte, 8000000))
+	pol, err := DerivePolynomial(zeroReader)
+
+	if pol != 0 {
+		t.Errorf("expected polynomial to be 0, got %v", pol)
+	}
+
+	if err == nil {
+		t.Error("expected an error but got nil")
+	}
+
+	if err.Error() != "unable to find new random irreducible polynomial" {
+		t.Errorf("expected error message 'unable to find new random irreducible polynomial', got '%v'", err.Error())
 	}
 }
