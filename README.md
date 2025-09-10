@@ -85,10 +85,16 @@ h1.Roll(b) // Not inlined (slow)
 h2.Roll(b) // inlined (fast)
 ```
 
-What's new in v4
-----------------
+What's new
+----------
 
-In v4:
+On master (unreleased):
+
+* Simplified the internals of rabinkarp64 (rabinkarp64.Pol.Deg())
+
+* Extended the test suite to improve coverage
+
+In v4.0.0:
 
 * `Write` has become fully consistent with `hash.Hash`. As opposed to
   previous versions, where writing data would reinitialize the window, it
