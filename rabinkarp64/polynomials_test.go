@@ -303,6 +303,14 @@ func TestExpandPolynomial(t *testing.T) {
 	}
 }
 
+func TestExpandNullPolynomial(t *testing.T) {
+	nullPol := Pol(0)
+	nullExpansion := nullPol.Expand()
+	if nullExpansion != "0" {
+		t.Fatalf("expanding null polynomial failed: got %s, want 0", nullExpansion)
+	}
+}
+
 var polIrredTests = []struct {
 	f     Pol
 	irred bool
