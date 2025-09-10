@@ -44,30 +44,7 @@ jobs:
         go-version: '1.23'
 
     - name: Test with coverage
-      run: |
-        go test -v -covermode=atomic -coverpkg=./... -coverprofile=coverage.tmp ./...
-        # Remove duplicate entries and keep the one with the highest count
-        awk '
-        BEGIN { print "mode: atomic" }
-        NR > 1 {
-            key = $1 ":" $2
-            if (key in max_count) {
-                if ($3 > max_count[key]) {
-                    max_count[key] = $3
-                    lines[key] = $0
-                }
-            } else {
-                max_count[key] = $3
-                lines[key] = $0
-            }
-        }
-        END {
-            for (key in lines) {
-                print lines[key]
-            }
-        }
-        ' coverage.tmp > coverage.out
-        rm coverage.tmp
+      run: go test -v -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
