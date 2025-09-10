@@ -9,12 +9,11 @@ Rolling Hashes
 Philosophy
 ----------
 
-This package contains several various rolling hashes for you to play with
-crazy ideas. The API design philosophy is to stick as closely as possible
-to the interface provided by the builtin hash package (the hashes
-implemented here are effectively drop-in replacements for their builtin
-counterparts), while providing simultaneously the highest speed and
-simplicity.
+This package contains several various rolling hashes. The API design
+philosophy is to stick as closely as possible to the interface provided by
+the builtin hash package (the hashes implemented here are effectively
+drop-in replacements for their builtin counterparts), while providing
+simultaneously the highest speed and simplicity.
 
 Usage
 -----
@@ -29,7 +28,7 @@ interface. Here is how it is typically used:
 ```golang
 data := []byte("here is some data to roll on")
 h := buzhash64.New()
-n := 16
+n := 16 // window size
 
 // Initialize the rolling window
 h.Write(data[:n])
@@ -135,6 +134,9 @@ except the `rabinkarp64` subpackage, which has been adapted from
 Notable users
 -------------
 
+This library is used by a wide variety of tools, for production and
+scientific purposes.
+
 * [syncthing](https://syncthing.net/), a decentralized synchronisation
   solution
 * [muscato](https://github.com/kshedden/muscato), a genome analysis tool
@@ -142,5 +144,5 @@ Notable users
 * [pachyderm](https://github.com/pachyderm/pachyderm), a data science
   platform
 
-If you are using this in production or for research, let me know and I
-will happily put a link here!
+If you are using succesfully, let me know and I will happily put a link
+here!
