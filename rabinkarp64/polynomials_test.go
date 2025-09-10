@@ -143,6 +143,26 @@ func TestPolMulOverflow(t *testing.T) {
 	t.Fatal("overflow test did not panic")
 }
 
+func TestPolDivByZero(t *testing.T) {
+	defer func() {
+		// try to recover division by zero error
+		err := recover()
+
+		if e, ok := err.(string); ok && e == "division by zero" {
+			return
+		}
+
+		t.Logf("invalid error raised: %v", err)
+		// re-raise error if not division by zero
+		panic(err)
+	}()
+
+	x := Pol(42)
+	nullPol := Pol(0)
+	x.Div(nullPol)
+	t.Fatal("division by zero test did not panic")
+}
+
 var polDivTests = []struct {
 	x, y Pol
 	res  Pol
