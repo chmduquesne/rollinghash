@@ -28,8 +28,10 @@
 package rabinkarp64
 
 import (
+	"errors"
 	"strconv"
 	"testing"
+	"testing/iotest"
 )
 
 var polAddTests = []struct {
@@ -513,5 +515,22 @@ func TestString(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("test %d failed: got %v, want %v", i, result, test.expected)
 		}
+	}
+}
+
+func TestDerivePolynomialWithReaderError(t *testing.T) {
+	reader := iotest.ErrReader(errors.New("read error"))
+	pol, err := DerivePolynomial(reader)
+	
+	if pol != 0 {
+		t.Errorf("expected polynomial to be 0, got %v", pol)
+	}
+	
+	if err == nil {
+		t.Error("expected an error but got nil")
+	}
+	
+	if err.Error() != "read error" {
+		t.Errorf("expected error message 'read error', got '%v'", err.Error())
 	}
 }
