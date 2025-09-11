@@ -1,0 +1,67 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  # deployments permission to deploy GitHub pages website
+  deployments: write
+  # contents permission to update benchmark contents in gh-pages branch
+  contents: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 'stable'
+
+    - name: Run benchmark
+      run: |
+        go test -bench=. ./... | tee benchmark.tmp
+        # Add package name in the benchmark function to circumvent
+        # https://github.com/benchmark-action/github-action-benchmark/issues/264
+        awk '
+        /^pkg: / {
+          split($2, parts, "/")
+          package = parts[length(parts)]
+          package = toupper(substr(package, 1, 1)) tolower(substr(package, 2))
+          next
+        }
+        /^Benchmark/ {
+          if (match($0, /^Benchmark[^-]*-[0-9]+/)) {
+            benchmark_part = substr($0, 1, RSTART + RLENGTH - 1)
+            rest = substr($0, RSTART + RLENGTH)
+            gsub(/^Benchmark/, "Benchmark" package, benchmark_part)
+            $0 = benchmark_part rest
+          }
+          print
+          next
+        }
+        { print }
+        ' benchmark.tmp > benchmark.txt
+        rm benchmark.tmp
+
+    - name: Store benchmark result
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        name: Go Benchmark
+        tool: 'go'
+        output-file-path: benchmark.txt
+        # Use alert threshold (200% of previous benchmark)
+        alert-threshold: '200%'
+        # Comment on commit if performance regresses
+        comment-on-alert: true
+        # Fail the action if alert threshold is reached
+        fail-on-alert: true
+        # Push and deploy GitHub pages branch automatically only on master branch
+        auto-push: ${{ github.ref == 'refs/heads/master' }}
+        # GitHub API token to make commit to gh-pages branch
+        github-token: ${{ secrets.GITHUB_TOKEN }}
