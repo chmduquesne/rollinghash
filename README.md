@@ -94,7 +94,7 @@ On master (unreleased):
 * Extended the test suite to improve coverage
 
 * Setup continuous [performance
-  tracking](http://chmduquesne.github.io/rollinghash/dev/bench/)
+  tracking](https://chmduquesne.github.io/rollinghash/dev/bench/)
 
 In v4.0.0:
 
