@@ -56,7 +56,7 @@ jobs:
         tool: 'go'
         output-file-path: benchmark.txt
         # Use alert threshold (200% of previous benchmark)
-        alert-threshold: '200%'
+        alert-threshold: '150%'
         # Comment on commit if performance regresses
         comment-on-alert: true
         # Fail the action if alert threshold is reached
