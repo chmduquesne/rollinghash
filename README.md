@@ -96,6 +96,8 @@ On master (unreleased):
 * Setup continuous [performance
   tracking](https://chmduquesne.github.io/rollinghash/dev/bench/)
 
+* Setup vulnerability checking
+
 In v4.0.0:
 
 * `Write` has become fully consistent with `hash.Hash`. As opposed to
