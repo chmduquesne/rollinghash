@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1757679647346,
+  "lastUpdate": 1757681335260,
   "repoUrl": "https://github.com/chmduquesne/rollinghash",
   "entries": {
     "Go Benchmark": [
@@ -1440,6 +1440,366 @@ window.BENCHMARK_DATA = {
             "value": 0,
             "unit": "allocs/op",
             "extra": "147256659 times\n4 procs"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "chmd@chmd.fr",
+            "name": "Christophe-Marie Duquesne",
+            "username": "chmduquesne"
+          },
+          "committer": {
+            "email": "chmd@chmd.fr",
+            "name": "Christophe-Marie Duquesne",
+            "username": "chmduquesne"
+          },
+          "distinct": true,
+          "id": "719a36482ad68cdd4db5f93448e722c2d206716e",
+          "message": "Add a dependabot configuration",
+          "timestamp": "2025-09-12T14:47:39+02:00",
+          "tree_id": "dd2fb3cced0e506f189eb9821a45a277e7d33f70",
+          "url": "https://github.com/chmduquesne/rollinghash/commit/719a36482ad68cdd4db5f93448e722c2d206716e"
+        },
+        "date": 1757681334910,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkAdler32Rolling64B",
+            "value": 6.948,
+            "unit": "ns/op\t147373.20 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "172382617 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32Rolling64B - ns/op",
+            "value": 6.948,
+            "unit": "ns/op",
+            "extra": "172382617 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32Rolling64B - MB/s",
+            "value": 147373.2,
+            "unit": "MB/s",
+            "extra": "172382617 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32Rolling64B - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "172382617 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32Rolling64B - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "172382617 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32ReadUrandom",
+            "value": 9.714,
+            "unit": "ns/op\t105410.78 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "123727988 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32ReadUrandom - ns/op",
+            "value": 9.714,
+            "unit": "ns/op",
+            "extra": "123727988 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32ReadUrandom - MB/s",
+            "value": 105410.78,
+            "unit": "MB/s",
+            "extra": "123727988 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32ReadUrandom - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "123727988 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAdler32ReadUrandom - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "123727988 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32Rolling64B",
+            "value": 1.829,
+            "unit": "ns/op\t559839.35 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "656549439 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32Rolling64B - ns/op",
+            "value": 1.829,
+            "unit": "ns/op",
+            "extra": "656549439 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32Rolling64B - MB/s",
+            "value": 559839.35,
+            "unit": "MB/s",
+            "extra": "656549439 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32Rolling64B - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "656549439 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32Rolling64B - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "656549439 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32ReadUrandom",
+            "value": 6.624,
+            "unit": "ns/op\t154597.44 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "181024441 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32ReadUrandom - ns/op",
+            "value": 6.624,
+            "unit": "ns/op",
+            "extra": "181024441 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32ReadUrandom - MB/s",
+            "value": 154597.44,
+            "unit": "MB/s",
+            "extra": "181024441 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32ReadUrandom - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "181024441 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBozo32ReadUrandom - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "181024441 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32Rolling64B",
+            "value": 2.568,
+            "unit": "ns/op\t398755.70 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "459625112 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32Rolling64B - ns/op",
+            "value": 2.568,
+            "unit": "ns/op",
+            "extra": "459625112 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32Rolling64B - MB/s",
+            "value": 398755.7,
+            "unit": "MB/s",
+            "extra": "459625112 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32Rolling64B - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "459625112 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32Rolling64B - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "459625112 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32ReadUrandom",
+            "value": 7.663,
+            "unit": "ns/op\t133622.82 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "158907424 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32ReadUrandom - ns/op",
+            "value": 7.663,
+            "unit": "ns/op",
+            "extra": "158907424 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32ReadUrandom - MB/s",
+            "value": 133622.82,
+            "unit": "MB/s",
+            "extra": "158907424 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32ReadUrandom - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "158907424 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash32ReadUrandom - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "158907424 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64Rolling64B",
+            "value": 2.457,
+            "unit": "ns/op\t416836.42 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "495241002 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64Rolling64B - ns/op",
+            "value": 2.457,
+            "unit": "ns/op",
+            "extra": "495241002 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64Rolling64B - MB/s",
+            "value": 416836.42,
+            "unit": "MB/s",
+            "extra": "495241002 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64Rolling64B - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "495241002 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64Rolling64B - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "495241002 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64ReadUrandom",
+            "value": 7.847,
+            "unit": "ns/op\t130499.97 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "153340042 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64ReadUrandom - ns/op",
+            "value": 7.847,
+            "unit": "ns/op",
+            "extra": "153340042 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64ReadUrandom - MB/s",
+            "value": 130499.97,
+            "unit": "MB/s",
+            "extra": "153340042 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64ReadUrandom - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "153340042 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBuzhash64ReadUrandom - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "153340042 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64PolDivMod",
+            "value": 4.358,
+            "unit": "ns/op",
+            "extra": "275446968 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64PolDiv",
+            "value": 4.357,
+            "unit": "ns/op",
+            "extra": "275246253 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64PolMod",
+            "value": 4.358,
+            "unit": "ns/op",
+            "extra": "275190001 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64PolDeg",
+            "value": 0.3114,
+            "unit": "ns/op",
+            "extra": "1000000000 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64RandomPolynomial",
+            "value": 83719999,
+            "unit": "ns/op",
+            "extra": "13 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64PolIrreducible",
+            "value": 15876104,
+            "unit": "ns/op",
+            "extra": "74 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64Rolling64B",
+            "value": 5.546,
+            "unit": "ns/op\t184640.58 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "216830616 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64Rolling64B - ns/op",
+            "value": 5.546,
+            "unit": "ns/op",
+            "extra": "216830616 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64Rolling64B - MB/s",
+            "value": 184640.58,
+            "unit": "MB/s",
+            "extra": "216830616 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64Rolling64B - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "216830616 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64Rolling64B - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "216830616 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64ReadUrandom",
+            "value": 8.184,
+            "unit": "ns/op\t125119.68 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "147584488 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64ReadUrandom - ns/op",
+            "value": 8.184,
+            "unit": "ns/op",
+            "extra": "147584488 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64ReadUrandom - MB/s",
+            "value": 125119.68,
+            "unit": "MB/s",
+            "extra": "147584488 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64ReadUrandom - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "147584488 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRabinkarp64ReadUrandom - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "147584488 times\n4 procs"
           }
         ]
       }
