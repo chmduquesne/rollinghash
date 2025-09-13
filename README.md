@@ -98,6 +98,8 @@ On master (unreleased):
 
 * Setup vulnerability checking
 
+* Setup dependency checking
+
 In v4.0.0:
 
 * `Write` has become fully consistent with `hash.Hash`. As opposed to
