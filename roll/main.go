@@ -103,7 +103,7 @@ func main() {
 		if k >= bufsize {
 			status := fmt.Sprintf("Byte count: %s", humanize.Bytes(n))
 			if *dostats {
-				fmt.Printf(clearscreen)
+				fmt.Print(clearscreen)
 				fmt.Println(status)
 				for i, m := range masks {
 					frequency := "NaN"
@@ -113,8 +113,8 @@ func main() {
 					fmt.Printf("0x%016x (%02d bits): every %s\n", m, i+1, frequency)
 				}
 			} else {
-				fmt.Printf(clearline)
-				fmt.Printf(status)
+				fmt.Print(clearline)
+				fmt.Print(status)
 				fmt.Printf("\r")
 			}
 			_, err := io.ReadFull(f, buf)

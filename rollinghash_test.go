@@ -2,6 +2,7 @@ package rollinghash_test
 
 import (
 	"bytes"
+	crand "crypto/rand"
 	"hash"
 	"math/rand"
 	"testing"
@@ -61,7 +62,9 @@ func SumByWriteOnly(h hash.Hash, b []byte) uint64 {
 func RandomBytes() (res []byte) {
 	n := rand.Intn(1024)
 	res = make([]byte, n)
-	rand.Read(res)
+	if _, err := crand.Read(res); err != nil {
+		panic(err)
+	}
 	return res
 }
 

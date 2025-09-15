@@ -56,11 +56,7 @@ func mulOverflows(a, b Pol) bool {
 	}
 	c := a.mul(b)
 	d := c.Div(b)
-	if d != a {
-		return true
-	}
-
-	return false
+	return d != a
 }
 
 func (x Pol) mul(y Pol) Pol {

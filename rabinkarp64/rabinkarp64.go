@@ -89,7 +89,6 @@ func (d *RabinKarp64) updateTables() {
 	cache.Lock()
 	cache.entries[idx] = d.tables
 	cache.Unlock()
-	return
 }
 
 func buildTables(pol Pol, windowsize int) (t *tables) {

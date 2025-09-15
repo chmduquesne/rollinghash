@@ -45,7 +45,7 @@ func (d *Buzhash64) Reset() {
 func GenerateHashes(seed int64) (res [256]uint64) {
 	random := rand.New(rand.NewSource(seed))
 	used := make(map[uint64]bool)
-	for i, _ := range res {
+	for i := range res {
 		x := uint64(random.Int63())
 		for used[x] {
 			x = uint64(random.Int63())
