@@ -2,10 +2,9 @@ package buzhash64_test
 
 import (
 	"bufio"
+	"crypto/rand"
 	"hash"
 	"io"
-	"log"
-	"os"
 	"strings"
 	"testing"
 
@@ -129,15 +128,7 @@ func BenchmarkRolling64B(b *testing.B) {
 func BenchmarkReadUrandom(b *testing.B) {
 	b.SetBytes(1024)
 	b.ReportAllocs()
-	f, err := os.Open("/dev/urandom")
-	if err != nil {
-		b.Errorf("Could not open /dev/urandom")
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	f := rand.Reader
 	r := bufio.NewReader(f)
 	ws := 64
 	window := make([]byte, ws)
