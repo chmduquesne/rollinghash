@@ -170,7 +170,9 @@ func read(t *testing.T, hashname string, rolling rollinghash.Hash) {
 	var buf bytes.Buffer
 	readWindow := func() []byte {
 		buf.Reset()
-		rolling.WriteWindow(&buf)
+		if _, err := rolling.WriteWindow(&buf); err != nil {
+			t.Fatal(err)
+		}
 		return buf.Bytes()
 	}
 

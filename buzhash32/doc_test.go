@@ -19,14 +19,18 @@ func Example() {
 
 	// You MUST load an initial window into the rolling hash before being
 	// able to roll bytes
-	rolling.Write(s[:n])
+	if _, err := rolling.Write(s[:n]); err != nil {
+		log.Fatal(err)
+	}
 
 	// Roll it and compare the result with full re-calculus every time
 	for i := n; i < len(s); i++ {
 
 		// Reset and write the window in classic
 		classic.Reset()
-		classic.Write(s[i-n+1 : i+1])
+		if _, err := classic.Write(s[i-n+1 : i+1]); err != nil {
+			log.Fatal(err)
+		}
 
 		// Roll the incoming byte in rolling
 		rolling.Roll(s[i])

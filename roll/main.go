@@ -57,7 +57,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		pprof.StartCPUProfile(f)
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal(err)
+		}
 		defer pprof.StopCPUProfile()
 	}
 
@@ -80,10 +82,14 @@ func main() {
 		}
 	}()
 
-	io.ReadFull(f, buf)
+	if _, err := io.ReadFull(f, buf); err != nil {
+		log.Fatal(err)
+	}
 
 	roll := rollsum.New()
-	roll.Write(buf[:64])
+	if _, err := roll.Write(buf[:64]); err != nil {
+		log.Fatal(err)
+	}
 
 	masks := genMasks()
 	hits := make(map[uint64]uint64)

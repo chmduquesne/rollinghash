@@ -76,7 +76,9 @@ func Sum64ByWriteAndRoll(b []byte) uint64 {
 	q := []byte("\x00")
 	q = append(q, b...)
 	roll := rollsum.New()
-	roll.Write(q[:len(q)-1])
+	if _, err := roll.Write(q[:len(q)-1]); err != nil {
+		panic(err)
+	}
 	roll.Roll(q[len(q)-1])
 	return roll.Sum64()
 }
@@ -88,7 +90,9 @@ func TestGolden(t *testing.T) {
 		// We test the classic implementation
 		p := []byte(g.in)
 		classic := hash.Hash64(rollsum.New())
-		classic.Write(p)
+		if _, err := classic.Write(p); err != nil {
+			t.Fatal(err)
+		}
 		if got := classic.Sum64(); got != g.out {
 			t.Errorf("classic implentation: for %q, expected 0x%x, got 0x%x", in, g.out, got)
 			continue
@@ -111,7 +115,9 @@ func BenchmarkRolling64B(b *testing.B) {
 
 	h := rollsum.New()
 	in := make([]byte, 0, h.Size())
-	h.Write(window)
+	if _, err := h.Write(window); err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -142,7 +148,9 @@ func BenchmarkReadUrandom(b *testing.B) {
 
 	h := rollsum.New()
 	in := make([]byte, 0, h.Size())
-	h.Write(window)
+	if _, err := h.Write(window); err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
