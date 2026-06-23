@@ -89,34 +89,40 @@ What's new
 
 In v4.1.0:
 
-* The internals of rabinkarp64 have been simplified (rabinkarp64.Pol.Deg())
+* Refactoring
 
-* The test suite has been extended to improve coverage
+  * The internals of rabinkarp64 have been simplified
+    (rabinkarp64.Pol.Deg())
 
-* Continuous [performance
-  tracking](https://chmduquesne.github.io/rollinghash/dev/bench/) using
-  [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark)
-  has been setup to facilitate contributions.
+* Code quality
 
-* Vulnerability checking has been setup using
-  [govulncheck-action](https://github.com/golang/govulncheck-action)
+  * The test suite has been extended to improve coverage
 
-* Dependency checking has been setup using
-  [dependabot](https://github.com/dependabot)
+  * Continuous [performance
+    tracking](https://chmduquesne.github.io/rollinghash/dev/bench/) using
+    [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark)
+    has been setup to facilitate contributions.
 
-* A new rolling hash has been introduced: bozo64. It is equally fast as
-  bozo32, but yields 64 bits hashes.
+  * Vulnerability checking has been setup using
+    [govulncheck-action](https://github.com/golang/govulncheck-action)
 
-* Performance improvements for adler32.Roll: +5% (algebraic
-  simplifications)
+  * Dependency checking has been setup using
+    [dependabot](https://github.com/dependabot)
 
-* Performance improvements for buzhash32 and buzhash64: +24% (using
-  math/bits to improve bit rotation performance)
+* Interface
 
-* Performance improvements for rabinkarp64: +42% (working on locals to
-  allow for compiler optimizations)
+  * A new rolling hash has been introduced: bozo64. It is equally fast as
+    bozo32, but yields 64 bits hashes.
 
-All performance improvements measured directly on the author's laptop
+* Performance Improvements (measured on the author's laptop)
+
+  * adler32.Roll: +5% (algebraic simplifications)
+
+  * buzhash32.Roll and buzhash64.Roll: +24% (using
+    math/bits to improve bit rotation performance)
+
+  * rabinkarp64: +42% (working on locals to allow for compiler
+    optimizations)
 
 In v4.0.0:
 
