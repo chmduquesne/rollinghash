@@ -5,6 +5,7 @@ package buzhash32
 
 import (
 	"io"
+	"math/bits"
 	"math/rand"
 
 	rollinghash "github.com/chmduquesne/rollinghash"
@@ -23,9 +24,8 @@ const Size = 4
 // It implements the cyclic polynomial algorithm
 // https://en.wikipedia.org/wiki/Rolling_hash#Cyclic_polynomial
 type Buzhash32 struct {
-	sum               uint32
-	nRotate           uint
-	nRotateComplement uint // redundant, but pre-computed to spare an operation
+	sum     uint32
+	nRotate uint
 
 	// window is treated like a circular buffer, where the oldest element
 	// is indicated by d.oldest
@@ -112,11 +112,10 @@ func (d *Buzhash32) Write(data []byte) (int, error) {
 
 	d.sum = 0
 	for _, c := range d.window {
-		d.sum = d.sum<<1 | d.sum>>31
+		d.sum = bits.RotateLeft32(d.sum, 1)
 		d.sum ^= d.bytehash[int(c)]
 	}
 	d.nRotate = uint(len(d.window)) % 32
-	d.nRotateComplement = 32 - d.nRotate
 	return len(data), nil
 }
 
@@ -152,5 +151,5 @@ func (d *Buzhash32) Roll(c byte) {
 		d.oldest = 0
 	}
 
-	d.sum = (d.sum<<1 | d.sum>>31) ^ (h0<<d.nRotate | h0>>d.nRotateComplement) ^ hn
+	d.sum = bits.RotateLeft32(d.sum, 1) ^ bits.RotateLeft32(h0, int(d.nRotate)) ^ hn
 }
