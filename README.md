@@ -3,11 +3,9 @@
 [![GoDoc Reference](https://pkg.go.dev/badge/github.com/chmduquesne/rollinghash.svg)](https://pkg.go.dev/github.com/chmduquesne/rollinghash)
 ![Go 1.21+](https://img.shields.io/badge/go-1.21%2B-blue.svg)
 
-Rolling Hashes
-==============
+# Rolling Hashes
 
-Philosophy
-----------
+## Philosophy
 
 This package contains several various rolling hashes. The API design
 philosophy is to stick as closely as possible to the interface provided by
@@ -15,8 +13,7 @@ the builtin hash package (the hashes implemented here are effectively
 drop-in replacements for their builtin counterparts), while providing
 simultaneously the highest speed and simplicity.
 
-Usage
------
+## Usage
 
 A
 [`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash#Hash)
@@ -43,8 +40,7 @@ for _, c := range(data[n:]) {
 }
 ```
 
-Accessing the rolling window
-----------------------------
+## Accessing the rolling window
 
 A
 [`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash#Hash)
@@ -59,13 +55,16 @@ h.WriteWindow(&buf)
 window := buf.Bytes()
 ```
 
-Gotchas
--------
+## Gotchas
+
+### Rolling window initialization
 
 The rolling window MUST be initialized by calling `Write` first (which
 saves a copy). The byte leaving the rolling window is inferred from the
 internal copy of the rolling window, which is updated with every call to
 `Roll`.
+
+### Casting to the interface type slows down Roll
 
 If you want your code to run at the highest speed, do NOT cast the result
 of a `New()` as a rollinghash.Hash. Instead, use the native type returned
@@ -84,8 +83,25 @@ h1.Roll(b) // Not inlined (slow)
 h2.Roll(b) // inlined (fast)
 ```
 
-What's new
-----------
+### Buzhash and window sizes that are a multiple of the word size
+
+When using `buzhash32` or `buzhash64`, do NOT choose a window length that
+is a multiple of the word size (32 for `buzhash32`, 64 for `buzhash64`).
+
+Buzhash (cyclic polynomial) rolls its sum by rotating the word one bit per
+byte, so the rotation wraps every word-size bytes. As a result, a run of
+identical bytes at least as long as the window collapses the hash to a
+single degenerate value (all-ones for odd multiples of the word size, zero
+for even multiples), losing all entropy. Such runs are extremely common in
+binary data (zero padding, `0xff` flash padding, alignment), so on typical
+executables a 64-byte window makes `buzhash64` return
+`0xffffffffffffffff` about 1% of the time, badly skewing the low bits.
+
+This is inherent to the cyclic polynomial construction and cannot be fixed
+by changing the byte table. Any window length that is not a multiple of
+the word size avoids it (e.g. use 63 or 65 instead of 64).
+
+## What's new
 
 In v4.1.0:
 
@@ -144,8 +160,7 @@ Brief reminder of the behaviors in previous versions:
   which yields wrong results when using roll before having initialized the
   window.
 
-Go versions
------------
+## Go versions
 
 The `RabinKarp64` rollinghash does not yield consistent results before
 go1.7. This is because it uses `Rand.Read()` from the builtin `math/rand`.
@@ -155,15 +170,13 @@ stream of bytes that is independant of the size of the input buffer. If
 you depend on this hash, it is strongly recommended to stick to versions
 of go superior to 1.7.
 
-License
--------
+## License
 
 This code is delivered to you under the terms of the MIT public license,
 except the `rabinkarp64` subpackage, which has been adapted from
 [restic](https://github.com/restic/chunker) (BSD 2-clause "Simplified").
 
-Notable users
--------------
+## Notable users
 
 This library is used by a wide variety of tools, for production and
 scientific purposes.

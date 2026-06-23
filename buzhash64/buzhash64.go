@@ -1,5 +1,16 @@
 // Package rollinghash/buzhash implements buzhash as described by
 // https://en.wikipedia.org/wiki/Rolling_hash#Cyclic_polynomial
+//
+// CAVEAT: avoid window lengths that are a multiple of 64 (the word size).
+// buzhash rolls the sum by rotating a 64-bit word one bit per byte, so
+// after 64 bytes the rotation wraps. A run of >=window identical bytes
+// (very common in binary data: zero padding, 0xff flash padding,
+// alignment) then collapses the hash to a single degenerate value
+// (all-ones for odd multiples of 64, zero for even multiples), losing all
+// entropy. With a 64-byte window over typical executables this makes the
+// hash equal 0xffffffffffffffff about 1% of the time. Any window length
+// that is not a multiple of 64 avoids this. This is inherent to the cyclic
+// polynomial construction and cannot be fixed by changing the byte table.
 
 package buzhash64
 

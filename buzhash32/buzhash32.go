@@ -1,5 +1,15 @@
 // Package rollinghash/buzhash implements buzhash as described by
 // https://en.wikipedia.org/wiki/Rolling_hash#Cyclic_polynomial
+//
+// CAVEAT: avoid window lengths that are a multiple of 32 (the word size).
+// buzhash rolls the sum by rotating a 32-bit word one bit per byte, so
+// after 32 bytes the rotation wraps. A run of >=window identical bytes
+// (very common in binary data: zero padding, 0xff flash padding,
+// alignment) then collapses the hash to a single degenerate value
+// (all-ones for odd multiples of 32, zero for even multiples), losing all
+// entropy. Any window length that is not a multiple of 32 avoids this.
+// This is inherent to the cyclic polynomial construction and cannot be
+// fixed by changing the byte table.
 
 package buzhash32
 
