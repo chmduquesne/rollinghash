@@ -87,18 +87,36 @@ h2.Roll(b) // inlined (fast)
 What's new
 ----------
 
-On master (unreleased):
+In v4.1.0:
 
-* Simplified the internals of rabinkarp64 (rabinkarp64.Pol.Deg())
+* The internals of rabinkarp64 have been simplified (rabinkarp64.Pol.Deg())
 
-* Extended the test suite to improve coverage
+* The test suite has been extended to improve coverage
 
-* Setup continuous [performance
-  tracking](https://chmduquesne.github.io/rollinghash/dev/bench/)
+* Continuous [performance
+  tracking](https://chmduquesne.github.io/rollinghash/dev/bench/) using
+  [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark)
+  has been setup to facilitate contributions.
 
-* Setup vulnerability checking
+* Vulnerability checking has been setup using
+  [govulncheck-action](https://github.com/golang/govulncheck-action)
 
-* Setup dependency checking
+* Dependency checking has been setup using
+  [dependabot](https://github.com/dependabot)
+
+* A new rolling hash has been introduced: bozo64. It is equally fast as
+  bozo32, but yields 64 bits hashes.
+
+* Performance improvements for adler32.Roll: +5% (algebraic
+  simplifications)
+
+* Performance improvements for buzhash32 and buzhash64: +24% (using
+  math/bits to improve bit rotation performance)
+
+* Performance improvements for rabinkarp64: +42% (working on locals to
+  allow for compiler optimizations)
+
+All performance improvements measured directly on the author's laptop
 
 In v4.0.0:
 

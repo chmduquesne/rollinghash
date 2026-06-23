@@ -15,6 +15,7 @@ import (
 	//rollsum "github.com/chmduquesne/rollinghash/buzhash32"
 	rollsum "github.com/chmduquesne/rollinghash/buzhash64"
 	//rollsum "github.com/chmduquesne/rollinghash/bozo32"
+	//rollsum "github.com/chmduquesne/rollinghash/bozo64"
 )
 
 const (
