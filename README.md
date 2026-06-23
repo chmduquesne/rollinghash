@@ -114,11 +114,6 @@ In v4.1.0:
 
   * The test suite has been extended to improve coverage
 
-  * Continuous [performance
-    tracking](https://chmduquesne.github.io/rollinghash/dev/bench/) using
-    [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark)
-    has been setup to facilitate contributions.
-
   * Vulnerability checking has been setup using
     [govulncheck-action](https://github.com/golang/govulncheck-action)
 
