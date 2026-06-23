@@ -239,7 +239,6 @@ func (d *RabinKarp64) Roll(c byte) {
 	//	return
 	//}
 	// extract the entering/leaving bytes and update the circular buffer.
-	enter := c
 	leave := uint64(d.window[d.oldest])
 	d.window[d.oldest] = c
 	d.oldest += 1
@@ -247,9 +246,14 @@ func (d *RabinKarp64) Roll(c byte) {
 		d.oldest = 0
 	}
 
-	d.value ^= d.tables.out[leave]
-	index := byte(d.value >> d.polShift)
-	d.value <<= 8
-	d.value |= Pol(enter)
-	d.value ^= d.tables.mod[index]
+	// Work on locals so the compiler loads d.tables once and writes
+	// d.value back only once. The & 63 lets it prove the shift count is
+	// in range and skip the shift-by->=64 masking guard (polShift is the
+	// polynomial degree minus 8, always well below 64).
+	t := d.tables
+	value := d.value ^ t.out[leave]
+	index := byte(value >> (d.polShift & 63))
+	value = value<<8 | Pol(c)
+	value ^= t.mod[index]
+	d.value = value
 }
