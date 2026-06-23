@@ -36,6 +36,28 @@ jobs:
     - name: Race detection
       run: go test -race ./...
 
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 'stable'
+
+    - name: Fuzz test - Rolling Hash Consistency
+      run: go test -fuzz=FuzzRollingHashConsistency -fuzztime=30s
+
+    - name: Fuzz test - Write Consistency
+      run: go test -fuzz=FuzzWriteConsistency -fuzztime=30s
+
+    - name: Fuzz test - Window Reading
+      run: go test -fuzz=FuzzWindowReading -fuzztime=30s
+
+    - name: Fuzz test - Edge Cases
+      run: go test -fuzz=FuzzEdgeCases -fuzztime=30s
+
   coverage:
     runs-on: ubuntu-latest
     steps:

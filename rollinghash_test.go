@@ -316,3 +316,242 @@ func TestSize(t *testing.T) {
 		}
 	}
 }
+
+// FuzzRollingHashConsistency feeds random data and window sizes and
+// verifies that rolling a window over the data always yields the same sum
+// as hashing that window from scratch with the classic hash. It first
+// checks the initial window (loaded with Write), then every subsequent
+// window obtained by rolling one byte at a time.
+func FuzzRollingHashConsistency(f *testing.F) {
+	f.Add([]byte("hello world"), 5)
+	f.Add([]byte("The quick brown fox jumps over the lazy dog"), 16)
+	f.Add([]byte("a"), 1)
+	f.Add([]byte(""), 0)
+
+	f.Fuzz(func(t *testing.T, data []byte, windowSize int) {
+		if windowSize <= 0 || len(data) == 0 {
+			return
+		}
+		if windowSize > len(data) {
+			windowSize = len(data)
+		}
+
+		for _, h := range allHashes {
+			classic := h.classic
+			rolling := h.rolling
+
+			classic.Reset()
+			rolling.Reset()
+
+			classic.Write(data[:windowSize])
+			rolling.Write(data[:windowSize])
+
+			expectedSum := sum64(classic)
+			actualSum := sum64(rolling)
+
+			if expectedSum != actualSum {
+				t.Errorf("[%s] Initial hash mismatch: expected 0x%x, got 0x%x for data %q",
+					h.name, expectedSum, actualSum, data[:windowSize])
+			}
+
+			for i := windowSize; i < len(data); i++ {
+				classic.Reset()
+				classic.Write(data[i-windowSize+1 : i+1])
+				rolling.Roll(data[i])
+
+				expectedSum = sum64(classic)
+				actualSum = sum64(rolling)
+
+				if expectedSum != actualSum {
+					t.Errorf("[%s] Rolling hash mismatch at position %d: expected 0x%x, got 0x%x for window %q",
+						h.name, i, expectedSum, actualSum, data[i-windowSize+1:i+1])
+				}
+			}
+		}
+	})
+}
+
+// FuzzWriteConsistency checks two write-related invariants on random
+// inputs. First, that splitting the input across two Write calls produces
+// the same sum as a single Write of the concatenation. Second, that
+// writing all but the last byte and then rolling the last byte (the
+// write-and-roll pattern) matches the classic hash of the full input.
+func FuzzWriteConsistency(f *testing.F) {
+	f.Add([]byte("hello"), []byte("world"))
+	f.Add([]byte("test"), []byte("data"))
+	f.Add([]byte("a"), []byte("b"))
+	f.Add([]byte(""), []byte("x"))
+
+	f.Fuzz(func(t *testing.T, part1, part2 []byte) {
+		if len(part1) == 0 && len(part2) == 0 {
+			return
+		}
+
+		for _, h := range allHashes {
+			classic := h.classic
+			rolling := h.rolling
+
+			classic.Reset()
+			rolling.Reset()
+
+			rolling.Write(part1)
+			rolling.Write(part2)
+
+			fullData := append(part1, part2...)
+			classic.Write(fullData)
+
+			expectedSum := sum64(classic)
+			actualSum := sum64(rolling)
+
+			if expectedSum != actualSum {
+				t.Errorf("[%s] Write sequence mismatch: expected 0x%x, got 0x%x for parts %q + %q",
+					h.name, expectedSum, actualSum, part1, part2)
+			}
+
+			if len(fullData) > 0 {
+				classic.Reset()
+				rolling.Reset()
+
+				padded := append([]byte{0}, fullData...)
+				rolling.Write(padded[:len(padded)-1])
+				rolling.Roll(padded[len(padded)-1])
+
+				classic.Write(fullData)
+
+				expectedSum = sum64(classic)
+				actualSum = sum64(rolling)
+
+				if expectedSum != actualSum {
+					t.Errorf("[%s] Write+Roll mismatch: expected 0x%x, got 0x%x for data %q",
+						h.name, expectedSum, actualSum, fullData)
+				}
+			}
+		}
+	})
+}
+
+// FuzzWindowReading verifies that WriteWindow always reflects the exact
+// bytes currently inside the rolling window. It loads an initial window,
+// checks the reported byte count matches the data written, then rolls a
+// few bytes and confirms the window content tracks the sliding view of the
+// input after each roll.
+func FuzzWindowReading(f *testing.F) {
+	f.Add([]byte("hello world test"))
+	f.Add([]byte("abcdefgh"))
+	f.Add([]byte("The quick brown fox jumps"))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// An empty input has no valid window to load (a window must be at
+		// least 1 byte), so there is nothing to check.
+		if len(data) == 0 {
+			return
+		}
+
+		for _, h := range allHashes {
+			rolling := h.rolling
+			rolling.Reset()
+
+			// len(data) == 1 yields windowSize 0, so clamp to a minimal
+			// 1-byte window; the roll loop below then simply does not run.
+			windowSize := len(data) / 2
+			if windowSize == 0 {
+				windowSize = 1
+			}
+
+			rolling.Write(data[:windowSize])
+
+			var buf bytes.Buffer
+			n, err := rolling.WriteWindow(&buf)
+			if err != nil {
+				t.Errorf("[%s] WriteWindow failed: %v", h.name, err)
+				continue
+			}
+
+			window := buf.Bytes()
+			if len(window) != n {
+				t.Errorf("[%s] WriteWindow returned length %d but wrote %d bytes", h.name, n, len(window))
+			}
+
+			if !bytes.Equal(window, data[:windowSize]) {
+				t.Errorf("[%s] Initial window mismatch: expected %q, got %q", h.name, data[:windowSize], window)
+			}
+
+			for i := windowSize; i < len(data) && i < windowSize+10; i++ {
+				rolling.Roll(data[i])
+
+				buf.Reset()
+				n, err = rolling.WriteWindow(&buf)
+				if err != nil {
+					t.Errorf("[%s] WriteWindow after roll failed: %v", h.name, err)
+					continue
+				}
+
+				window = buf.Bytes()
+				expected := data[i-windowSize+1 : i+1]
+
+				if !bytes.Equal(window, expected) {
+					t.Errorf("[%s] Window after roll %d mismatch: expected %q, got %q",
+						h.name, i-windowSize+1, expected, window)
+				}
+			}
+		}
+	})
+}
+
+// FuzzEdgeCases exercises boundary behaviours on random inputs: writing an
+// empty slice, writing an empty slice after real data (which must not
+// corrupt the window), rolling past the end of the window, and the
+// invariant BlockSize and Size values. It is meant to surface crashes and
+// state corruption rather than to compare against the classic hash.
+func FuzzEdgeCases(f *testing.F) {
+	f.Add([]byte("x"))
+	f.Add([]byte("ab"))
+	f.Add([]byte(""))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		for _, h := range allHashes {
+			rolling := h.rolling
+
+			rolling.Reset()
+			rolling.Write([]byte(""))
+
+			rolling.Reset()
+			if len(data) > 0 {
+				rolling.Write(data)
+
+				rolling.Write([]byte(""))
+
+				var buf bytes.Buffer
+				_, err := rolling.WriteWindow(&buf)
+				if err != nil {
+					t.Errorf("[%s] WriteWindow after empty write failed: %v", h.name, err)
+				}
+
+				if !bytes.Equal(buf.Bytes(), data) {
+					t.Errorf("[%s] Window corrupted after empty write: expected %q, got %q",
+						h.name, data, buf.Bytes())
+				}
+
+				if len(data) > 1 {
+					rolling.Reset()
+					rolling.Write(data[:len(data)-1])
+					rolling.Roll(data[len(data)-1])
+					rolling.Roll('x')
+				}
+			}
+
+			rolling.Reset()
+			if rolling.BlockSize() != 1 {
+				t.Errorf("[%s] BlockSize should always be 1, got %d", h.name, rolling.BlockSize())
+			}
+
+			expectedSize := map[string]int{
+				"adler32": 4, "bozo32": 4, "buzhash32": 4,
+				"buzhash64": 8, "rabinkarp64": 8,
+			}
+			if size, ok := expectedSize[h.name]; ok && rolling.Size() != size {
+				t.Errorf("[%s] Size should be %d, got %d", h.name, size, rolling.Size())
+			}
+		}
+	})
+}
