@@ -483,7 +483,7 @@ func FuzzWindowReading(f *testing.F) {
 				rolling.Roll(data[i])
 
 				buf.Reset()
-				n, err = rolling.WriteWindow(&buf)
+				_, err = rolling.WriteWindow(&buf)
 				if err != nil {
 					t.Errorf("[%s] WriteWindow after roll failed: %v", h.name, err)
 					continue
