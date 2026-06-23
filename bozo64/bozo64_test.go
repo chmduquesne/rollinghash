@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chmduquesne/rollinghash"
-	rollsum "github.com/chmduquesne/rollinghash/bozo64"
+	"github.com/chmduquesne/rollinghash/v4"
+	rollsum "github.com/chmduquesne/rollinghash/v4/bozo64"
 )
 
 var golden = []struct {

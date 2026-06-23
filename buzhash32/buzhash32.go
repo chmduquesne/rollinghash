@@ -18,7 +18,7 @@ import (
 	"math/bits"
 	"math/rand"
 
-	rollinghash "github.com/chmduquesne/rollinghash"
+	rollinghash "github.com/chmduquesne/rollinghash/v4"
 )
 
 var defaultHashes [256]uint32

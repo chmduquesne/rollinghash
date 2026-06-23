@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chmduquesne/rollinghash"
-	rollsum "github.com/chmduquesne/rollinghash/adler32"
+	"github.com/chmduquesne/rollinghash/v4"
+	rollsum "github.com/chmduquesne/rollinghash/v4/adler32"
 )
 
 // Stolen from hash/adler32

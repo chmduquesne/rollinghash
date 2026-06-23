@@ -6,7 +6,7 @@ import (
 	"hash/adler32"
 	"log"
 
-	_adler32 "github.com/chmduquesne/rollinghash/adler32"
+	_adler32 "github.com/chmduquesne/rollinghash/v4/adler32"
 )
 
 func Example() {

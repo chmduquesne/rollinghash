@@ -7,7 +7,7 @@ import (
 	vanilla "hash/adler32"
 	"io"
 
-	"github.com/chmduquesne/rollinghash"
+	"github.com/chmduquesne/rollinghash/v4"
 )
 
 const (

@@ -9,7 +9,7 @@ package bozo64
 import (
 	"io"
 
-	rollinghash "github.com/chmduquesne/rollinghash"
+	rollinghash "github.com/chmduquesne/rollinghash/v4"
 )
 
 // The size of the checksum.

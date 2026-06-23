@@ -7,7 +7,7 @@ import (
 	"hash"
 	"log"
 
-	"github.com/chmduquesne/rollinghash/rabinkarp64"
+	"github.com/chmduquesne/rollinghash/v4/rabinkarp64"
 )
 
 func Example() {

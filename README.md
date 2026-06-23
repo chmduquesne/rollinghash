@@ -1,6 +1,6 @@
 [![CI](https://github.com/chmduquesne/rollinghash/actions/workflows/ci.yml/badge.svg)](https://github.com/chmduquesne/rollinghash/actions/workflows/ci.yml)
 [![Coverage Status](https://codecov.io/gh/chmduquesne/rollinghash/branch/master/graph/badge.svg)](https://codecov.io/gh/chmduquesne/rollinghash)
-[![GoDoc Reference](https://pkg.go.dev/badge/github.com/chmduquesne/rollinghash.svg)](https://pkg.go.dev/github.com/chmduquesne/rollinghash)
+[![GoDoc Reference](https://pkg.go.dev/badge/github.com/chmduquesne/rollinghash/v4.svg)](https://pkg.go.dev/github.com/chmduquesne/rollinghash/v4)
 ![Go 1.21+](https://img.shields.io/badge/go-1.21%2B-blue.svg)
 
 # Rolling Hashes
@@ -16,10 +16,10 @@ simultaneously the highest speed and simplicity.
 ## Usage
 
 A
-[`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash#Hash)
+[`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Hash)
 is just a [`hash.Hash`](https://golang.org/pkg/hash/#Hash) which
 implements the
-[`rollinghash.Roller`](https://godoc.org/github.com/chmduquesne/rollinghash#Roller)
+[`rollinghash.Roller`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Roller)
 interface. Here is how it is typically used:
 
 ```golang
@@ -43,7 +43,7 @@ for _, c := range(data[n:]) {
 ## Accessing the rolling window
 
 A
-[`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash#Hash)
+[`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Hash)
 maintains a copy of the rolling window in order to keep track of the value
 of the byte exiting the window. It can be accessed through the
 [`io.Reader`](https://golang.org/pkg/io/#Reader) interface of the hash.
@@ -102,6 +102,18 @@ by changing the byte table. Any window length that is not a multiple of
 the word size avoids it (e.g. use 63 or 65 instead of 64).
 
 ## What's new
+
+In v4.1.1:
+
+* The module now follows Go's semantic import versioning. The import path
+  is `github.com/chmduquesne/rollinghash/v4` (v4.1.0 shipped a `go.mod`
+  with the unsuffixed path, which made it uninstallable with `go get`).
+  Update your imports accordingly:
+
+  ```golang
+  import rollinghash "github.com/chmduquesne/rollinghash/v4"
+  // go get github.com/chmduquesne/rollinghash/v4@latest
+  ```
 
 In v4.1.0:
 

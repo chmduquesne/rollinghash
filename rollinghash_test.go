@@ -7,13 +7,13 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/chmduquesne/rollinghash"
-	_adler32 "github.com/chmduquesne/rollinghash/adler32"
-	"github.com/chmduquesne/rollinghash/bozo32"
-	"github.com/chmduquesne/rollinghash/bozo64"
-	"github.com/chmduquesne/rollinghash/buzhash32"
-	"github.com/chmduquesne/rollinghash/buzhash64"
-	"github.com/chmduquesne/rollinghash/rabinkarp64"
+	"github.com/chmduquesne/rollinghash/v4"
+	_adler32 "github.com/chmduquesne/rollinghash/v4/adler32"
+	"github.com/chmduquesne/rollinghash/v4/bozo32"
+	"github.com/chmduquesne/rollinghash/v4/bozo64"
+	"github.com/chmduquesne/rollinghash/v4/buzhash32"
+	"github.com/chmduquesne/rollinghash/v4/buzhash64"
+	"github.com/chmduquesne/rollinghash/v4/rabinkarp64"
 )
 
 var allHashes = []struct {

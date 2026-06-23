@@ -5,7 +5,7 @@ import (
 	"hash"
 	"log"
 
-	"github.com/chmduquesne/rollinghash/buzhash64"
+	"github.com/chmduquesne/rollinghash/v4/buzhash64"
 )
 
 func Example() {

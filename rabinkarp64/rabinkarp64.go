@@ -32,7 +32,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/chmduquesne/rollinghash"
+	"github.com/chmduquesne/rollinghash/v4"
 )
 
 const Size = 8

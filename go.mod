@@ -1,4 +1,4 @@
-module github.com/chmduquesne/rollinghash
+module github.com/chmduquesne/rollinghash/v4
 
 go 1.23.0
 

@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	//rollsum "github.com/chmduquesne/rollinghash/adler32"
-	//rollsum "github.com/chmduquesne/rollinghash/buzhash32"
-	rollsum "github.com/chmduquesne/rollinghash/buzhash64"
-	//rollsum "github.com/chmduquesne/rollinghash/bozo32"
-	//rollsum "github.com/chmduquesne/rollinghash/bozo64"
+	//rollsum "github.com/chmduquesne/rollinghash/v4/adler32"
+	//rollsum "github.com/chmduquesne/rollinghash/v4/buzhash32"
+	rollsum "github.com/chmduquesne/rollinghash/v4/buzhash64"
+	//rollsum "github.com/chmduquesne/rollinghash/v4/bozo32"
+	//rollsum "github.com/chmduquesne/rollinghash/v4/bozo64"
 )
 
 const (
