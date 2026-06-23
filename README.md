@@ -140,6 +140,11 @@ In v4.1.0:
   * rabinkarp64: +42% (working on locals to allow for compiler
     optimizations)
 
+* Documentation
+
+  * New caveats found on buzhash. See
+    [Gotchas](#buzhash-and-window-sizes-that-are-a-multiple-of-the-word-size)
+
 In v4.0.0:
 
 * `Write` has become fully consistent with `hash.Hash`. As opposed to
