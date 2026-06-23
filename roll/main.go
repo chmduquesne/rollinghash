@@ -109,7 +109,10 @@ func main() {
 				for i, m := range masks {
 					frequency := "NaN"
 					if hits[m] != 0 {
-						frequency = humanize.Bytes(n / hits[m])
+						// Float division then round: integer n/hits floors,
+						// so a perfectly balanced hash (true freq ~2^k, e.g.
+						// 15.9986) would misleadingly print 2^k-1 (15).
+						frequency = humanize.Bytes(uint64(float64(n)/float64(hits[m]) + 0.5))
 					}
 					fmt.Printf("0x%016x (%02d bits): every %s\n", m, i+1, frequency)
 				}
