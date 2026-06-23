@@ -289,17 +289,27 @@ func BenchmarkPolMod(t *testing.B) {
 	}
 }
 
+// Package-level inputs and sink to keep the benchmark honest: the inputs
+// are not compile-time constants (so Deg is not constant-folded), they are
+// indexed by the loop counter (so the call is not hoisted out of the loop),
+// and the result is accumulated into a sink (so it is not eliminated as
+// dead code). The slice length is a power of two so the index is a cheap
+// mask. The first element keeps the original degree-41 sanity check.
+var degInputs = [4]Pol{0x3af4b284899, 0x2482734cacca49, 0x1, 0x3DA3358B4DC173}
+var degSink int
+
 func BenchmarkPolDeg(t *testing.B) {
-	f := Pol(0x3af4b284899)
-	d := f.Deg()
+	d := degInputs[0].Deg()
 	if d != 41 {
 		t.Fatalf("BenchmalPolDeg: Wrong degree %d returned, expected %d",
 			d, 41)
 	}
 
+	s := 0
 	for i := 0; i < t.N; i++ {
-		f.Deg()
+		s += degInputs[i&3].Deg()
 	}
+	degSink = s
 }
 
 func TestRandomPolynomial(t *testing.T) {

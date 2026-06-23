@@ -106,7 +106,7 @@ func TestGolden(t *testing.T) {
 }
 
 func BenchmarkRolling64B(b *testing.B) {
-	b.SetBytes(1024)
+	b.SetBytes(1)
 	b.ReportAllocs()
 	window := make([]byte, 64)
 	for i := range window {
@@ -127,7 +127,7 @@ func BenchmarkRolling64B(b *testing.B) {
 }
 
 func BenchmarkReadUrandom(b *testing.B) {
-	b.SetBytes(1024)
+	b.SetBytes(1)
 	b.ReportAllocs()
 	f, err := os.Open("/dev/urandom")
 	if err != nil {
