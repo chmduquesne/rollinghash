@@ -127,7 +127,6 @@ func (d *Adler32) Roll(b byte) {
 		d.oldest = 0
 	}
 
-	// See http://stackoverflow.com/questions/40985080/why-does-my-rolling-adler32-checksum-not-work-in-go-modulo-arithmetic
 	d.a = (d.a + Mod + enter - leave) % Mod
-	d.b = (d.b + (d.n*leave/Mod+1)*Mod + d.a - (d.n * leave) - 1) % Mod
+	d.b = (d.b + d.a + Mod - 1 - (d.n*leave)%Mod) % Mod
 }
