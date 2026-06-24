@@ -88,7 +88,7 @@ func main() {
 	}
 
 	roll := rollsum.New()
-	if _, err := roll.Write(buf[:64]); err != nil {
+	if _, err := roll.Write(buf[:48]); err != nil {
 		log.Fatal(err)
 	}
 
