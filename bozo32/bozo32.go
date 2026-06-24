@@ -132,8 +132,11 @@ func (d *Bozo32) Roll(c byte) {
 	d.value = d.value*d.a + enter - leave*d.aⁿ
 }
 
-// Compile-time check that we implement the bulk fast path.
-var _ rollinghash.BulkRoller = (*Bozo32)(nil)
+// Compile-time check that we implement the bulk fast paths.
+var (
+	_ rollinghash.BulkRoller     = (*Bozo32)(nil)
+	_ rollinghash.BoundaryRoller = (*Bozo32)(nil)
+)
 
 // BulkRoll computes the rolling checksum of every window-sized slice of
 // data in one pass and writes them to dst, which must have
@@ -206,4 +209,84 @@ func (d *Bozo32) BulkRoll(dst []uint64, data []byte, window int) {
 		vB = vB*a + uint32(data[ib+window]) - uint32(data[ib])*aⁿ
 		dst[ib+1] = uint64(vB)
 	}
+}
+
+// BulkBoundaries reports the window positions where the rolling checksum
+// satisfies sum & mask == 0, fusing the test into the hashing loop (see
+// rollinghash.BoundaryRoller). It mirrors BulkRoll exactly, replacing each
+// "dst[i] = uint64(v)" with the masked test on the zero-extended value. It does
+// not modify the receiver.
+func (d *Bozo32) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+	if window <= 0 || len(data) < window {
+		return 0, 0
+	}
+	mul := d.a
+
+	var aⁿ uint32 = 1
+	for range window {
+		aⁿ *= mul
+	}
+
+	n := len(data) - window
+	half := (n + 2) / 2
+
+	var vA uint32
+	for j := range window {
+		vA = vA*mul + uint32(data[j])
+	}
+	if uint64(vA)&mask == 0 {
+		a[na] = 0
+		na++
+	}
+
+	if half > n {
+		for ia := range n {
+			vA = vA*mul + uint32(data[ia+window]) - uint32(data[ia])*aⁿ
+			if uint64(vA)&mask == 0 {
+				a[na] = int32(ia + 1)
+				na++
+			}
+		}
+		return na, 0
+	}
+
+	var vB uint32
+	for j := range window {
+		vB = vB*mul + uint32(data[half+j])
+	}
+	if uint64(vB)&mask == 0 {
+		b[nb] = int32(half)
+		nb++
+	}
+
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		vA = vA*mul + uint32(data[ia+window]) - uint32(data[ia])*aⁿ
+		if uint64(vA)&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+		vB = vB*mul + uint32(data[ib+window]) - uint32(data[ib])*aⁿ
+		if uint64(vB)&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+		ia++
+		ib++
+	}
+	for ; ia < half-1; ia++ {
+		vA = vA*mul + uint32(data[ia+window]) - uint32(data[ia])*aⁿ
+		if uint64(vA)&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+	}
+	for ; ib < n; ib++ {
+		vB = vB*mul + uint32(data[ib+window]) - uint32(data[ib])*aⁿ
+		if uint64(vB)&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+	}
+	return na, nb
 }

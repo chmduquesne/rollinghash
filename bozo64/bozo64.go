@@ -131,8 +131,29 @@ func (d *Bozo64) Roll(c byte) {
 	d.value = d.value*d.a + enter - leave*d.aⁿ
 }
 
-// Compile-time check that we implement the bulk fast path.
-var _ rollinghash.BulkRoller = (*Bozo64)(nil)
+// Compile-time check that we implement the bulk fast paths.
+var (
+	_ rollinghash.BulkRoller     = (*Bozo64)(nil)
+	_ rollinghash.BoundaryRoller = (*Bozo64)(nil)
+)
+
+// bozoPow returns a^n, the weight of the byte leaving a window of size n.
+func bozoPow(a uint64, n int) uint64 {
+	p := uint64(1)
+	for range n {
+		p *= a
+	}
+	return p
+}
+
+// bozoWindow returns the Horner checksum of win, i.e. a lane's initial value.
+func bozoWindow(win []byte, a uint64) uint64 {
+	var v uint64
+	for _, c := range win {
+		v = v*a + uint64(c)
+	}
+	return v
+}
 
 // BulkRoll computes the rolling checksum of every window-sized slice of
 // data in one pass and writes them to dst, which must have
@@ -147,12 +168,7 @@ func (d *Bozo64) BulkRoll(dst []uint64, data []byte, window int) {
 		return
 	}
 	a := d.a
-
-	// aⁿ = a^window, the weight of the byte leaving the window.
-	var aⁿ uint64 = 1
-	for range window {
-		aⁿ *= a
-	}
+	aⁿ := bozoPow(a, window) // weight of the leaving byte
 
 	n := len(data) - window // highest output index; there are n+1 outputs.
 
@@ -160,11 +176,7 @@ func (d *Bozo64) BulkRoll(dst []uint64, data []byte, window int) {
 	// of an odd count goes to A.
 	half := (n + 2) / 2
 
-	// Lane A warmup: Horner over data[0:window].
-	var vA uint64
-	for j := range window {
-		vA = vA*a + uint64(data[j])
-	}
+	vA := bozoWindow(data[:window], a)
 	dst[0] = vA
 
 	if half > n {
@@ -176,12 +188,9 @@ func (d *Bozo64) BulkRoll(dst []uint64, data []byte, window int) {
 		return
 	}
 
-	// Lane B warmup: Horner over data[half:half+window] (in bounds because
-	// half <= n implies half+window <= len(data)).
-	var vB uint64
-	for j := range window {
-		vB = vB*a + uint64(data[half+j])
-	}
+	// Lane B warmup over data[half:half+window] (in bounds because half <= n
+	// implies half+window <= len(data)).
+	vB := bozoWindow(data[half:half+window], a)
 	dst[half] = vB
 
 	// Step both lanes in lockstep; vA and vB are independent locals so the
@@ -204,4 +213,76 @@ func (d *Bozo64) BulkRoll(dst []uint64, data []byte, window int) {
 		vB = vB*a + uint64(data[ib+window]) - uint64(data[ib])*aⁿ
 		dst[ib+1] = vB
 	}
+}
+
+// BulkBoundaries reports the window positions where the rolling checksum
+// satisfies sum & mask == 0, fusing the test into the hashing loop so the
+// checksums are never materialized. Lane-A hits land in a[:na] and lane-B hits
+// in b[:nb] (see rollinghash.BoundaryRoller). It mirrors BulkRoll exactly,
+// replacing each "dst[i] = v" with the masked test; the recurrence is identical
+// and intentionally kept side by side. BulkBoundaries does not modify the
+// receiver.
+func (d *Bozo64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+	if window <= 0 || len(data) < window {
+		return 0, 0
+	}
+	mul := d.a
+	aⁿ := bozoPow(mul, window)
+
+	n := len(data) - window
+	half := (n + 2) / 2
+
+	vA := bozoWindow(data[:window], mul)
+	if vA&mask == 0 {
+		a[na] = 0
+		na++
+	}
+
+	if half > n {
+		for ia := range n {
+			vA = vA*mul + uint64(data[ia+window]) - uint64(data[ia])*aⁿ
+			if vA&mask == 0 {
+				a[na] = int32(ia + 1)
+				na++
+			}
+		}
+		return na, 0
+	}
+
+	vB := bozoWindow(data[half:half+window], mul)
+	if vB&mask == 0 {
+		b[nb] = int32(half)
+		nb++
+	}
+
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		vA = vA*mul + uint64(data[ia+window]) - uint64(data[ia])*aⁿ
+		if vA&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+		vB = vB*mul + uint64(data[ib+window]) - uint64(data[ib])*aⁿ
+		if vB&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+		ia++
+		ib++
+	}
+	for ; ia < half-1; ia++ {
+		vA = vA*mul + uint64(data[ia+window]) - uint64(data[ia])*aⁿ
+		if vA&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+	}
+	for ; ib < n; ib++ {
+		vB = vB*mul + uint64(data[ib+window]) - uint64(data[ib])*aⁿ
+		if vB&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+	}
+	return na, nb
 }

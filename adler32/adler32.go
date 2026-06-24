@@ -131,8 +131,11 @@ func (d *Adler32) Roll(b byte) {
 	d.b = (d.b + d.a + Mod - 1 - (d.n*leave)%Mod) % Mod
 }
 
-// Compile-time check that we implement the bulk fast path.
-var _ rollinghash.BulkRoller = (*Adler32)(nil)
+// Compile-time check that we implement the bulk fast paths.
+var (
+	_ rollinghash.BulkRoller     = (*Adler32)(nil)
+	_ rollinghash.BoundaryRoller = (*Adler32)(nil)
+)
 
 // BulkRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
@@ -211,4 +214,94 @@ func (d *Adler32) BulkRoll(dst []uint64, data []byte, window int) {
 		bB = (bB + aB + Mod - 1 - (wmod*lb)%Mod) % Mod
 		dst[ib+1] = uint64(bB<<16 | aB)
 	}
+}
+
+// BulkBoundaries reports the window positions where the rolling checksum
+// satisfies sum & mask == 0, fusing the test into the hashing loop (see
+// rollinghash.BoundaryRoller). It mirrors BulkRoll exactly, replacing each
+// "dst[i] = uint64(b<<16 | a)" with the masked test on that value. It does not
+// modify the receiver. (a and b are the lane hit buffers; the adler
+// accumulators are aA/bA and aB/bB.)
+func (d *Adler32) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+	if window <= 0 || len(data) < window {
+		return 0, 0
+	}
+	wmod := uint32(window) % Mod
+
+	n := len(data) - window
+	half := (n + 2) / 2
+
+	var aA, bA uint32 = 1, 0
+	for j := range window {
+		aA = (aA + uint32(data[j])) % Mod
+		bA = (bA + aA) % Mod
+	}
+	if uint64(bA<<16|aA)&mask == 0 {
+		a[na] = 0
+		na++
+	}
+
+	if half > n {
+		for ia := range n {
+			leave, enter := uint32(data[ia]), uint32(data[ia+window])
+			aA = (aA + Mod + enter - leave) % Mod
+			bA = (bA + aA + Mod - 1 - (wmod*leave)%Mod) % Mod
+			if uint64(bA<<16|aA)&mask == 0 {
+				a[na] = int32(ia + 1)
+				na++
+			}
+		}
+		return na, 0
+	}
+
+	var aB, bB uint32 = 1, 0
+	for j := range window {
+		aB = (aB + uint32(data[half+j])) % Mod
+		bB = (bB + aB) % Mod
+	}
+	if uint64(bB<<16|aB)&mask == 0 {
+		b[nb] = int32(half)
+		nb++
+	}
+
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		la, ea := uint32(data[ia]), uint32(data[ia+window])
+		aA = (aA + Mod + ea - la) % Mod
+		bA = (bA + aA + Mod - 1 - (wmod*la)%Mod) % Mod
+		if uint64(bA<<16|aA)&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+
+		lb, eb := uint32(data[ib]), uint32(data[ib+window])
+		aB = (aB + Mod + eb - lb) % Mod
+		bB = (bB + aB + Mod - 1 - (wmod*lb)%Mod) % Mod
+		if uint64(bB<<16|aB)&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+
+		ia++
+		ib++
+	}
+	for ; ia < half-1; ia++ {
+		la, ea := uint32(data[ia]), uint32(data[ia+window])
+		aA = (aA + Mod + ea - la) % Mod
+		bA = (bA + aA + Mod - 1 - (wmod*la)%Mod) % Mod
+		if uint64(bA<<16|aA)&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+	}
+	for ; ib < n; ib++ {
+		lb, eb := uint32(data[ib]), uint32(data[ib+window])
+		aB = (aB + Mod + eb - lb) % Mod
+		bB = (bB + aB + Mod - 1 - (wmod*lb)%Mod) % Mod
+		if uint64(bB<<16|aB)&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+	}
+	return na, nb
 }

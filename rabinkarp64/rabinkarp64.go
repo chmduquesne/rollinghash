@@ -261,8 +261,11 @@ func (d *RabinKarp64) Roll(c byte) {
 	d.value = value
 }
 
-// Compile-time check that we implement the bulk fast path.
-var _ rollinghash.BulkRoller = (*RabinKarp64)(nil)
+// Compile-time check that we implement the bulk fast paths.
+var (
+	_ rollinghash.BulkRoller     = (*RabinKarp64)(nil)
+	_ rollinghash.BoundaryRoller = (*RabinKarp64)(nil)
+)
 
 // BulkRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
@@ -336,4 +339,87 @@ func (d *RabinKarp64) BulkRoll(dst []uint64, data []byte, window int) {
 		vB = (vB<<8 | Pol(data[ib+window])) ^ t.mod[byte(vB>>shift)]
 		dst[ib+1] = uint64(vB)
 	}
+}
+
+// BulkBoundaries reports the window positions where the rolling checksum
+// satisfies sum & mask == 0, fusing the test into the hashing loop (see
+// rollinghash.BoundaryRoller). It mirrors BulkRoll exactly, replacing each
+// "dst[i] = uint64(v)" with the masked test. It does not modify the receiver.
+func (d *RabinKarp64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+	if window <= 0 || len(data) < window {
+		return 0, 0
+	}
+	pol := d.pol
+	t := tablesFor(pol, window)
+	shift := d.polShift & 63
+
+	n := len(data) - window
+	half := (n + 2) / 2
+
+	var vA Pol
+	for j := range window {
+		vA = (vA<<8 | Pol(data[j])).Mod(pol)
+	}
+	if uint64(vA)&mask == 0 {
+		a[na] = 0
+		na++
+	}
+
+	if half > n {
+		for ia := range n {
+			vA ^= t.out[data[ia]]
+			vA = (vA<<8 | Pol(data[ia+window])) ^ t.mod[byte(vA>>shift)]
+			if uint64(vA)&mask == 0 {
+				a[na] = int32(ia + 1)
+				na++
+			}
+		}
+		return na, 0
+	}
+
+	var vB Pol
+	for j := range window {
+		vB = (vB<<8 | Pol(data[half+j])).Mod(pol)
+	}
+	if uint64(vB)&mask == 0 {
+		b[nb] = int32(half)
+		nb++
+	}
+
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		vA ^= t.out[data[ia]]
+		vA = (vA<<8 | Pol(data[ia+window])) ^ t.mod[byte(vA>>shift)]
+		if uint64(vA)&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+
+		vB ^= t.out[data[ib]]
+		vB = (vB<<8 | Pol(data[ib+window])) ^ t.mod[byte(vB>>shift)]
+		if uint64(vB)&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+
+		ia++
+		ib++
+	}
+	for ; ia < half-1; ia++ {
+		vA ^= t.out[data[ia]]
+		vA = (vA<<8 | Pol(data[ia+window])) ^ t.mod[byte(vA>>shift)]
+		if uint64(vA)&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+	}
+	for ; ib < n; ib++ {
+		vB ^= t.out[data[ib]]
+		vB = (vB<<8 | Pol(data[ib+window])) ^ t.mod[byte(vB>>shift)]
+		if uint64(vB)&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+	}
+	return na, nb
 }

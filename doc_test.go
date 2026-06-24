@@ -87,3 +87,38 @@ func ExampleScanner() {
 	}
 	// Output: found "brown" at offset 10
 }
+
+// ExampleChunker demonstrates content-defined chunking: the stream is split
+// where the rolling checksum hits a mask, with chunk sizes kept within
+// [min, max]. The boundaries depend only on content, so they are stable under
+// insertions and deletions elsewhere in the stream - the basis for
+// deduplication.
+func ExampleChunker() {
+	// Repeatable pseudo-random data (xorshift), so the boundaries are stable.
+	data := make([]byte, 4096)
+	x := uint32(1)
+	for i := range data {
+		x ^= x << 13
+		x ^= x >> 17
+		x ^= x << 5
+		data[i] = byte(x)
+	}
+
+	// Cut where the low 8 bits of the rolling checksum are zero, keeping each
+	// chunk between 64 and 1024 bytes.
+	c := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), 32, 0xff, 64, 1024)
+
+	var sizes []int
+	total := 0
+	for c.Next() {
+		chunk := c.Chunk()
+		sizes = append(sizes, len(chunk))
+		total += len(chunk)
+	}
+	if err := c.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("split %d bytes into %d chunks: %v\n", total, len(sizes), sizes)
+	// Output: split 4096 bytes into 11 chunks: [354 82 381 661 549 255 764 308 145 344 253]
+}

@@ -81,3 +81,19 @@ type Hash64 interface {
 type BulkRoller interface {
 	BulkRoll(dst []uint64, data []byte, window int)
 }
+
+// BoundaryRoller is an optional fast path for content-defined chunking. A Hash
+// that implements it scans data for the window positions where the rolling
+// checksum satisfies sum & mask == 0, without materializing the full checksum
+// stream — the per-position test is fused into the hashing loop. Callers
+// normally reach it indirectly through Chunker.
+//
+// BulkBoundaries records the matching positions of the two interleaved lanes
+// separately: it appends the ascending lane-A indices to a[:na] and the
+// ascending lane-B indices to b[:nb], where every index in a precedes every
+// index in b, so the caller reads a[:na] followed by b[:nb] as a single
+// ascending run. a and b must each have len >= len(data)-window+1. Position i
+// denotes the window data[i:i+window]. It does not modify the receiver.
+type BoundaryRoller interface {
+	BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int)
+}

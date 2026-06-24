@@ -468,6 +468,86 @@ func FuzzBulkRoll(f *testing.F) {
 	})
 }
 
+// checkBulkBoundaries verifies a BoundaryRoller against the classic hash: the
+// reported positions (lane a[:na] followed by lane b[:nb]) must be exactly the
+// ascending set {i : classic(data[i:i+window]) & mask == 0}.
+func checkBulkBoundaries(t *testing.T, name string, brd rollinghash.BoundaryRoller, classic hash.Hash, data []byte, window int, mask uint64) {
+	t.Helper()
+	sums := bulkRollOracle(classic, data, window)
+	var want []int32
+	for i, s := range sums {
+		if s&mask == 0 {
+			want = append(want, int32(i))
+		}
+	}
+
+	a := make([]int32, len(sums))
+	b := make([]int32, len(sums))
+	na, nb := brd.BulkBoundaries(a, b, data, window, mask)
+	got := append(append([]int32(nil), a[:na]...), b[:nb]...)
+
+	if len(got) != len(want) {
+		t.Errorf("[%s] BulkBoundaries(window=%d,mask=0x%x): got %d hits, want %d",
+			name, window, mask, len(got), len(want))
+		return
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("[%s] BulkBoundaries hit %d: got %d, want %d", name, i, got[i], want[i])
+		}
+	}
+}
+
+// TestBulkBoundaries checks that every hash implementing BoundaryRoller reports
+// exactly the window positions whose classic checksum satisfies sum&mask==0,
+// across windows and masks (including the degenerate mask==0, which matches
+// every position and so stresses the lane buffers and the A/B merge order).
+func TestBulkBoundaries(t *testing.T) {
+	base := []byte("The quick brown fox jumps over the lazy dog")
+	for _, h := range allHashes {
+		brd, ok := h.rolling.(rollinghash.BoundaryRoller)
+		if !ok {
+			continue
+		}
+		cases := []struct {
+			data   []byte
+			window int
+		}{
+			{base, 1}, {base, 8}, {base, 16},
+			{base, len(base)}, {base[:5], 4}, {base[:6], 4}, {base[:8], 4},
+		}
+		for _, c := range cases {
+			for _, mask := range []uint64{0, 1, 0x3, 0xff, 0xffffffffffffffff} {
+				checkBulkBoundaries(t, h.name, brd, h.classic, c.data, c.window, mask)
+			}
+		}
+	}
+}
+
+// FuzzBulkBoundaries cross-checks BulkBoundaries against the classic hash on
+// random data, window, and mask.
+func FuzzBulkBoundaries(f *testing.F) {
+	f.Add([]byte("The quick brown fox jumps over the lazy dog"), 16, uint64(0x3))
+	f.Add([]byte("hello world"), 5, uint64(1))
+	f.Add([]byte("a"), 1, uint64(0))
+
+	f.Fuzz(func(t *testing.T, data []byte, windowSize int, mask uint64) {
+		if windowSize <= 0 || len(data) == 0 {
+			return
+		}
+		if windowSize > len(data) {
+			windowSize = len(data)
+		}
+		for _, h := range allHashes {
+			brd, ok := h.rolling.(rollinghash.BoundaryRoller)
+			if !ok {
+				continue
+			}
+			checkBulkBoundaries(t, h.name, brd, h.classic, data, windowSize, mask)
+		}
+	})
+}
+
 // FuzzWriteConsistency checks two write-related invariants on random
 // inputs. First, that splitting the input across two Write calls produces
 // the same sum as a single Write of the concatenation. Second, that
