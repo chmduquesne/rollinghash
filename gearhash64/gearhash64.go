@@ -1,0 +1,298 @@
+// Package rollinghash/gearhash64 implements the Gear rolling hash (64-bit).
+// https://www.usenix.org/system/files/conference/atc16/atc16-paper-xia.pdf
+//
+// For a window of w bytes [b0, b1, ..., b_{w-1}] the hash is:
+//
+//	h = gear[b0]<<(w-1) + gear[b1]<<(w-2) + ... + gear[b_{w-1}]
+//
+// Rolling in byte c (dropping b0) uses: h = (h<<1) - (gear[b0]<<w) + gear[c].
+// When w >= 64 the subtraction term is zero — the oldest byte's contribution
+// has already been shifted out of the 64-bit word — so the formula is correct
+// for all window sizes.
+package gearhash64
+
+import (
+	"io"
+	"math/rand"
+
+	"github.com/chmduquesne/rollinghash/v4"
+)
+
+var defaultHashes [256]uint64
+
+func init() {
+	defaultHashes = GenerateHashes(1)
+}
+
+// Size is the size of the checksum in bytes.
+const Size = 8
+
+// GearHash64 is a digest which satisfies the rollinghash.Hash64 interface.
+// It implements the Gear rolling hash used in FastCDC.
+type GearHash64 struct {
+	sum uint64
+
+	// window is a circular buffer tracking the current window bytes.
+	window []byte
+	oldest int
+	gear   [256]uint64
+}
+
+// GenerateHashes generates a table of 256 random 64-bit values for use with
+// GearHash64.
+func GenerateHashes(seed int64) (res [256]uint64) {
+	r := rand.New(rand.NewSource(seed))
+	for i := range res {
+		res[i] = r.Uint64()
+	}
+	return res
+}
+
+// New returns a GearHash64 using the default table seeded with 1.
+func New() *GearHash64 {
+	return NewFromUint64Array(defaultHashes)
+}
+
+// NewFromUint64Array returns a GearHash64 using the provided lookup table.
+func NewFromUint64Array(g [256]uint64) *GearHash64 {
+	return &GearHash64{
+		window: make([]byte, 0, rollinghash.DefaultWindowCap),
+		gear:   g,
+	}
+}
+
+// Reset resets the Hash to its initial state.
+func (d *GearHash64) Reset() {
+	d.window = d.window[:0]
+	d.oldest = 0
+	d.sum = 0
+}
+
+// Size returns 8 bytes.
+func (d *GearHash64) Size() int { return Size }
+
+// BlockSize returns 1 byte.
+func (d *GearHash64) BlockSize() int { return 1 }
+
+// WriteWindow writes the current window contents to w.
+func (d *GearHash64) WriteWindow(w io.Writer) (n int, err error) {
+	if d.oldest < len(d.window) {
+		n, err = w.Write(d.window[d.oldest:])
+	}
+	if err == nil && d.oldest > 0 {
+		var n2 int
+		n2, err = w.Write(d.window[:d.oldest])
+		n += n2
+	}
+	return
+}
+
+// Write appends data to the rolling window and recomputes the digest. It never
+// returns an error.
+func (d *GearHash64) Write(data []byte) (int, error) {
+	l := len(data)
+	if l == 0 {
+		return 0, nil
+	}
+	// Re-arrange the window so that the leftmost element is at index 0.
+	n := len(d.window)
+	if d.oldest != 0 {
+		tmp := make([]byte, d.oldest)
+		copy(tmp, d.window[:d.oldest])
+		copy(d.window, d.window[d.oldest:])
+		copy(d.window[n-d.oldest:], tmp)
+		d.oldest = 0
+	}
+	d.window = append(d.window, data...)
+
+	d.sum = 0
+	for _, c := range d.window {
+		d.sum = (d.sum << 1) + d.gear[c]
+	}
+	return len(data), nil
+}
+
+// Sum64 returns the hash as a uint64.
+func (d *GearHash64) Sum64() uint64 { return d.sum }
+
+// Sum returns the hash as a byte slice.
+func (d *GearHash64) Sum(b []byte) []byte {
+	v := d.Sum64()
+	return append(b, byte(v>>56), byte(v>>48), byte(v>>40), byte(v>>32), byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
+}
+
+// Roll updates the checksum as byte c enters the window and the oldest byte
+// leaves. You MUST call Write before Roll.
+func (d *GearHash64) Roll(c byte) {
+	h0 := d.gear[d.window[d.oldest]]
+	hn := d.gear[c]
+
+	d.window[d.oldest] = c
+	l := len(d.window)
+	d.oldest++
+	if d.oldest >= l {
+		d.oldest = 0
+	}
+
+	// (h0 << l) is zero when l >= 64, which is correct: the oldest byte's
+	// contribution has been fully shifted out of the 64-bit accumulator.
+	d.sum = (d.sum << 1) - (h0 << uint(l)) + hn
+}
+
+// Compile-time checks that we implement the bulk fast paths.
+var (
+	_ rollinghash.BulkRoller     = (*GearHash64)(nil)
+	_ rollinghash.BoundaryRoller = (*GearHash64)(nil)
+)
+
+// BulkRoll computes the rolling checksum of every window-sized slice of data
+// in one pass and writes them to dst, which must have len(data)-window+1
+// elements. Two independent accumulator lanes let the CPU overlap their
+// dependency chains and approach the ILP ceiling of the load-latency-bound
+// step h = (h<<1) - shiftedGear[leaving] + gear[entering]. It does not
+// modify the receiver.
+func (d *GearHash64) BulkRoll(dst []uint64, data []byte, window int) {
+	if window <= 0 || len(data) < window {
+		return
+	}
+	g := &d.gear
+
+	// Precompute the shifted leaving-byte table: shiftedGear[b] = gear[b] << window.
+	// When window >= 64 all entries are zero, which is correct.
+	var shiftedGear [256]uint64
+	if window < 64 {
+		w := uint(window)
+		for i, h := range g {
+			shiftedGear[i] = h << w
+		}
+	}
+
+	n := len(data) - window
+	leaving := data[:n+1]
+	entering := data[window:]
+	half := (n + 2) / 2
+
+	// Lane A warmup over data[0:window].
+	var vA uint64
+	for j := range window {
+		vA = (vA << 1) + g[data[j]]
+	}
+	dst[0] = vA
+
+	if half > n {
+		for ia := range n {
+			vA = (vA << 1) - shiftedGear[leaving[ia]] + g[entering[ia]]
+			dst[ia+1] = vA
+		}
+		return
+	}
+
+	// Lane B warmup over data[half:half+window].
+	var vB uint64
+	for j := range window {
+		vB = (vB << 1) + g[data[half+j]]
+	}
+	dst[half] = vB
+
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		vA = (vA << 1) - shiftedGear[leaving[ia]] + g[entering[ia]]
+		dst[ia+1] = vA
+		vB = (vB << 1) - shiftedGear[leaving[ib]] + g[entering[ib]]
+		dst[ib+1] = vB
+		ia++
+		ib++
+	}
+	for ; ia < half-1; ia++ {
+		vA = (vA << 1) - shiftedGear[leaving[ia]] + g[entering[ia]]
+		dst[ia+1] = vA
+	}
+	for ; ib < n; ib++ {
+		vB = (vB << 1) - shiftedGear[leaving[ib]] + g[entering[ib]]
+		dst[ib+1] = vB
+	}
+}
+
+// BulkBoundaries reports the window positions where the rolling checksum
+// satisfies sum & mask == 0, fusing the boundary test into the hashing loop.
+// It mirrors BulkRoll exactly, replacing each "dst[i] = v" with the masked
+// test. It does not modify the receiver.
+func (d *GearHash64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+	if window <= 0 || len(data) < window {
+		return 0, 0
+	}
+	g := &d.gear
+
+	var shiftedGear [256]uint64
+	if window < 64 {
+		w := uint(window)
+		for i, h := range g {
+			shiftedGear[i] = h << w
+		}
+	}
+
+	n := len(data) - window
+	leaving := data[:n+1]
+	entering := data[window:]
+	half := (n + 2) / 2
+
+	var vA uint64
+	for j := range window {
+		vA = (vA << 1) + g[data[j]]
+	}
+	if vA&mask == 0 {
+		a[na] = 0
+		na++
+	}
+
+	if half > n {
+		for ia := range n {
+			vA = (vA << 1) - shiftedGear[leaving[ia]] + g[entering[ia]]
+			if vA&mask == 0 {
+				a[na] = int32(ia + 1)
+				na++
+			}
+		}
+		return na, 0
+	}
+
+	var vB uint64
+	for j := range window {
+		vB = (vB << 1) + g[data[half+j]]
+	}
+	if vB&mask == 0 {
+		b[nb] = int32(half)
+		nb++
+	}
+
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		vA = (vA << 1) - shiftedGear[leaving[ia]] + g[entering[ia]]
+		if vA&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+		vB = (vB << 1) - shiftedGear[leaving[ib]] + g[entering[ib]]
+		if vB&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+		ia++
+		ib++
+	}
+	for ; ia < half-1; ia++ {
+		vA = (vA << 1) - shiftedGear[leaving[ia]] + g[entering[ia]]
+		if vA&mask == 0 {
+			a[na] = int32(ia + 1)
+			na++
+		}
+	}
+	for ; ib < n; ib++ {
+		vB = (vB << 1) - shiftedGear[leaving[ib]] + g[entering[ib]]
+		if vB&mask == 0 {
+			b[nb] = int32(ib + 1)
+			nb++
+		}
+	}
+	return na, nb
+}
