@@ -297,25 +297,42 @@ func TestChunkerError(t *testing.T) {
 	}
 }
 
+// BenchmarkChunker measures steady-state chunking throughput across every hash
+// in chunkerHashes and all three Chunker code paths: the fused BoundaryRoller
+// fast path, the BulkRoll-only fallback, and the Roll-only fallback.
 func BenchmarkChunker(b *testing.B) {
 	const window = 64
 	data := testData(1 << 20)
 	const mask, min, max = 0x1fff, 2 << 10, 64 << 10
 
-	c := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), window, mask, min, max)
-	r := bytes.NewReader(data)
-
-	b.SetBytes(int64(len(data)))
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		r.Reset(data)
-		c.Reset(r)
-		for c.Next() {
-			_ = c.Chunk()
+	for _, h := range chunkerHashes {
+		cases := []struct {
+			name string
+			h    rollinghash.Hash
+		}{
+			{"fused", h.new()},
+			{"bulkFallback", bulkOnly{h.new()}},
+			{"rollFallback", rollOnly{h.new()}},
 		}
-		if c.Err() != nil {
-			b.Fatal(c.Err())
+		for _, c := range cases {
+			b.Run(h.name+"/"+c.name, func(b *testing.B) {
+				r := bytes.NewReader(data)
+				ck := rollinghash.NewChunker(r, c.h, window, mask, min, max)
+
+				b.SetBytes(int64(len(data)))
+				b.ReportAllocs()
+				b.ResetTimer()
+				for range b.N {
+					r.Reset(data)
+					ck.Reset(r)
+					for ck.Next() {
+						_ = ck.Chunk()
+					}
+					if ck.Err() != nil {
+						b.Fatal(ck.Err())
+					}
+				}
+			})
 		}
 	}
 }
