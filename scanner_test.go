@@ -212,9 +212,9 @@ func TestScannerError(t *testing.T) {
 
 // BenchmarkScanner measures steady-state throughput, reusing one Scanner (and
 // its buffers) across iterations via Reset so the numbers reflect scanning,
-// not per-stream setup. It covers the BulkRoller fast path (bozo64) and the
-// Write+Roll fallback (buzhash64) across batch buffer sizes, showing how the
-// bulk path is amortized as batches grow.
+// not per-stream setup. It covers every BulkRoller implementation (bozo64,
+// buzhash64, gearhash64, rabinkarp64) plus the Write+Roll fallback, across
+// batch buffer sizes, showing how the bulk path is amortized as batches grow.
 func BenchmarkScanner(b *testing.B) {
 	const window = 64
 	data := make([]byte, 1<<20)
@@ -226,8 +226,10 @@ func BenchmarkScanner(b *testing.B) {
 		name string
 		h    rollinghash.Hash
 	}{
-		{"bozo64_bulk", bozo64.New()},
-		{"rabinkarp64_bulk", rabinkarp64.New()},
+		{"bozo64", bozo64.New()},
+		{"buzhash64", buzhash64.New()},
+		{"gearhash64", gearhash64.New()},
+		{"rabinkarp64", rabinkarp64.New()},
 		{"fallback", noBulkRoller{adler32.New()}},
 	}
 	bufSizes := []int{4 << 10, 64 << 10, 1 << 20}
