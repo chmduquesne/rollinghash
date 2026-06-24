@@ -9,6 +9,7 @@ import (
 	"github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/adler32"
 	"github.com/chmduquesne/rollinghash/v4/bozo64"
+	"github.com/chmduquesne/rollinghash/v4/gearhash64"
 )
 
 // refChunk is an independent reference for the Chunker: it computes every window
@@ -100,6 +101,7 @@ var chunkerHashes = []struct {
 	new  func() rollinghash.Hash
 }{
 	{"bozo64", func() rollinghash.Hash { return bozo64.New() }},
+	{"gearhash64", func() rollinghash.Hash { return gearhash64.New() }},
 	{"adler32", func() rollinghash.Hash { return adler32.New() }},
 }
 

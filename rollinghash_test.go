@@ -13,6 +13,7 @@ import (
 	"github.com/chmduquesne/rollinghash/v4/bozo64"
 	"github.com/chmduquesne/rollinghash/v4/buzhash32"
 	"github.com/chmduquesne/rollinghash/v4/buzhash64"
+	"github.com/chmduquesne/rollinghash/v4/gearhash64"
 	"github.com/chmduquesne/rollinghash/v4/rabinkarp64"
 )
 
@@ -26,6 +27,7 @@ var allHashes = []struct {
 	{"buzhash64", buzhash64.New(), buzhash64.New()},
 	{"bozo32", bozo32.New(), bozo32.New()},
 	{"bozo64", bozo64.New(), bozo64.New()},
+	{"gearhash64", gearhash64.New(), gearhash64.New()},
 	{"rabinkarp64", rabinkarp64.New(), rabinkarp64.New()},
 }
 
@@ -303,6 +305,7 @@ func TestSize(t *testing.T) {
 		"bozo64":      8, // 64-bit hash
 		"buzhash32":   4, // 32-bit hash
 		"buzhash64":   8, // 64-bit hash
+		"gearhash64":  8, // 64-bit hash
 		"rabinkarp64": 8, // 64-bit hash
 	}
 
@@ -724,7 +727,7 @@ func FuzzEdgeCases(f *testing.F) {
 
 			expectedSize := map[string]int{
 				"adler32": 4, "bozo32": 4, "buzhash32": 4,
-				"bozo64": 8, "buzhash64": 8, "rabinkarp64": 8,
+				"bozo64": 8, "buzhash64": 8, "gearhash64": 8, "rabinkarp64": 8,
 			}
 			if size, ok := expectedSize[h.name]; ok && rolling.Size() != size {
 				t.Errorf("[%s] Size should be %d, got %d", h.name, size, rolling.Size())
