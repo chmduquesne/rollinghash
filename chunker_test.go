@@ -59,7 +59,9 @@ func bulkRollOracleHash(classic interface {
 	out := make([]uint64, len(data)-window+1)
 	for i := range out {
 		classic.Reset()
-		classic.Write(data[i : i+window])
+		if _, err := classic.Write(data[i : i+window]); err != nil {
+			panic(err)
+		}
 		var v uint64
 		for _, b := range classic.Sum(make([]byte, 0, 8)) {
 			v = v<<8 | uint64(b)
