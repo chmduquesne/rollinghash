@@ -67,3 +67,17 @@ type Hash64 interface {
 	hash.Hash64
 	Roller
 }
+
+// BulkRoller is an optional fast path. A Hash that implements it computes
+// the rolling checksum of every window-sized slice of data in one call,
+// owning the loop so it can index the leaving byte directly and keep
+// several accumulators in registers. Callers normally reach it indirectly
+// through helpers, exactly as io.Copy reaches io.ReaderFrom.
+//
+// BulkRoll writes the rolling hash at every position into dst, which must
+// have len(data)-window+1 elements. It is semantically equivalent to
+// Write(data[:window]) followed by a Roll for each subsequent byte,
+// recording Sum64 after each step. It does not modify the receiver's state.
+type BulkRoller interface {
+	BulkRoll(dst []uint64, data []byte, window int)
+}

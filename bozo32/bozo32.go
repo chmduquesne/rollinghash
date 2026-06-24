@@ -131,3 +131,79 @@ func (d *Bozo32) Roll(c byte) {
 
 	d.value = d.value*d.a + enter - leave*d.aⁿ
 }
+
+// Compile-time check that we implement the bulk fast path.
+var _ rollinghash.BulkRoller = (*Bozo32)(nil)
+
+// BulkRoll computes the rolling checksum of every window-sized slice of
+// data in one pass and writes them to dst, which must have
+// len(data)-window+1 elements: dst[i] is the checksum of data[i:i+window]
+// (the 32-bit value zero-extended into a uint64). It is equivalent to
+// Write(data[:window]) followed by a Roll for each subsequent byte,
+// recording Sum32 after each step, but it indexes the leaving byte directly
+// (data[i]) instead of keeping a circular window and rolls two independent
+// lanes so their multiplies overlap in the pipeline. BulkRoll does not
+// modify the receiver; only d.a (the multiplier) is read.
+func (d *Bozo32) BulkRoll(dst []uint64, data []byte, window int) {
+	if window <= 0 || len(data) < window {
+		return
+	}
+	a := d.a
+
+	// aⁿ = a^window, the weight of the byte leaving the window.
+	var aⁿ uint32 = 1
+	for range window {
+		aⁿ *= a
+	}
+
+	n := len(data) - window // highest output index; there are n+1 outputs.
+
+	// Lane A owns dst[0:half], lane B owns dst[half:n+1]; the extra output
+	// of an odd count goes to A.
+	half := (n + 2) / 2
+
+	// Lane A warmup: Horner over data[0:window].
+	var vA uint32
+	for j := range window {
+		vA = vA*a + uint32(data[j])
+	}
+	dst[0] = uint64(vA)
+
+	if half > n {
+		// Only one output (n == 0), or nothing left for a second lane.
+		for ia := range n {
+			vA = vA*a + uint32(data[ia+window]) - uint32(data[ia])*aⁿ
+			dst[ia+1] = uint64(vA)
+		}
+		return
+	}
+
+	// Lane B warmup: Horner over data[half:half+window] (in bounds because
+	// half <= n implies half+window <= len(data)).
+	var vB uint32
+	for j := range window {
+		vB = vB*a + uint32(data[half+j])
+	}
+	dst[half] = uint64(vB)
+
+	// Step both lanes in lockstep; vA and vB are independent locals so the
+	// compiler keeps them in registers and the two multiplies pipeline.
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		vA = vA*a + uint32(data[ia+window]) - uint32(data[ia])*aⁿ
+		dst[ia+1] = uint64(vA)
+		vB = vB*a + uint32(data[ib+window]) - uint32(data[ib])*aⁿ
+		dst[ib+1] = uint64(vB)
+		ia++
+		ib++
+	}
+	// Finish whichever lane is longer (A, by at most one output).
+	for ; ia < half-1; ia++ {
+		vA = vA*a + uint32(data[ia+window]) - uint32(data[ia])*aⁿ
+		dst[ia+1] = uint64(vA)
+	}
+	for ; ib < n; ib++ {
+		vB = vB*a + uint32(data[ib+window]) - uint32(data[ib])*aⁿ
+		dst[ib+1] = uint64(vB)
+	}
+}

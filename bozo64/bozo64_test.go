@@ -162,3 +162,20 @@ func BenchmarkReadUrandom(b *testing.B) {
 		h.Sum(in)
 	}
 }
+
+func BenchmarkBulkRoll(b *testing.B) {
+	const window = 64
+	data := make([]byte, 1<<20)
+	for i := range data {
+		data[i] = byte(i*131 + 7)
+	}
+	dst := make([]uint64, len(data)-window+1)
+	h := rollsum.New()
+
+	b.SetBytes(int64(len(data)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		h.BulkRoll(dst, data, window)
+	}
+}

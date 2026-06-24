@@ -374,6 +374,100 @@ func FuzzRollingHashConsistency(f *testing.F) {
 	})
 }
 
+// bulkRollOracle returns the expected BulkRoll output for data/window: the
+// classic hash of every window-sized slice, read as a uint64.
+func bulkRollOracle(classic hash.Hash, data []byte, window int) []uint64 {
+	if window <= 0 || len(data) < window {
+		return nil
+	}
+	out := make([]uint64, len(data)-window+1)
+	for i := range out {
+		classic.Reset()
+		classic.Write(data[i : i+window])
+		out[i] = sum64(classic)
+	}
+	return out
+}
+
+// checkBulkRoll verifies a single BulkRoller against the classic hash for a
+// given data/window, including that dst has the expected length and that
+// BulkRoll does not modify the receiver.
+func checkBulkRoll(t *testing.T, name string, br rollinghash.BulkRoller, classic hash.Hash, data []byte, window int) {
+	t.Helper()
+	want := bulkRollOracle(classic, data, window)
+
+	dst := make([]uint64, len(want))
+	br.BulkRoll(dst, data, window)
+
+	for i := range want {
+		if dst[i] != want[i] {
+			t.Errorf("[%s] BulkRoll(window=%d) at %d: expected 0x%x, got 0x%x (window %q)",
+				name, window, i, want[i], dst[i], data[i:i+window])
+		}
+	}
+}
+
+// TestBulkRoll checks that every hash implementing BulkRoller produces, for a
+// range of inputs and window sizes, the same checksum at each position as the
+// classic hash of that window. The edge cases target the two-lane split:
+// empty output, a single output (no second lane), window==1, and both odd and
+// even output counts so the unequal-lane tail is exercised.
+func TestBulkRoll(t *testing.T) {
+	base := []byte("The quick brown fox jumps over the lazy dog")
+	for _, h := range allHashes {
+		br, ok := h.rolling.(rollinghash.BulkRoller)
+		if !ok {
+			continue
+		}
+		// data, window pairs. Output count is len(data)-window+1.
+		cases := []struct {
+			data   []byte
+			window int
+		}{
+			{base, 1},             // window==1
+			{base, 16},            // typical
+			{base, len(base)},     // exactly one output, no lane B
+			{base, len(base) + 1}, // window > len: empty output
+			{base[:5], 4},         // 2 outputs (even)
+			{base[:6], 4},         // 3 outputs (odd)
+			{base[:7], 4},         // 4 outputs (even)
+			{base[:8], 4},         // 5 outputs (odd)
+			{[]byte("a"), 1},      // single byte
+			{[]byte{}, 1},         // empty data
+		}
+		for _, c := range cases {
+			checkBulkRoll(t, h.name, br, h.classic, c.data, c.window)
+		}
+	}
+}
+
+// FuzzBulkRoll feeds random data and window sizes and verifies that, for
+// every hash implementing BulkRoller, the bulk output matches the classic
+// hash of each window position.
+func FuzzBulkRoll(f *testing.F) {
+	f.Add([]byte("hello world"), 5)
+	f.Add([]byte("The quick brown fox jumps over the lazy dog"), 16)
+	f.Add([]byte("a"), 1)
+	f.Add([]byte(""), 0)
+
+	f.Fuzz(func(t *testing.T, data []byte, windowSize int) {
+		if windowSize <= 0 || len(data) == 0 {
+			return
+		}
+		if windowSize > len(data) {
+			windowSize = len(data)
+		}
+
+		for _, h := range allHashes {
+			br, ok := h.rolling.(rollinghash.BulkRoller)
+			if !ok {
+				continue
+			}
+			checkBulkRoll(t, h.name, br, h.classic, data, windowSize)
+		}
+	})
+}
+
 // FuzzWriteConsistency checks two write-related invariants on random
 // inputs. First, that splitting the input across two Write calls produces
 // the same sum as a single Write of the concatenation. Second, that

@@ -165,3 +165,72 @@ func (d *Buzhash64) Roll(c byte) {
 
 	d.sum = bits.RotateLeft64(d.sum, 1) ^ bits.RotateLeft64(h0, int(d.nRotate)) ^ hn
 }
+
+// Compile-time check that we implement the bulk fast path.
+var _ rollinghash.BulkRoller = (*Buzhash64)(nil)
+
+// BulkRoll computes the rolling checksum of every window-sized slice of data
+// in one pass and writes them to dst, which must have len(data)-window+1
+// elements: dst[i] is the checksum of data[i:i+window]. It is equivalent to
+// Write(data[:window]) followed by a Roll for each subsequent byte, recording
+// Sum64 after each step, but it indexes the leaving byte directly (data[i])
+// instead of keeping a circular window and rolls two independent lanes so
+// their rotate/XOR chains overlap in the pipeline. BulkRoll does not modify
+// the receiver; only d.bytehash is read.
+func (d *Buzhash64) BulkRoll(dst []uint64, data []byte, window int) {
+	if window <= 0 || len(data) < window {
+		return
+	}
+	bh := &d.bytehash
+	nRotate := window % 64 // rotation applied to the leaving byte's hash
+
+	n := len(data) - window // highest output index; there are n+1 outputs.
+
+	// Lane A owns dst[0:half], lane B owns dst[half:n+1]; the extra output
+	// of an odd count goes to A.
+	half := (n + 2) / 2
+
+	// Lane A warmup over data[0:window].
+	var vA uint64
+	for j := range window {
+		vA = bits.RotateLeft64(vA, 1) ^ bh[data[j]]
+	}
+	dst[0] = vA
+
+	if half > n {
+		// Only one output (n == 0), or nothing left for a second lane.
+		for ia := range n {
+			vA = bits.RotateLeft64(vA, 1) ^ bits.RotateLeft64(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+			dst[ia+1] = vA
+		}
+		return
+	}
+
+	// Lane B warmup over data[half:half+window].
+	var vB uint64
+	for j := range window {
+		vB = bits.RotateLeft64(vB, 1) ^ bh[data[half+j]]
+	}
+	dst[half] = vB
+
+	// Step both lanes in lockstep; vA and vB are independent locals so the
+	// compiler keeps them in registers and the two rotate/XOR chains pipeline.
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		vA = bits.RotateLeft64(vA, 1) ^ bits.RotateLeft64(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+		dst[ia+1] = vA
+		vB = bits.RotateLeft64(vB, 1) ^ bits.RotateLeft64(bh[data[ib]], nRotate) ^ bh[data[ib+window]]
+		dst[ib+1] = vB
+		ia++
+		ib++
+	}
+	// Finish whichever lane is longer (A, by at most one output).
+	for ; ia < half-1; ia++ {
+		vA = bits.RotateLeft64(vA, 1) ^ bits.RotateLeft64(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+		dst[ia+1] = vA
+	}
+	for ; ib < n; ib++ {
+		vB = bits.RotateLeft64(vB, 1) ^ bits.RotateLeft64(bh[data[ib]], nRotate) ^ bh[data[ib+window]]
+		dst[ib+1] = vB
+	}
+}

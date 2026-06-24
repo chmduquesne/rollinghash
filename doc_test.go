@@ -1,10 +1,14 @@
 package rollinghash_test
 
 import (
+	"bytes"
+	"fmt"
 	"hash"
 	"log"
 
+	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	_adler32 "github.com/chmduquesne/rollinghash/v4/adler32"
+	"github.com/chmduquesne/rollinghash/v4/bozo64"
 )
 
 func Example() {
@@ -44,4 +48,42 @@ func Example() {
 		}
 	}
 
+}
+
+// ExampleScanner shows how to use a Scanner to walk a stream and read, for
+// every window position, the rolling checksum together with the bytes it
+// covers. Here we locate a known block within the stream: the rolling
+// checksum is the cheap filter, and the byte comparison confirms the match
+// (rolling-hash matches can collide). The same loop shape serves chunking,
+// analysis, or any custom rule over the checksums.
+func ExampleScanner() {
+	data := []byte("the quick brown fox jumps over the lazy dog")
+
+	// The block we are looking for, and its rolling checksum.
+	needle := []byte("brown")
+	window := len(needle)
+
+	h := bozo64.New()
+	if _, err := h.Write(needle); err != nil {
+		log.Fatal(err)
+	}
+	target := h.Sum64()
+
+	// Scan the stream. Within each batch, Sums()[i] is the checksum of
+	// Bytes()[i:i+window]. This input fits in a single batch, so the batch
+	// index i is also the offset in the stream; for larger inputs spanning
+	// multiple Scan() calls you would accumulate an offset across batches.
+	s := rollinghash.NewScanner(bytes.NewReader(data), bozo64.New(), window)
+	for s.Scan() {
+		sums, buf := s.Sums(), s.Bytes()
+		for i, sum := range sums {
+			if sum == target && bytes.Equal(buf[i:i+window], needle) {
+				fmt.Printf("found %q at offset %d\n", needle, i)
+			}
+		}
+	}
+	if err := s.Err(); err != nil {
+		log.Fatal(err)
+	}
+	// Output: found "brown" at offset 10
 }

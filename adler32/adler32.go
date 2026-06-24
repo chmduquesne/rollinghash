@@ -130,3 +130,85 @@ func (d *Adler32) Roll(b byte) {
 	d.a = (d.a + Mod + enter - leave) % Mod
 	d.b = (d.b + d.a + Mod - 1 - (d.n*leave)%Mod) % Mod
 }
+
+// Compile-time check that we implement the bulk fast path.
+var _ rollinghash.BulkRoller = (*Adler32)(nil)
+
+// BulkRoll computes the rolling checksum of every window-sized slice of data
+// in one pass and writes them to dst, which must have len(data)-window+1
+// elements: dst[i] is the checksum of data[i:i+window] (the 32-bit value
+// zero-extended into a uint64). It is equivalent to Write(data[:window])
+// followed by a Roll for each subsequent byte, recording Sum32 after each
+// step, but it indexes the leaving byte directly (data[i]) instead of keeping
+// a circular window and rolls two independent lanes so their modular-arithmetic
+// chains overlap in the pipeline. BulkRoll does not modify the receiver.
+func (d *Adler32) BulkRoll(dst []uint64, data []byte, window int) {
+	if window <= 0 || len(data) < window {
+		return
+	}
+	wmod := uint32(window) % Mod // window length, as used in the b update
+
+	n := len(data) - window // highest output index; there are n+1 outputs.
+
+	// Lane A owns dst[0:half], lane B owns dst[half:n+1]; the extra output
+	// of an odd count goes to A.
+	half := (n + 2) / 2
+
+	// Lane A warmup: accumulate adler over data[0:window].
+	var aA, bA uint32 = 1, 0
+	for j := range window {
+		aA = (aA + uint32(data[j])) % Mod
+		bA = (bA + aA) % Mod
+	}
+	dst[0] = uint64(bA<<16 | aA)
+
+	if half > n {
+		// Only one output (n == 0), or nothing left for a second lane.
+		for ia := range n {
+			leave, enter := uint32(data[ia]), uint32(data[ia+window])
+			aA = (aA + Mod + enter - leave) % Mod
+			bA = (bA + aA + Mod - 1 - (wmod*leave)%Mod) % Mod
+			dst[ia+1] = uint64(bA<<16 | aA)
+		}
+		return
+	}
+
+	// Lane B warmup: accumulate adler over data[half:half+window].
+	var aB, bB uint32 = 1, 0
+	for j := range window {
+		aB = (aB + uint32(data[half+j])) % Mod
+		bB = (bB + aB) % Mod
+	}
+	dst[half] = uint64(bB<<16 | aB)
+
+	// Step both lanes in lockstep; the two (a,b) pairs are independent locals
+	// so the compiler keeps them in registers and their reductions pipeline.
+	ia, ib := 0, half
+	for ia < half-1 && ib < n {
+		la, ea := uint32(data[ia]), uint32(data[ia+window])
+		aA = (aA + Mod + ea - la) % Mod
+		bA = (bA + aA + Mod - 1 - (wmod*la)%Mod) % Mod
+		dst[ia+1] = uint64(bA<<16 | aA)
+
+		lb, eb := uint32(data[ib]), uint32(data[ib+window])
+		aB = (aB + Mod + eb - lb) % Mod
+		bB = (bB + aB + Mod - 1 - (wmod*lb)%Mod) % Mod
+		dst[ib+1] = uint64(bB<<16 | aB)
+
+		ia++
+		ib++
+	}
+	// Finish whichever lane is longer (A, by at most one output).
+	for ; ia < half-1; ia++ {
+		la, ea := uint32(data[ia]), uint32(data[ia+window])
+		aA = (aA + Mod + ea - la) % Mod
+		bA = (bA + aA + Mod - 1 - (wmod*la)%Mod) % Mod
+		dst[ia+1] = uint64(bA<<16 | aA)
+	}
+	for ; ib < n; ib++ {
+		lb, eb := uint32(data[ib]), uint32(data[ib+window])
+		aB = (aB + Mod + eb - lb) % Mod
+		bB = (bB + aB + Mod - 1 - (wmod*lb)%Mod) % Mod
+		dst[ib+1] = uint64(bB<<16 | aB)
+	}
+}
