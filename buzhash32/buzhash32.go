@@ -175,18 +175,31 @@ var (
 // elements: dst[i] is the checksum of data[i:i+window] (the 32-bit value
 // zero-extended into a uint64). It is equivalent to Write(data[:window])
 // followed by a Roll for each subsequent byte, recording Sum32 after each
-// step, but it indexes the leaving byte directly (data[i]) instead of keeping
-// a circular window and rolls two independent lanes so their rotate/XOR
-// chains overlap in the pipeline. BulkRoll does not modify the receiver; only
-// d.bytehash is read.
+// step, but it indexes the leaving byte directly instead of keeping a circular
+// window and rolls two independent lanes so their rotate/XOR chains overlap in
+// the pipeline. BulkRoll does not modify the receiver; only d.bytehash is read.
 func (d *Buzhash32) BulkRoll(dst []uint64, data []byte, window int) {
 	if window <= 0 || len(data) < window {
 		return
 	}
 	bh := &d.bytehash
-	nRotate := window % 32 // rotation applied to the leaving byte's hash
+	nRotate := window % 32
+
+	// Precompute the rotated leaving-byte table once. This eliminates the
+	// variable-count RORL CL instruction from the inner loop, which otherwise
+	// forces nRotate into the CL register every iteration and causes the
+	// compiler to spill other live values to the stack.
+	var rotBH [256]uint32
+	for i, h := range bh {
+		rotBH[i] = bits.RotateLeft32(h, nRotate)
+	}
 
 	n := len(data) - window // highest output index; there are n+1 outputs.
+
+	// Reslice so the compiler can prove bounds without a chain through half
+	// and window, eliminating the per-iteration bounds checks.
+	leaving  := data[:n+1]
+	entering := data[window:]
 
 	// Lane A owns dst[0:half], lane B owns dst[half:n+1]; the extra output
 	// of an odd count goes to A.
@@ -202,7 +215,7 @@ func (d *Buzhash32) BulkRoll(dst []uint64, data []byte, window int) {
 	if half > n {
 		// Only one output (n == 0), or nothing left for a second lane.
 		for ia := range n {
-			vA = bits.RotateLeft32(vA, 1) ^ bits.RotateLeft32(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+			vA = bits.RotateLeft32(vA, 1) ^ rotBH[leaving[ia]] ^ bh[entering[ia]]
 			dst[ia+1] = uint64(vA)
 		}
 		return
@@ -219,20 +232,20 @@ func (d *Buzhash32) BulkRoll(dst []uint64, data []byte, window int) {
 	// compiler keeps them in registers and the two rotate/XOR chains pipeline.
 	ia, ib := 0, half
 	for ia < half-1 && ib < n {
-		vA = bits.RotateLeft32(vA, 1) ^ bits.RotateLeft32(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+		vA = bits.RotateLeft32(vA, 1) ^ rotBH[leaving[ia]] ^ bh[entering[ia]]
 		dst[ia+1] = uint64(vA)
-		vB = bits.RotateLeft32(vB, 1) ^ bits.RotateLeft32(bh[data[ib]], nRotate) ^ bh[data[ib+window]]
+		vB = bits.RotateLeft32(vB, 1) ^ rotBH[leaving[ib]] ^ bh[entering[ib]]
 		dst[ib+1] = uint64(vB)
 		ia++
 		ib++
 	}
 	// Finish whichever lane is longer (A, by at most one output).
 	for ; ia < half-1; ia++ {
-		vA = bits.RotateLeft32(vA, 1) ^ bits.RotateLeft32(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+		vA = bits.RotateLeft32(vA, 1) ^ rotBH[leaving[ia]] ^ bh[entering[ia]]
 		dst[ia+1] = uint64(vA)
 	}
 	for ; ib < n; ib++ {
-		vB = bits.RotateLeft32(vB, 1) ^ bits.RotateLeft32(bh[data[ib]], nRotate) ^ bh[data[ib+window]]
+		vB = bits.RotateLeft32(vB, 1) ^ rotBH[leaving[ib]] ^ bh[entering[ib]]
 		dst[ib+1] = uint64(vB)
 	}
 }
@@ -240,8 +253,8 @@ func (d *Buzhash32) BulkRoll(dst []uint64, data []byte, window int) {
 // BulkBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
 // rollinghash.BoundaryRoller). It mirrors BulkRoll exactly, replacing each
-// "dst[i] = uint64(v)" with the masked test on the zero-extended value. It does
-// not modify the receiver.
+// "dst[i] = uint64(v)" with the masked test on the zero-extended value. It
+// does not modify the receiver.
 func (d *Buzhash32) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
@@ -249,7 +262,14 @@ func (d *Buzhash32) BulkBoundaries(a, b []int32, data []byte, window int, mask u
 	bh := &d.bytehash
 	nRotate := window % 32
 
+	var rotBH [256]uint32
+	for i, h := range bh {
+		rotBH[i] = bits.RotateLeft32(h, nRotate)
+	}
+
 	n := len(data) - window
+	leaving  := data[:n+1]
+	entering := data[window:]
 	half := (n + 2) / 2
 
 	var vA uint32
@@ -263,7 +283,7 @@ func (d *Buzhash32) BulkBoundaries(a, b []int32, data []byte, window int, mask u
 
 	if half > n {
 		for ia := range n {
-			vA = bits.RotateLeft32(vA, 1) ^ bits.RotateLeft32(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+			vA = bits.RotateLeft32(vA, 1) ^ rotBH[leaving[ia]] ^ bh[entering[ia]]
 			if uint64(vA)&mask == 0 {
 				a[na] = int32(ia + 1)
 				na++
@@ -283,12 +303,12 @@ func (d *Buzhash32) BulkBoundaries(a, b []int32, data []byte, window int, mask u
 
 	ia, ib := 0, half
 	for ia < half-1 && ib < n {
-		vA = bits.RotateLeft32(vA, 1) ^ bits.RotateLeft32(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+		vA = bits.RotateLeft32(vA, 1) ^ rotBH[leaving[ia]] ^ bh[entering[ia]]
 		if uint64(vA)&mask == 0 {
 			a[na] = int32(ia + 1)
 			na++
 		}
-		vB = bits.RotateLeft32(vB, 1) ^ bits.RotateLeft32(bh[data[ib]], nRotate) ^ bh[data[ib+window]]
+		vB = bits.RotateLeft32(vB, 1) ^ rotBH[leaving[ib]] ^ bh[entering[ib]]
 		if uint64(vB)&mask == 0 {
 			b[nb] = int32(ib + 1)
 			nb++
@@ -297,14 +317,14 @@ func (d *Buzhash32) BulkBoundaries(a, b []int32, data []byte, window int, mask u
 		ib++
 	}
 	for ; ia < half-1; ia++ {
-		vA = bits.RotateLeft32(vA, 1) ^ bits.RotateLeft32(bh[data[ia]], nRotate) ^ bh[data[ia+window]]
+		vA = bits.RotateLeft32(vA, 1) ^ rotBH[leaving[ia]] ^ bh[entering[ia]]
 		if uint64(vA)&mask == 0 {
 			a[na] = int32(ia + 1)
 			na++
 		}
 	}
 	for ; ib < n; ib++ {
-		vB = bits.RotateLeft32(vB, 1) ^ bits.RotateLeft32(bh[data[ib]], nRotate) ^ bh[data[ib+window]]
+		vB = bits.RotateLeft32(vB, 1) ^ rotBH[leaving[ib]] ^ bh[entering[ib]]
 		if uint64(vB)&mask == 0 {
 			b[nb] = int32(ib + 1)
 			nb++

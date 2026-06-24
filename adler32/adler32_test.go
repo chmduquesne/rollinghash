@@ -181,3 +181,23 @@ func BenchmarkBulkRoll(b *testing.B) {
 		h.BulkRoll(dst, data, window)
 	}
 }
+
+func BenchmarkBulkBoundaries(b *testing.B) {
+	const window = 64
+	const mask = uint64(0x1fff)
+	data := make([]byte, 1<<20)
+	for i := range data {
+		data[i] = byte(i*131 + 7)
+	}
+	n := len(data) - window + 1
+	la := make([]int32, n)
+	lb := make([]int32, n)
+	h := rollsum.New()
+
+	b.SetBytes(int64(len(data)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		h.BulkBoundaries(la, lb, data, window, mask)
+	}
+}

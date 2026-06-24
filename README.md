@@ -83,10 +83,11 @@ h1.Roll(b) // Not inlined (slow)
 h2.Roll(b) // inlined (fast)
 ```
 
-### Buzhash and window sizes that are a multiple of the word size
+### Do not use a 64 bytes window with Buzhash for CDC
 
-When using `buzhash32` or `buzhash64`, do NOT choose a window length that
-is a multiple of the word size (32 for `buzhash32`, 64 for `buzhash64`).
+When using `buzhash32` or `buzhash64` for Content Defined Chunking, do NOT
+choose a window length that is a multiple of the word size (32 for
+`buzhash32`, 64 for `buzhash64`).
 
 Buzhash (cyclic polynomial) rolls its sum by rotating the word one bit per
 byte, so the rotation wraps every word-size bytes. As a result, a run of
@@ -99,7 +100,7 @@ executables a 64-byte window makes `buzhash64` return
 
 This is inherent to the cyclic polynomial construction and cannot be fixed
 by changing the byte table. Any window length that is not a multiple of
-the word size avoids it (e.g. use 63 or 65 instead of 64).
+the word size avoids it (e.g. use 48 or 56 instead of 64).
 
 ## What's new
 
