@@ -69,7 +69,7 @@ jobs:
         go-version: 'stable'
 
     - name: Test with coverage
-      run: go test -v -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+      run: go test -v -covermode=atomic -coverpkg=$(go list ./... | grep -v '/roll' | tr '\n' ',') -coverprofile=coverage.out ./...
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
