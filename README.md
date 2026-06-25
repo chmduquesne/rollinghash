@@ -7,11 +7,9 @@
 
 ## Philosophy
 
-This package contains several various rolling hashes. The API design philosophy
-is to stick as closely as possible to the interface provided by the builtin hash
-package (the hashes implemented here are effectively drop-in replacements for
-their builtin counterparts), while providing simultaneously the highest speed
-and simplicity.
+This package provides several rolling hashes. The API design philosophy is
+to provide interfaces that are correct, fast and idiomatic. The hashes
+are drop-in replacements whenever a builtin counterpart exists.
 
 ## Usage
 
