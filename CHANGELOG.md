@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v4.2.0 - 2026-06-25
 
 ### Added
 
@@ -13,9 +13,8 @@
 
 ### Changed
 
-- `buzhash32`/`buzhash64`: further `Scanner` and `Chunker` performance
-  improvements via a precomputed leaving-byte table.
-- `gearhash64`: performance improvements on `Scanner` and `Chunker`.
+- `buzhash32.Roll`, `buzhash64.Roll`: throughput improvement via a
+  precomputed leaving-byte table.
 - Default benchmark window size changed to 56 to avoid the buzhash
   word-size degeneracy (see Gotchas in README).
 
