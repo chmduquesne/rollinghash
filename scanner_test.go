@@ -179,6 +179,39 @@ func TestScannerShortInput(t *testing.T) {
 	}
 }
 
+// TestScannerAccessorLifecycle verifies that Sums() and Bytes() are nil before
+// the first Scan() call and after Scan() returns false, even on a stream that
+// produces batches.
+func TestScannerAccessorLifecycle(t *testing.T) {
+	const window = 16
+	data := testData(200)
+	for _, h := range scannerHashes {
+		s := rollinghash.NewScanner(bytes.NewReader(data), h.new(), window)
+
+		if s.Sums() != nil || s.Bytes() != nil {
+			t.Errorf("[%s] expected nil Sums/Bytes before first Scan", h.name)
+		}
+
+		for s.Scan() {
+		}
+		if err := s.Err(); err != nil {
+			t.Fatalf("[%s] Err: %v", h.name, err)
+		}
+
+		if s.Sums() != nil || s.Bytes() != nil {
+			t.Errorf("[%s] expected nil Sums/Bytes after Scan returns false", h.name)
+		}
+
+		// Calling Scan() again after exhaustion must also return nil.
+		if s.Scan() {
+			t.Errorf("[%s] Scan() returned true after exhaustion", h.name)
+		}
+		if s.Sums() != nil || s.Bytes() != nil {
+			t.Errorf("[%s] expected nil Sums/Bytes on repeated Scan after exhaustion", h.name)
+		}
+	}
+}
+
 // TestScannerSumOnlyFallback covers the Scanner's generic byte-wise sum reader
 // (used when the hash implements neither BulkRoller nor Sum64/Sum32).
 func TestScannerSumOnlyFallback(t *testing.T) {

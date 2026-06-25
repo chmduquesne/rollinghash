@@ -141,6 +141,9 @@ func (c *Chunker) Reset(r io.Reader) {
 // first error. After it returns false, Err reports any error other than EOF.
 func (c *Chunker) Next() bool {
 	if c.err != nil || c.done {
+		c.chunk = nil
+		c.sumv = 0
+		c.atMask = false
 		return false
 	}
 	for {
@@ -310,14 +313,17 @@ func (c *Chunker) fail() bool {
 	return false
 }
 
-// Chunk returns the current chunk, valid until the next call to Next.
+// Chunk returns the current chunk, valid until the next call to Next. Before
+// the first call to Next, and after Next returns false, Chunk returns nil.
 func (c *Chunker) Chunk() []byte { return c.chunk }
 
-// Sum returns the rolling checksum at the current chunk's boundary.
+// Sum returns the rolling checksum at the current chunk's boundary. Before
+// the first call to Next, and after Next returns false, Sum returns 0.
 func (c *Chunker) Sum() uint64 { return c.sumv }
 
 // AtMask reports whether the current chunk was cut by the mask (true) rather
-// than forced at max or at end of stream (false).
+// than forced at max or at end of stream (false). Before the first call to
+// Next, and after Next returns false, AtMask returns false.
 func (c *Chunker) AtMask() bool { return c.atMask }
 
 // Err returns the first non-EOF error encountered by Next, if any.

@@ -281,6 +281,41 @@ func FuzzChunker(f *testing.F) {
 	})
 }
 
+// TestChunkerAccessorLifecycle verifies that Chunk(), Sum(), and AtMask()
+// return zero values both before the first Next() call and after Next()
+// returns false on a stream that produced chunks.
+func TestChunkerAccessorLifecycle(t *testing.T) {
+	data := testData(200 * 1024)
+	const window = 48
+	const mask, min, max = 0x3ff, 512, 16384
+
+	for _, h := range allHashes {
+		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
+
+		if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
+			t.Errorf("[%s] expected zero-value accessors before first Next", h.name)
+		}
+
+		for c.Next() {
+		}
+		if err := c.Err(); err != nil {
+			t.Fatalf("[%s] Err: %v", h.name, err)
+		}
+
+		if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
+			t.Errorf("[%s] expected zero-value accessors after Next returns false", h.name)
+		}
+
+		// Calling Next() again after exhaustion must also return zero values.
+		if c.Next() {
+			t.Errorf("[%s] Next() returned true after exhaustion", h.name)
+		}
+		if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
+			t.Errorf("[%s] expected zero-value accessors on repeated Next after exhaustion", h.name)
+		}
+	}
+}
+
 // TestChunkerError verifies that a reader error is surfaced through Err.
 func TestChunkerError(t *testing.T) {
 	boom := errors.New("boom")

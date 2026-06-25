@@ -40,11 +40,12 @@ type Scanner struct {
 	br     BulkRoller // non-nil when h implements the fast path
 	window int
 
-	buf   []byte
-	data  []byte   // current batch's bytes; == buf[:n]
-	sums  []uint64 // current batch's checksums
-	carry int      // window-1 bytes to carry from the previous batch, or 0
-	prevN int      // length of the previous batch (where its carry tail sits)
+	buf      []byte
+	data     []byte   // current batch's bytes; == buf[:n]; nil outside a batch
+	sums     []uint64 // current batch's checksums; nil outside a batch
+	sumsStore []uint64 // backing array for sums; retained across Reset for reuse
+	carry    int      // window-1 bytes to carry from the previous batch, or 0
+	prevN    int      // length of the previous batch (where its carry tail sits)
 
 	sum  func() uint64 // reads h's current sum; fallback path only
 	eof  bool          // the reader has signalled io.EOF
@@ -101,7 +102,8 @@ func (s *Scanner) Buffer(buf []byte) {
 func (s *Scanner) Reset(r io.Reader) {
 	s.r = r
 	s.data = nil
-	s.sums = s.sums[:0]
+	s.sums = nil
+	// sumsStore is intentionally kept to reuse its backing array.
 	s.carry = 0
 	s.prevN = 0
 	s.eof = false
@@ -113,6 +115,8 @@ func (s *Scanner) Reset(r io.Reader) {
 // error. After it returns false, Err reports any error other than io.EOF.
 func (s *Scanner) Scan() bool {
 	if s.err != nil || s.done {
+		s.data = nil
+		s.sums = nil
 		return false
 	}
 
@@ -140,15 +144,18 @@ func (s *Scanner) Scan() bool {
 	if n < s.window {
 		// Fewer than window bytes remain: no whole window can be formed.
 		s.done = true
+		s.data = nil
+		s.sums = nil
 		return false
 	}
 
 	s.data = s.buf[:n]
 	nsums := n - s.window + 1
-	if cap(s.sums) < nsums {
-		s.sums = make([]uint64, nsums)
+	if cap(s.sumsStore) < nsums {
+		s.sumsStore = make([]uint64, nsums)
 	}
-	s.sums = s.sums[:nsums]
+	s.sumsStore = s.sumsStore[:nsums]
+	s.sums = s.sumsStore
 	s.bulkRoll(s.sums, s.data, s.window)
 
 	if s.eof {
@@ -184,11 +191,13 @@ func (s *Scanner) bulkRoll(dst []uint64, data []byte, window int) {
 }
 
 // Sums returns the checksums of the current batch, one per window position.
-// It is valid only until the next call to Scan.
+// It is valid only until the next call to Scan. Before the first call to
+// Scan, and after Scan returns false, Sums returns nil.
 func (s *Scanner) Sums() []uint64 { return s.sums }
 
 // Bytes returns the bytes of the current batch. Sums()[i] is the checksum of
-// Bytes()[i:i+window]. It is valid only until the next call to Scan.
+// Bytes()[i:i+window]. It is valid only until the next call to Scan. Before
+// the first call to Scan, and after Scan returns false, Bytes returns nil.
 func (s *Scanner) Bytes() []byte { return s.data }
 
 // Err returns the first non-EOF error encountered by Scan, if any.
