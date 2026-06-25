@@ -38,11 +38,11 @@ for _, c := range data[n:] {
 The hash maintains an internal copy of the rolling window. Use `WriteWindow` to
 read it back out.
 
-### Scanner (speed x2)
+### Scanner
 
 The
 [`rollinghash.Scanner`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Scanner)
-is designed for search of a block within a stream, rsync-style: the
+is designed for searching a block within a stream, rsync-style: the
 rolling checksum acts as a cheap filter, and a secondary check (e.g. byte
 comparison) confirms the match. It is shaped like a
 [`bufio.Scanner`](https://golang.org/pkg/bufio/#Scanner) and batches
@@ -77,7 +77,7 @@ Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`.
 Use `Buffer` to control the batch size and `Reset` to reuse the scanner
 across multiple streams without extra allocations.
 
-### Chunker (speed x2)
+### Chunker
 
 The
 [`rollinghash.Chunker`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Chunker)
