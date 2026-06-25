@@ -20,8 +20,7 @@ and simplicity.
 [`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Hash)
 is the simplest interface: call `Roll` once per incoming byte and read the
 updated hash immediately. It is the right choice when the data is already in
-memory or when throughput is not the bottleneck. For stream processing at the
-highest speed, prefer the Scanner or Chunker interfaces below.
+memory or when throughput is not the bottleneck.
 
 ```golang
 data := []byte("here is some data to roll on")
@@ -39,16 +38,16 @@ for _, c := range data[n:] {
 The hash maintains an internal copy of the rolling window. Use `WriteWindow` to
 read it back out.
 
-### Scanner
+### Scanner (speed x2)
 
 The
 [`rollinghash.Scanner`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Scanner)
-is designed for searching a block within a stream, rsync-style: the rolling
-checksum acts as a cheap filter, and a secondary check (e.g. byte comparison)
-confirms the match. It is shaped like a
+is designed for search of a block within a stream, rsync-style: the
+rolling checksum acts as a cheap filter, and a secondary check (e.g. byte
+comparison) confirms the match. It is shaped like a
 [`bufio.Scanner`](https://golang.org/pkg/bufio/#Scanner) and batches
-computations to exploit instruction-level parallelism. It is about twice as fast
-as `Roll`.
+computations to exploit instruction-level parallelism. It is about twice
+as fast as `Roll`.
 
 ```golang
 data := []byte("the quick brown fox jumps over the lazy dog")
@@ -78,7 +77,7 @@ Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`.
 Use `Buffer` to control the batch size and `Reset` to reuse the scanner
 across multiple streams without extra allocations.
 
-### Chunker
+### Chunker (speed x2)
 
 The
 [`rollinghash.Chunker`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Chunker)
@@ -210,5 +209,5 @@ scientific purposes.
 * [pachyderm](https://github.com/pachyderm/pachyderm), a data science
   platform
 
-If you are using succesfully, let me know and I will happily put a link
+If you are using successfully, let me know and I will happily put a link
 here!
