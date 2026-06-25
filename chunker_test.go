@@ -137,7 +137,7 @@ func TestChunker(t *testing.T) {
 type bulkOnly struct{ rollinghash.Hash }
 
 func (b bulkOnly) BulkRoll(dst []uint64, data []byte, window int) {
-	b.Hash.(rollinghash.BulkRoller).BulkRoll(dst, data, window)
+	b.Hash.(bulkRoller).BulkRoll(dst, data, window)
 }
 
 type rollOnly struct{ rollinghash.Hash }
@@ -331,8 +331,8 @@ func TestChunkerError(t *testing.T) {
 }
 
 // BenchmarkChunker measures steady-state chunking throughput across every hash
-// in allHashes and all three Chunker code paths: the fused BoundaryRoller
-// fast path, the BulkRoll-only fallback, and the Roll-only fallback.
+// in allHashes and all three Chunker code paths: the fused boundary fast path,
+// the BulkRoll-only fallback, and the Roll-only fallback.
 func BenchmarkChunker(b *testing.B) {
 	const window = 56
 	data := testData(1 << 20)

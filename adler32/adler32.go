@@ -131,12 +131,6 @@ func (d *Adler32) Roll(b byte) {
 	d.b = (d.b + d.a + Mod - 1 - (d.n*leave)%Mod) % Mod
 }
 
-// Compile-time check that we implement the bulk fast paths.
-var (
-	_ rollinghash.BulkRoller     = (*Adler32)(nil)
-	_ rollinghash.BoundaryRoller = (*Adler32)(nil)
-)
-
 // BulkRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
 // elements: dst[i] is the checksum of data[i:i+window] (the 32-bit value
@@ -218,7 +212,7 @@ func (d *Adler32) BulkRoll(dst []uint64, data []byte, window int) {
 
 // BulkBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
-// rollinghash.BoundaryRoller). It mirrors BulkRoll exactly, replacing each
+// the boundary fast path). It mirrors BulkRoll exactly, replacing each
 // "dst[i] = uint64(b<<16 | a)" with the masked test on that value. It does not
 // modify the receiver. (a and b are the lane hit buffers; the adler
 // accumulators are aA/bA and aB/bB.)

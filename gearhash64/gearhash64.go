@@ -140,12 +140,6 @@ func (d *GearHash64) Roll(c byte) {
 	d.sum = (d.sum << 1) - (h0 << uint(l)) + hn
 }
 
-// Compile-time checks that we implement the bulk fast paths.
-var (
-	_ rollinghash.BulkRoller     = (*GearHash64)(nil)
-	_ rollinghash.BoundaryRoller = (*GearHash64)(nil)
-)
-
 // BulkRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
 // elements. Two independent accumulator lanes let the CPU overlap their

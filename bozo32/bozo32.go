@@ -132,12 +132,6 @@ func (d *Bozo32) Roll(c byte) {
 	d.value = d.value*d.a + enter - leave*d.aⁿ
 }
 
-// Compile-time check that we implement the bulk fast paths.
-var (
-	_ rollinghash.BulkRoller     = (*Bozo32)(nil)
-	_ rollinghash.BoundaryRoller = (*Bozo32)(nil)
-)
-
 // BulkRoll computes the rolling checksum of every window-sized slice of
 // data in one pass and writes them to dst, which must have
 // len(data)-window+1 elements: dst[i] is the checksum of data[i:i+window]
@@ -213,7 +207,7 @@ func (d *Bozo32) BulkRoll(dst []uint64, data []byte, window int) {
 
 // BulkBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
-// rollinghash.BoundaryRoller). It mirrors BulkRoll exactly, replacing each
+// the boundary fast path). It mirrors BulkRoll exactly, replacing each
 // "dst[i] = uint64(v)" with the masked test on the zero-extended value. It does
 // not modify the receiver.
 func (d *Bozo32) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {

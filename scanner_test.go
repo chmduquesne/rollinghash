@@ -28,7 +28,7 @@ type sumOnly struct{ rollinghash.Hash }
 
 // scannerHashes extends allHashes with a Write+Roll fallback entry (a hash that
 // hides BulkRoll) so the Scanner's slow path is exercised alongside every
-// BulkRoller implementation.
+// bulk fast path implementation.
 var scannerHashes = func() []struct {
 	name string
 	new  func() rollinghash.Hash
@@ -213,7 +213,7 @@ func TestScannerAccessorLifecycle(t *testing.T) {
 }
 
 // TestScannerSumOnlyFallback covers the Scanner's generic byte-wise sum reader
-// (used when the hash implements neither BulkRoller nor Sum64/Sum32).
+// (used when the hash implements neither the bulk fast path nor Sum64/Sum32).
 func TestScannerSumOnlyFallback(t *testing.T) {
 	data := make([]byte, 300)
 	for i := range data {
@@ -243,7 +243,7 @@ func TestScannerError(t *testing.T) {
 }
 
 // FuzzScanner cross-checks the Scanner against the oracle on random data,
-// window sizes, and buffer sizes, using both the BulkRoller fast path and the
+// window sizes, and buffer sizes, using both the bulk fast path and the
 // Write+Roll fallback. It verifies three invariants per batch:
 //   - alignment: len(Sums()) == len(Bytes()) - window + 1
 //   - bytes: Bytes() matches the corresponding slice of the original input
@@ -295,7 +295,7 @@ func FuzzScanner(f *testing.F) {
 
 // BenchmarkScanner measures steady-state throughput, reusing one Scanner (and
 // its buffers) across iterations via Reset so the numbers reflect scanning,
-// not per-stream setup. It covers every BulkRoller implementation (bozo64,
+// not per-stream setup. It covers every bulk fast path implementation (bozo64,
 // buzhash64, gearhash64, rabinkarp64) plus the Write+Roll fallback, across
 // batch buffer sizes, showing how the bulk path is amortized as batches grow.
 func BenchmarkScanner(b *testing.B) {

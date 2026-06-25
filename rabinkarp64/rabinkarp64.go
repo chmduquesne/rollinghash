@@ -107,12 +107,12 @@ func buildTables(pol Pol, windowsize int) (t *tables) {
 	//  = H(    0     || b_1 || ...     || b_w)
 	//
 	// Afterwards a new byte can be shifted in.
-	for b := 0; b < 256; b++ {
+	for b := range 256 {
 		var h Pol
 		h <<= 8
 		h |= Pol(b)
 		h = h.Mod(pol)
-		for i := 0; i < windowsize-1; i++ {
+		for range windowsize - 1 {
 			h <<= 8
 			h |= Pol(0)
 			h = h.Mod(pol)
@@ -122,7 +122,7 @@ func buildTables(pol Pol, windowsize int) (t *tables) {
 
 	// calculate table for reduction mod Polynomial
 	k := pol.Deg()
-	for b := 0; b < 256; b++ {
+	for b := range 256 {
 		// mod_table[b] = A | B, where A = (b(x) * x^k mod pol) and  B = b(x) * x^k
 		//
 		// The 8 bits above deg(Polynomial) determine what happens next and so
@@ -261,12 +261,6 @@ func (d *RabinKarp64) Roll(c byte) {
 	d.value = value
 }
 
-// Compile-time check that we implement the bulk fast paths.
-var (
-	_ rollinghash.BulkRoller     = (*RabinKarp64)(nil)
-	_ rollinghash.BoundaryRoller = (*RabinKarp64)(nil)
-)
-
 // BulkRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
 // elements: dst[i] is the checksum of data[i:i+window]. It is equivalent to
@@ -343,7 +337,7 @@ func (d *RabinKarp64) BulkRoll(dst []uint64, data []byte, window int) {
 
 // BulkBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
-// rollinghash.BoundaryRoller). It mirrors BulkRoll exactly, replacing each
+// the boundary fast path). It mirrors BulkRoll exactly, replacing each
 // "dst[i] = uint64(v)" with the masked test. It does not modify the receiver.
 func (d *RabinKarp64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {

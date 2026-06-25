@@ -172,12 +172,6 @@ func (d *Buzhash64) Roll(c byte) {
 	d.sum = bits.RotateLeft64(d.sum, 1) ^ h0 ^ hn
 }
 
-// Compile-time check that we implement the bulk fast paths.
-var (
-	_ rollinghash.BulkRoller     = (*Buzhash64)(nil)
-	_ rollinghash.BoundaryRoller = (*Buzhash64)(nil)
-)
-
 // BulkRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
 // elements: dst[i] is the checksum of data[i:i+window]. It is equivalent to
@@ -260,7 +254,7 @@ func (d *Buzhash64) BulkRoll(dst []uint64, data []byte, window int) {
 
 // BulkBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
-// rollinghash.BoundaryRoller). It does not modify the receiver.
+// the boundary fast path). It does not modify the receiver.
 //
 // Boundary hits are accumulated as bits in a uint64 (low 32 = lane A,
 // high 32 = lane B) and extracted with TrailingZeros outside the hot loop,

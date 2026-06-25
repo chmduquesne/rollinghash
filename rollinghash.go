@@ -66,32 +66,12 @@ type Hash64 interface {
 	Roller
 }
 
-// BulkRoller is an optional fast path. A Hash that implements it computes
-// the rolling checksum of every window-sized slice of data in one call,
-// owning the loop so it can index the leaving byte directly and keep
-// several accumulators in registers. Callers normally reach it indirectly
-// through helpers, exactly as io.Copy reaches io.ReaderFrom.
-//
-// BulkRoll writes the rolling hash at every position into dst, which must
-// have len(data)-window+1 elements. It is semantically equivalent to
-// Write(data[:window]) followed by a Roll for each subsequent byte,
-// recording Sum64 after each step. It does not modify the receiver's state.
-type BulkRoller interface {
+// bulkRoller is an optional bulk fast path; see BulkRoll.
+type bulkRoller interface {
 	BulkRoll(dst []uint64, data []byte, window int)
 }
 
-// BoundaryRoller is an optional fast path for content-defined chunking. A Hash
-// that implements it scans data for the window positions where the rolling
-// checksum satisfies sum & mask == 0, without materializing the full checksum
-// stream — the per-position test is fused into the hashing loop. Callers
-// normally reach it indirectly through Chunker.
-//
-// BulkBoundaries records the matching positions of the two interleaved lanes
-// separately: it appends the ascending lane-A indices to a[:na] and the
-// ascending lane-B indices to b[:nb], where every index in a precedes every
-// index in b, so the caller reads a[:na] followed by b[:nb] as a single
-// ascending run. a and b must each have len >= len(data)-window+1. Position i
-// denotes the window data[i:i+window]. It does not modify the receiver.
-type BoundaryRoller interface {
+// boundaryRoller is an optional fused boundary fast path; see BulkBoundaries.
+type boundaryRoller interface {
 	BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int)
 }

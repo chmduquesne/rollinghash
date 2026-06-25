@@ -17,6 +17,17 @@ import (
 	"github.com/chmduquesne/rollinghash/v4/rabinkarp64"
 )
 
+// bulkRoller mirrors the unexported rollinghash.bulkRoller interface so the
+// external test package can type-assert and call it directly.
+type bulkRoller interface {
+	BulkRoll(dst []uint64, data []byte, window int)
+}
+
+// boundaryRoller mirrors the unexported rollinghash.boundaryRoller interface.
+type boundaryRoller interface {
+	BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int)
+}
+
 var allHashes = []struct {
 	name    string
 	classic hash.Hash
@@ -76,7 +87,7 @@ func RandomBytes() (res []byte) {
 // Verify that, on random inputs, the classic hash and the rollinghash
 // return the same values
 func blackBox(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		in := RandomBytes()
 		if len(in) > 0 {
 			sum := SumByWriteAndRoll(rolling, in)
@@ -120,7 +131,7 @@ func foxDog(t *testing.T, hashname string, classic hash.Hash, rolling rollinghas
 	}
 }
 
-func rollEmptyWindow(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
+func rollEmptyWindow(t *testing.T, hashname string, _ hash.Hash, rolling rollinghash.Hash) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("[%s] Rolling an empty window should cause a panic", hashname)
@@ -417,10 +428,10 @@ func bulkRollOracle(classic hash.Hash, data []byte, window int) []uint64 {
 	return out
 }
 
-// checkBulkRoll verifies a single BulkRoller against the classic hash for a
+// checkBulkRoll verifies a single bulk fast path implementation against the classic hash for a
 // given data/window, including that dst has the expected length and that
 // BulkRoll does not modify the receiver.
-func checkBulkRoll(t *testing.T, name string, br rollinghash.BulkRoller, classic hash.Hash, data []byte, window int) {
+func checkBulkRoll(t *testing.T, name string, br bulkRoller, classic hash.Hash, data []byte, window int) {
 	t.Helper()
 	want := bulkRollOracle(classic, data, window)
 
@@ -435,7 +446,7 @@ func checkBulkRoll(t *testing.T, name string, br rollinghash.BulkRoller, classic
 	}
 }
 
-// TestBulkRoll checks that every hash implementing BulkRoller produces, for a
+// TestBulkRoll checks that every hash implementing the bulk fast path produces, for a
 // range of inputs and window sizes, the same checksum at each position as the
 // classic hash of that window. The edge cases target the two-lane split:
 // empty output, a single output (no second lane), window==1, and both odd and
@@ -443,7 +454,7 @@ func checkBulkRoll(t *testing.T, name string, br rollinghash.BulkRoller, classic
 func TestBulkRoll(t *testing.T) {
 	base := []byte("The quick brown fox jumps over the lazy dog")
 	for _, h := range allHashes {
-		br, ok := h.rolling.(rollinghash.BulkRoller)
+		br, ok := h.rolling.(bulkRoller)
 		if !ok {
 			continue
 		}
@@ -470,7 +481,7 @@ func TestBulkRoll(t *testing.T) {
 }
 
 // FuzzBulkRoll feeds random data and window sizes and verifies that, for
-// every hash implementing BulkRoller, the bulk output matches the classic
+// every hash implementing the bulk fast path, the bulk output matches the classic
 // hash of each window position.
 func FuzzBulkRoll(f *testing.F) {
 	f.Add([]byte("hello world"), 5)
@@ -487,7 +498,7 @@ func FuzzBulkRoll(f *testing.F) {
 		}
 
 		for _, h := range allHashes {
-			br, ok := h.rolling.(rollinghash.BulkRoller)
+			br, ok := h.rolling.(bulkRoller)
 			if !ok {
 				continue
 			}
@@ -496,10 +507,10 @@ func FuzzBulkRoll(f *testing.F) {
 	})
 }
 
-// checkBulkBoundaries verifies a BoundaryRoller against the classic hash: the
+// checkBulkBoundaries verifies the boundary fast path against the classic hash: the
 // reported positions (lane a[:na] followed by lane b[:nb]) must be exactly the
 // ascending set {i : classic(data[i:i+window]) & mask == 0}.
-func checkBulkBoundaries(t *testing.T, name string, brd rollinghash.BoundaryRoller, classic hash.Hash, data []byte, window int, mask uint64) {
+func checkBulkBoundaries(t *testing.T, name string, brd boundaryRoller, classic hash.Hash, data []byte, window int, mask uint64) {
 	t.Helper()
 	sums := bulkRollOracle(classic, data, window)
 	var want []int32
@@ -526,14 +537,14 @@ func checkBulkBoundaries(t *testing.T, name string, brd rollinghash.BoundaryRoll
 	}
 }
 
-// TestBulkBoundaries checks that every hash implementing BoundaryRoller reports
+// TestBulkBoundaries checks that every hash implementing the boundary fast path reports
 // exactly the window positions whose classic checksum satisfies sum&mask==0,
 // across windows and masks (including the degenerate mask==0, which matches
 // every position and so stresses the lane buffers and the A/B merge order).
 func TestBulkBoundaries(t *testing.T) {
 	base := []byte("The quick brown fox jumps over the lazy dog")
 	for _, h := range allHashes {
-		brd, ok := h.rolling.(rollinghash.BoundaryRoller)
+		brd, ok := h.rolling.(boundaryRoller)
 		if !ok {
 			continue
 		}
@@ -567,7 +578,7 @@ func FuzzBulkBoundaries(f *testing.F) {
 			windowSize = len(data)
 		}
 		for _, h := range allHashes {
-			brd, ok := h.rolling.(rollinghash.BoundaryRoller)
+			brd, ok := h.rolling.(boundaryRoller)
 			if !ok {
 				continue
 			}

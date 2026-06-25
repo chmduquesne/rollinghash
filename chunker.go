@@ -26,15 +26,15 @@ const chunkerBatchSize = 16 << 10
 //	}
 //	if err := c.Err(); err != nil { ... }
 //
-// The boundary search is fused into the hashing loop via BoundaryRoller when
-// the hash implements it (no checksum stream is materialized); otherwise it
-// falls back to BulkRoll, or to Write+Roll. A stream shorter than window yields
-// no chunks.
+// The boundary search is fused into the hashing loop via the boundary fast path
+// when the hash implements it (no checksum stream is materialized); otherwise it
+// falls back to the bulk fast path, or to Write+Roll. A stream shorter than
+// window yields no chunks.
 type Chunker struct {
 	r      io.Reader
 	h      Hash
-	brd    BoundaryRoller // fast path; nil -> fallback
-	bulk   BulkRoller     // fallback path; nil -> Roll fallback
+	brd    boundaryRoller // fused boundary fast path; nil -> fallback
+	bulk   bulkRoller     // bulk fast path; nil -> Roll fallback
 	sum    func() uint64  // reads h's current sum, for Sum() recompute
 	window int
 	mask   uint64
@@ -80,8 +80,8 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) *Chu
 	if maxOut < 1 {
 		maxOut = 1
 	}
-	brd, _ := h.(BoundaryRoller)
-	bulk, _ := h.(BulkRoller)
+	brd, _ := h.(boundaryRoller)
+	bulk, _ := h.(bulkRoller)
 	c := &Chunker{
 		r:          r,
 		h:          h,

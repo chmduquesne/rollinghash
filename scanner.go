@@ -28,8 +28,8 @@ const defaultScannerBufSize = 1 << 16 // 64 KiB
 //	Sums()[i] is the rolling checksum of the window Bytes()[i:i+window],
 //	and len(Sums()) == len(Bytes()) - window + 1.
 //
-// Each Scan reads a block, computes all its checksums (via BulkRoller when
-// the hash implements it, otherwise Write+Roll), and carries the trailing
+// Each Scan reads a block, computes all its checksums (via the bulk fast path
+// when the hash implements it, otherwise Write+Roll), and carries the trailing
 // window-1 bytes into the next block so no window position is skipped or
 // duplicated across a batch boundary. Sums() and Bytes() are valid only
 // until the next call to Scan. An input shorter than window yields no
@@ -37,7 +37,7 @@ const defaultScannerBufSize = 1 << 16 // 64 KiB
 type Scanner struct {
 	r      io.Reader
 	h      Hash
-	br     BulkRoller // non-nil when h implements the fast path
+	br     bulkRoller // non-nil when h implements the bulk fast path
 	window int
 
 	buf      []byte
@@ -56,7 +56,7 @@ type Scanner struct {
 // NewScanner returns a Scanner over r that produces, for every window-sized
 // slice of the stream, its rolling checksum under h. window must be >= 1.
 func NewScanner(r io.Reader, h Hash, window int) *Scanner {
-	br, _ := h.(BulkRoller)
+	br, _ := h.(bulkRoller)
 	s := &Scanner{
 		r:      r,
 		h:      h,
@@ -174,8 +174,8 @@ func (s *Scanner) Scan() bool {
 }
 
 // bulkRoll fills dst with the rolling checksum at every window position of
-// data, using the hash's BulkRoller fast path when available and falling
-// back to Write+Roll otherwise.
+// data, using the bulk fast path when available and falling back to
+// Write+Roll otherwise.
 func (s *Scanner) bulkRoll(dst []uint64, data []byte, window int) {
 	if s.br != nil {
 		s.br.BulkRoll(dst, data, window)
