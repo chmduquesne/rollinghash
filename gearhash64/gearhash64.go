@@ -13,6 +13,7 @@ package gearhash64
 
 import (
 	"io"
+	"math/bits"
 	"math/rand"
 
 	"github.com/chmduquesne/rollinghash/v4"
@@ -215,8 +216,12 @@ func (d *GearHash64) BulkRoll(dst []uint64, data []byte, window int) {
 
 // BulkBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the boundary test into the hashing loop.
-// It mirrors BulkRoll exactly, replacing each "dst[i] = v" with the masked
-// test. It does not modify the receiver.
+// It uses the same two-lane design as BulkRoll but avoids the register
+// pressure that comes from carrying na, nb, a, and b into the hot loop: each
+// block of 64 positions accumulates hits as bits in a uint64, then extracts
+// positions via TrailingZeros64 in a rare outer step. The inner loop is 2x
+// unrolled so loads for step k+1 can issue while computing step k.
+// It does not modify the receiver.
 func (d *GearHash64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
@@ -265,8 +270,66 @@ func (d *GearHash64) BulkBoundaries(a, b []int32, data []byte, window int, mask 
 		nb++
 	}
 
-	ia, ib := 0, half
-	for ia < half-1 && ib < n {
+	// Process positions in blocks of blockSize. Boundary hits accumulate as
+	// bits in a single uint64: the low blockSize bits for lane A, the high
+	// blockSize bits for lane B. This keeps na, nb, a, b out of the hot inner
+	// loop and reduces the two-bitmask live set from 13 words to 12 (the amd64
+	// GP register limit in Go), eliminating register spills. The inner loop is
+	// 2x unrolled so A and B loads can overlap each other's table-lookup
+	// latency without adding extra temporaries.
+	const blockSize = 32 // must be ≤ 32 so both halves fit in one uint64
+	limitA := half - 1  // ia runs [0, limitA)
+	limitB := n - half  // ib_rel runs [0, limitB)
+	limit := min(limitA, limitB)
+	fullBlocks := limit / blockSize
+
+	for blk := range fullBlocks {
+		base := blk * blockSize
+		// Three-index slicing lets the compiler prove k < blockSize for the
+		// inner loop and eliminate the per-element bounds checks.
+		lA := leaving[base : base+blockSize : base+blockSize]
+		lB := leaving[half+base : half+base+blockSize : half+base+blockSize]
+		eA := entering[base : base+blockSize : base+blockSize]
+		eB := entering[half+base : half+base+blockSize : half+base+blockSize]
+
+		// Low 32 bits: lane-A hits; high 32 bits: lane-B hits.
+		var bitsAB uint64
+		for k := 0; k < blockSize; k += 2 {
+			vA = (vA << 1) - shiftedGear[lA[k]] + g[eA[k]]
+			vB = (vB << 1) - shiftedGear[lB[k]] + g[eB[k]]
+			if vA&mask == 0 {
+				bitsAB |= 1 << uint(k)
+			}
+			if vB&mask == 0 {
+				bitsAB |= 1 << uint(k+32)
+			}
+			vA = (vA << 1) - shiftedGear[lA[k+1]] + g[eA[k+1]]
+			vB = (vB << 1) - shiftedGear[lB[k+1]] + g[eB[k+1]]
+			if vA&mask == 0 {
+				bitsAB |= 1 << uint(k+1)
+			}
+			if vB&mask == 0 {
+				bitsAB |= 1 << uint(k+33)
+			}
+		}
+
+		// Extract boundary positions (rare: ~1 per 8K positions with mask=0x1fff).
+		base32 := int32(base)
+		halfBase := int32(half + base)
+		for bA := bitsAB & 0xffffffff; bA != 0; bA &= bA - 1 {
+			a[na] = base32 + int32(bits.TrailingZeros32(uint32(bA))) + 1
+			na++
+		}
+		for bB := bitsAB >> 32; bB != 0; bB &= bB - 1 {
+			b[nb] = halfBase + int32(bits.TrailingZeros64(bB)) + 1
+			nb++
+		}
+	}
+
+	// Tail: remainder of the joint phase plus single-lane cleanups.
+	ia := fullBlocks * blockSize
+	ib := half + ia
+	for ia < limitA && ib < n {
 		vA = (vA << 1) - shiftedGear[leaving[ia]] + g[entering[ia]]
 		if vA&mask == 0 {
 			a[na] = int32(ia + 1)
@@ -280,7 +343,7 @@ func (d *GearHash64) BulkBoundaries(a, b []int32, data []byte, window int, mask 
 		ia++
 		ib++
 	}
-	for ; ia < half-1; ia++ {
+	for ; ia < limitA; ia++ {
 		vA = (vA << 1) - shiftedGear[leaving[ia]] + g[entering[ia]]
 		if vA&mask == 0 {
 			a[na] = int32(ia + 1)
