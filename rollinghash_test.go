@@ -141,6 +141,22 @@ func writeTwice(t *testing.T, hashname string, classic hash.Hash, rolling rollin
 	}
 }
 
+func writeTwiceThenRoll(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
+	// Build the window across two Write calls, then verify Roll is correct.
+	// The window after both writes is "hello world" (11 bytes); rolling '!'
+	// should drop 'h' and produce the hash of "ello world!".
+	rolling.Write([]byte("hello "))
+	rolling.Write([]byte("world"))
+	rolling.Roll(byte('!'))
+
+	classic.Reset()
+	classic.Write([]byte("ello world!"))
+
+	if sum64(rolling) != sum64(classic) {
+		t.Errorf("[%s] Expected same results after two writes then roll", hashname)
+	}
+}
+
 func writeRollWrite(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
 	rolling.Write([]byte(" hello"))
 	rolling.Roll(byte(' '))
@@ -256,6 +272,14 @@ func TestWriteTwice(t *testing.T) {
 		h.classic.Reset()
 		h.rolling.Reset()
 		writeTwice(t, h.name, h.classic, h.rolling)
+	}
+}
+
+func TestWriteTwiceThenRoll(t *testing.T) {
+	for _, h := range allHashes {
+		h.classic.Reset()
+		h.rolling.Reset()
+		writeTwiceThenRoll(t, h.name, h.classic, h.rolling)
 	}
 }
 

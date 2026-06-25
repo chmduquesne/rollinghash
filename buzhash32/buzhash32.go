@@ -42,6 +42,9 @@ type Buzhash32 struct {
 	window   []byte
 	oldest   int
 	bytehash [256]uint32
+	// rotBH caches bytehash[i] rotated left by nRotate, eliminating the
+	// variable-count RORL CL instruction from the Roll hot path.
+	rotBH [256]uint32
 }
 
 // Reset resets the Hash to its initial state.
@@ -126,6 +129,9 @@ func (d *Buzhash32) Write(data []byte) (int, error) {
 		d.sum ^= d.bytehash[int(c)]
 	}
 	d.nRotate = uint(len(d.window)) % 32
+	for i, h := range d.bytehash {
+		d.rotBH[i] = bits.RotateLeft32(h, int(d.nRotate))
+	}
 	return len(data), nil
 }
 
@@ -152,7 +158,7 @@ func (d *Buzhash32) Roll(c byte) {
 
 	// extract the entering/leaving bytes and update the circular buffer.
 	hn := d.bytehash[int(c)]
-	h0 := d.bytehash[int(d.window[d.oldest])]
+	h0 := d.rotBH[int(d.window[d.oldest])]
 
 	d.window[d.oldest] = c
 	l := len(d.window)
@@ -161,7 +167,7 @@ func (d *Buzhash32) Roll(c byte) {
 		d.oldest = 0
 	}
 
-	d.sum = bits.RotateLeft32(d.sum, 1) ^ bits.RotateLeft32(h0, int(d.nRotate)) ^ hn
+	d.sum = bits.RotateLeft32(d.sum, 1) ^ h0 ^ hn
 }
 
 // Compile-time check that we implement the bulk fast paths.
