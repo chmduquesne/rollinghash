@@ -94,11 +94,88 @@ func ExampleScanner() {
 	// Output: found "brown" at offset 10
 }
 
-// ExampleChunker demonstrates content-defined chunking: the stream is split
-// where the rolling checksum hits a mask, with chunk sizes kept within
-// [min, max]. The boundaries depend only on content, so they are stable under
-// insertions and deletions elsewhere in the stream - the basis for
-// deduplication.
+// Buffer controls the batch size used by the Scanner. A larger buffer means
+// fewer Scan() calls and better amortization of the bulk fast path, at the
+// cost of higher memory use. The default buffer is 64 KiB; here we use a
+// small buffer to show that the Scanner produces correct results regardless
+// of how the input is split across batches.
+func ExampleScanner_Buffer() {
+	data := []byte("the quick brown fox jumps over the lazy dog")
+
+	needle := []byte("brown")
+	window := len(needle)
+
+	h := bozo64.New()
+	if _, err := h.Write(needle); err != nil {
+		log.Fatal(err)
+	}
+	target := h.Sum64()
+
+	s := rollinghash.NewScanner(bytes.NewReader(data), bozo64.New(), window)
+	// Use the smallest valid buffer (window bytes) so every Scan() call
+	// returns exactly one position, exercising the batch-boundary logic.
+	s.Buffer(make([]byte, window))
+
+	off := 0
+	for s.Scan() {
+		sums, buf := s.Sums(), s.Bytes()
+		for i, sum := range sums {
+			if sum == target && bytes.Equal(buf[i:i+window], needle) {
+				fmt.Printf("found %q at offset %d\n", needle, off+i)
+			}
+		}
+		off += len(buf) - (window - 1)
+	}
+	if err := s.Err(); err != nil {
+		log.Fatal(err)
+	}
+	// Output: found "brown" at offset 10
+}
+
+// Reset lets you reuse a Scanner's internal buffers for a new stream without
+// any extra allocations. This matters when scanning many streams in a loop.
+func ExampleScanner_Reset() {
+	needle := []byte("fox")
+	window := len(needle)
+
+	h := bozo64.New()
+	if _, err := h.Write(needle); err != nil {
+		log.Fatal(err)
+	}
+	target := h.Sum64()
+
+	streams := [][]byte{
+		[]byte("the quick brown fox jumps over the lazy dog"),
+		[]byte("a fox and another fox"),
+	}
+
+	s := rollinghash.NewScanner(nil, bozo64.New(), window)
+	for i, data := range streams {
+		s.Reset(bytes.NewReader(data))
+		count := 0
+		for s.Scan() {
+			for _, sum := range s.Sums() {
+				if sum == target {
+					count++
+				}
+			}
+		}
+		if err := s.Err(); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("stream %d: %d match(es)\n", i, count)
+	}
+	// Output:
+	// stream 0: 1 match(es)
+	// stream 1: 2 match(es)
+}
+
+// The Chunker interface was designed to support users who want to use
+// rolling hashes for Content Defined Chunking (CDC). It also operates on
+// a stream, which allows for batch computation optimizations similar to
+// the ones used with the Scanner. In this type of situation, The stream
+// is split where the rolling checksum hits a mask, with chunk sizes kept
+// within [min, max].
 func ExampleChunker() {
 	// Repeatable pseudo-random data (xorshift), so the boundaries are stable.
 	data := make([]byte, 4096)
@@ -120,11 +197,65 @@ func ExampleChunker() {
 		chunk := c.Chunk()
 		sizes = append(sizes, len(chunk))
 		total += len(chunk)
+		if c.AtMask() {
+			fmt.Printf("boundary at %d: sum=0x%x\n", total, c.Sum())
+		} else {
+			fmt.Printf("max cut   at %d\n", total)
+		}
 	}
 	if err := c.Err(); err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Printf("split %d bytes into %d chunks: %v\n", total, len(sizes), sizes)
-	// Output: split 4096 bytes into 11 chunks: [354 82 381 661 549 255 764 308 145 344 253]
+	// Output:
+	// boundary at 354: sum=0x6cc454e7a1242400
+	// boundary at 436: sum=0x7c5ae57726b16b00
+	// boundary at 817: sum=0x1f8d0aa1a9bf2a00
+	// boundary at 1478: sum=0x17589f868227e600
+	// boundary at 2027: sum=0x2d4725d1019b5600
+	// boundary at 2282: sum=0xe5ef9c9bfc164800
+	// boundary at 3046: sum=0x9f1eb174c89b7400
+	// boundary at 3354: sum=0x6b1023a938ef6200
+	// boundary at 3499: sum=0x4fd3f0c989b9cf00
+	// boundary at 3843: sum=0x4c33a51430f4ab00
+	// max cut   at 4096
+	// split 4096 bytes into 11 chunks: [354 82 381 661 549 255 764 308 145 344 253]
+}
+
+// Reset lets you reuse a Chunker's internal buffers for a new stream without
+// any extra allocations. This matters when chunking many streams in a loop.
+func ExampleChunker_Reset() {
+	makeData := func(seed uint32, n int) []byte {
+		data := make([]byte, n)
+		x := seed
+		for i := range data {
+			x ^= x << 13
+			x ^= x >> 17
+			x ^= x << 5
+			data[i] = byte(x)
+		}
+		return data
+	}
+
+	streams := [][]byte{
+		makeData(1, 4096),
+		makeData(2, 4096),
+	}
+
+	c := rollinghash.NewChunker(nil, bozo64.New(), 32, 0xff, 64, 1024)
+	for i, data := range streams {
+		c.Reset(bytes.NewReader(data))
+		n := 0
+		for c.Next() {
+			n++
+		}
+		if err := c.Err(); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("stream %d: %d chunks\n", i, n)
+	}
+	// Output:
+	// stream 0: 11 chunks
+	// stream 1: 15 chunks
 }
