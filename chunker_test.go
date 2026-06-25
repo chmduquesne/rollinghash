@@ -7,7 +7,6 @@ import (
 	"testing/iotest"
 
 	"github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/bozo64"
 )
 
 // refChunk is an independent reference for the Chunker: it computes every window
@@ -144,28 +143,30 @@ func (b bulkOnly) BulkRoll(dst []uint64, data []byte, window int) {
 type rollOnly struct{ rollinghash.Hash }
 
 // TestChunkerPaths checks that the fused, BulkRoll-fallback, and Roll-fallback
-// paths all produce byte-identical chunks.
+// paths all produce byte-identical chunks for every hash.
 func TestChunkerPaths(t *testing.T) {
 	data := testData(200 * 1024)
 	const window = 48
 	const mask, min, max = 0x3ff, 300, 20000
 
-	fused := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), window, mask, min, max)
-	want, wantMask := collectChunks(t, fused)
+	for _, h := range allHashes {
+		fused := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
+		want, wantMask := collectChunks(t, fused)
 
-	for _, p := range []struct {
-		name string
-		h    rollinghash.Hash
-	}{
-		{"bulkFallback", bulkOnly{bozo64.New()}},
-		{"rollFallback", rollOnly{bozo64.New()}},
-	} {
-		c := rollinghash.NewChunker(bytes.NewReader(data), p.h, window, mask, min, max)
-		got, gotMask := collectChunks(t, c)
-		equalChunks(t, p.name, got, want)
-		for i := range wantMask {
-			if gotMask[i] != wantMask[i] {
-				t.Fatalf("[%s] chunk %d AtMask mismatch", p.name, i)
+		for _, p := range []struct {
+			name string
+			h    rollinghash.Hash
+		}{
+			{"bulkFallback", bulkOnly{h.new()}},
+			{"rollFallback", rollOnly{h.new()}},
+		} {
+			c := rollinghash.NewChunker(bytes.NewReader(data), p.h, window, mask, min, max)
+			got, gotMask := collectChunks(t, c)
+			equalChunks(t, h.name+"/"+p.name, got, want)
+			for i := range wantMask {
+				if gotMask[i] != wantMask[i] {
+					t.Fatalf("[%s/%s] chunk %d AtMask mismatch", h.name, p.name, i)
+				}
 			}
 		}
 	}
@@ -178,24 +179,24 @@ func TestChunkerAtMask(t *testing.T) {
 	const window = 64
 	const mask, min, max = 0x1ff, 200, 4096
 
-	c := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), window, mask, min, max)
-	var chunks [][]byte
-	var idx int
-	var sums []uint64
-	var atMask []bool
-	for c.Next() {
-		chunks = append(chunks, append([]byte(nil), c.Chunk()...))
-		sums = append(sums, c.Sum())
-		atMask = append(atMask, c.AtMask())
-		idx++
-	}
-	for i := range chunks {
-		if atMask[i] {
-			if sums[i]&mask != 0 {
-				t.Fatalf("chunk %d AtMask but Sum 0x%x & mask != 0", i, sums[i])
+	for _, h := range allHashes {
+		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
+		var chunks [][]byte
+		var sums []uint64
+		var atMask []bool
+		for c.Next() {
+			chunks = append(chunks, append([]byte(nil), c.Chunk()...))
+			sums = append(sums, c.Sum())
+			atMask = append(atMask, c.AtMask())
+		}
+		for i := range chunks {
+			if atMask[i] {
+				if sums[i]&mask != 0 {
+					t.Fatalf("[%s] chunk %d AtMask but Sum 0x%x & mask != 0", h.name, i, sums[i])
+				}
+			} else if i != len(chunks)-1 && len(chunks[i]) != max {
+				t.Fatalf("[%s] chunk %d forced cut but length %d != max %d", h.name, i, len(chunks[i]), max)
 			}
-		} else if i != len(chunks)-1 && len(chunks[i]) != max {
-			t.Fatalf("chunk %d forced cut but length %d != max %d", i, len(chunks[i]), max)
 		}
 	}
 }
@@ -207,37 +208,41 @@ func TestChunkerDeterminism(t *testing.T) {
 	const window = 48
 	const mask, min, max = 0x3ff, 512, 16384
 
-	base := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), window, mask, min, max)
-	want, _ := collectChunks(t, base)
+	for _, h := range allHashes {
+		base := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
+		want, _ := collectChunks(t, base)
 
-	slow := rollinghash.NewChunker(iotest.OneByteReader(bytes.NewReader(data)), bozo64.New(), window, mask, min, max)
-	got, _ := collectChunks(t, slow)
+		slow := rollinghash.NewChunker(iotest.OneByteReader(bytes.NewReader(data)), h.new(), window, mask, min, max)
+		got, _ := collectChunks(t, slow)
 
-	equalChunks(t, "onebyte", got, want)
+		equalChunks(t, h.name+"/onebyte", got, want)
+	}
 }
 
 // TestChunkerEdgeCases covers sub-window, exactly-window, and empty inputs.
 func TestChunkerEdgeCases(t *testing.T) {
 	const window = 16
 
-	c := rollinghash.NewChunker(bytes.NewReader(testData(window-1)), bozo64.New(), window, 0xff, 1, 64)
-	if c.Next() {
-		t.Errorf("sub-window: expected no chunks, got %d bytes", len(c.Chunk()))
-	}
-	if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
-		t.Errorf("sub-window: expected zero-value accessors")
-	}
+	for _, h := range allHashes {
+		c := rollinghash.NewChunker(bytes.NewReader(testData(window-1)), h.new(), window, 0xff, 1, 64)
+		if c.Next() {
+			t.Errorf("[%s] sub-window: expected no chunks, got %d bytes", h.name, len(c.Chunk()))
+		}
+		if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
+			t.Errorf("[%s] sub-window: expected zero-value accessors", h.name)
+		}
 
-	data := testData(window)
-	c = rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), window, 0xffffffff, 1, 64)
-	got, _ := collectChunks(t, c)
-	if len(got) != 1 || !bytes.Equal(got[0], data) {
-		t.Errorf("exactly-window: expected one chunk of the whole input, got %d chunks", len(got))
-	}
+		data := testData(window)
+		c = rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, 0xffffffff, 1, 64)
+		got, _ := collectChunks(t, c)
+		if len(got) != 1 || !bytes.Equal(got[0], data) {
+			t.Errorf("[%s] exactly-window: expected one chunk of the whole input, got %d chunks", h.name, len(got))
+		}
 
-	c = rollinghash.NewChunker(bytes.NewReader(nil), bozo64.New(), window, 0xff, 1, 64)
-	if c.Next() {
-		t.Errorf("empty: expected no chunks")
+		c = rollinghash.NewChunker(bytes.NewReader(nil), h.new(), window, 0xff, 1, 64)
+		if c.Next() {
+			t.Errorf("[%s] empty: expected no chunks", h.name)
+		}
 	}
 }
 
@@ -279,12 +284,14 @@ func FuzzChunker(f *testing.F) {
 // TestChunkerError verifies that a reader error is surfaced through Err.
 func TestChunkerError(t *testing.T) {
 	boom := errors.New("boom")
-	c := rollinghash.NewChunker(iotest.ErrReader(boom), bozo64.New(), 16, 0xff, 1, 64)
-	if c.Next() {
-		t.Errorf("expected Next to fail on reader error")
-	}
-	if !errors.Is(c.Err(), boom) {
-		t.Errorf("expected Err to be boom, got %v", c.Err())
+	for _, h := range allHashes {
+		c := rollinghash.NewChunker(iotest.ErrReader(boom), h.new(), 16, 0xff, 1, 64)
+		if c.Next() {
+			t.Errorf("[%s] expected Next to fail on reader error", h.name)
+		}
+		if !errors.Is(c.Err(), boom) {
+			t.Errorf("[%s] expected Err to be boom, got %v", h.name, c.Err())
+		}
 	}
 }
 
