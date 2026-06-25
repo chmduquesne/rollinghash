@@ -9,10 +9,6 @@ import (
 
 	"github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/adler32"
-	"github.com/chmduquesne/rollinghash/v4/bozo64"
-	"github.com/chmduquesne/rollinghash/v4/buzhash64"
-	"github.com/chmduquesne/rollinghash/v4/gearhash64"
-	"github.com/chmduquesne/rollinghash/v4/rabinkarp64"
 )
 
 // noBulkRoller hides BulkRoll (forcing the Scanner's Write+Roll fallback) but
@@ -30,21 +26,23 @@ func (n noBulkRoller) Sum32() uint32 {
 // sum reader (the default branch of the sum-reader switch).
 type sumOnly struct{ rollinghash.Hash }
 
-// scannerHashes covers both Scanner code paths across every bulk recurrence:
-// bozo64 (multiply), buzhash64 (rotate), adler32 (modular) and rabinkarp64
-// (polynomial) take the BulkRoller fast path; the wrapped entry forces the
-// Write+Roll fallback.
-var scannerHashes = []struct {
+// scannerHashes extends allHashes with a Write+Roll fallback entry (a hash that
+// hides BulkRoll) so the Scanner's slow path is exercised alongside every
+// BulkRoller implementation.
+var scannerHashes = func() []struct {
 	name string
 	new  func() rollinghash.Hash
-}{
-	{"bozo64", func() rollinghash.Hash { return bozo64.New() }},
-	{"buzhash64", func() rollinghash.Hash { return buzhash64.New() }},
-	{"gearhash64", func() rollinghash.Hash { return gearhash64.New() }},
-	{"adler32", func() rollinghash.Hash { return adler32.New() }},
-	{"rabinkarp64", func() rollinghash.Hash { return rabinkarp64.New() }},
-	{"fallback", func() rollinghash.Hash { return noBulkRoller{adler32.New()} }},
-}
+} {
+	type E = struct {
+		name string
+		new  func() rollinghash.Hash
+	}
+	out := make([]E, 0, len(allHashes)+1)
+	for _, h := range allHashes {
+		out = append(out, E{h.name, h.new})
+	}
+	return append(out, E{"fallback", func() rollinghash.Hash { return noBulkRoller{adler32.New()} }})
+}()
 
 // collectScannerSums runs a Scanner to exhaustion and returns the
 // concatenation of every batch's Sums(), checking the per-batch alignment
@@ -139,7 +137,7 @@ func TestScannerBytes(t *testing.T) {
 	data := testData(5000)
 	const window = 16
 	for _, bs := range []int{window, window + 1, 64, 333, len(data)} {
-		s := rollinghash.NewScanner(bytes.NewReader(data), bozo64.New(), window)
+		s := rollinghash.NewScanner(bytes.NewReader(data), allHashes[0].new(), window)
 		s.Buffer(make([]byte, bs))
 		off := 0
 		for s.Scan() {
@@ -189,8 +187,9 @@ func TestScannerSumOnlyFallback(t *testing.T) {
 		data[i] = byte(i*53 + 3)
 	}
 	const window = 20
-	want := bulkRollOracle(bozo64.New(), data, window)
-	s := rollinghash.NewScanner(bytes.NewReader(data), sumOnly{bozo64.New()}, window)
+	h := allHashes[0].new()
+	want := bulkRollOracle(h, data, window)
+	s := rollinghash.NewScanner(bytes.NewReader(data), sumOnly{allHashes[0].new()}, window)
 	got := collectScannerSums(t, "sumOnly", s, window)
 	equalSums(t, "sumOnly", got, want)
 }
@@ -210,6 +209,57 @@ func TestScannerError(t *testing.T) {
 	}
 }
 
+// FuzzScanner cross-checks the Scanner against the oracle on random data,
+// window sizes, and buffer sizes, using both the BulkRoller fast path and the
+// Write+Roll fallback. It verifies three invariants per batch:
+//   - alignment: len(Sums()) == len(Bytes()) - window + 1
+//   - bytes: Bytes() matches the corresponding slice of the original input
+//   - sums: concatenated Sums() equals the classic per-window hash (the oracle)
+func FuzzScanner(f *testing.F) {
+	f.Add([]byte("The quick brown fox jumps over the lazy dog"), 4, 16)
+	f.Add(testData(9000), 16, 64)
+	f.Add([]byte("hello"), 1, 1)
+
+	f.Fuzz(func(t *testing.T, data []byte, window int, bufSize int) {
+		if len(data) == 0 || window < 1 || window > len(data) {
+			return
+		}
+		if bufSize < window {
+			bufSize = window
+		}
+		if bufSize > window+(1<<16) {
+			bufSize = window + (1 << 16)
+		}
+
+		for _, hc := range scannerHashes {
+			want := bulkRollOracle(hc.new(), data, window)
+			h := hc.new()
+
+			s := rollinghash.NewScanner(bytes.NewReader(data), h, window)
+			s.Buffer(make([]byte, bufSize))
+
+			var got []uint64
+			off := 0
+			for s.Scan() {
+				b, sums := s.Bytes(), s.Sums()
+				if len(sums) != len(b)-window+1 {
+					t.Fatalf("[%s] alignment: len(Sums)=%d len(Bytes)=%d window=%d",
+						hc.name, len(sums), len(b), window)
+				}
+				if !bytes.Equal(b, data[off:off+len(b)]) {
+					t.Fatalf("[%s] Bytes() at offset %d does not match source", hc.name, off)
+				}
+				got = append(got, sums...)
+				off += len(b) - (window - 1)
+			}
+			if err := s.Err(); err != nil {
+				t.Fatalf("[%s] Err: %v", hc.name, err)
+			}
+			equalSums(t, hc.name, got, want)
+		}
+	})
+}
+
 // BenchmarkScanner measures steady-state throughput, reusing one Scanner (and
 // its buffers) across iterations via Reset so the numbers reflect scanning,
 // not per-stream setup. It covers every BulkRoller implementation (bozo64,
@@ -222,16 +272,15 @@ func BenchmarkScanner(b *testing.B) {
 		data[i] = byte(i*131 + 7)
 	}
 
-	cases := []struct {
+	type bcase = struct {
 		name string
 		h    rollinghash.Hash
-	}{
-		{"bozo64", bozo64.New()},
-		{"buzhash64", buzhash64.New()},
-		{"gearhash64", gearhash64.New()},
-		{"rabinkarp64", rabinkarp64.New()},
-		{"fallback", noBulkRoller{adler32.New()}},
 	}
+	cases := make([]bcase, 0, len(allHashes)+1)
+	for _, h := range allHashes {
+		cases = append(cases, bcase{h.name, h.new()})
+	}
+	cases = append(cases, bcase{"fallback", noBulkRoller{adler32.New()}})
 	bufSizes := []int{4 << 10, 64 << 10, 1 << 20}
 
 	for _, c := range cases {

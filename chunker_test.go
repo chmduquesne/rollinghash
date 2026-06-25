@@ -7,9 +7,7 @@ import (
 	"testing/iotest"
 
 	"github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/adler32"
 	"github.com/chmduquesne/rollinghash/v4/bozo64"
-	"github.com/chmduquesne/rollinghash/v4/gearhash64"
 )
 
 // refChunk is an independent reference for the Chunker: it computes every window
@@ -96,15 +94,6 @@ func equalChunks(t *testing.T, name string, got, want [][]byte) {
 	}
 }
 
-var chunkerHashes = []struct {
-	name string
-	new  func() rollinghash.Hash
-}{
-	{"bozo64", func() rollinghash.Hash { return bozo64.New() }},
-	{"gearhash64", func() rollinghash.Hash { return gearhash64.New() }},
-	{"adler32", func() rollinghash.Hash { return adler32.New() }},
-}
-
 // TestChunker checks the Chunker against the reference across several
 // configurations, on data large enough to span many batches.
 func TestChunker(t *testing.T) {
@@ -119,7 +108,7 @@ func TestChunker(t *testing.T) {
 		{0x7f, 100, 1000},
 	}
 
-	for _, h := range chunkerHashes {
+	for _, h := range allHashes {
 		for _, cfg := range configs {
 			wantChunks, wantAtMask := refChunk(h.new(), data, window, cfg.mask, cfg.min, cfg.max)
 
@@ -272,14 +261,16 @@ func FuzzChunker(f *testing.F) {
 			max = 4*len(data) + window
 		}
 
-		want, wantMask := refChunk(bozo64.New(), data, window, mask, min, max)
-		c := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), window, mask, min, max)
-		got, gotMask := collectChunks(t, c)
+		for _, hc := range allHashes {
+			want, wantMask := refChunk(hc.new(), data, window, mask, min, max)
+			c := rollinghash.NewChunker(bytes.NewReader(data), hc.new(), window, mask, min, max)
+			got, gotMask := collectChunks(t, c)
 
-		equalChunks(t, "fuzz", got, want)
-		for i := range wantMask {
-			if i < len(gotMask) && gotMask[i] != wantMask[i] {
-				t.Fatalf("chunk %d AtMask: got %v want %v", i, gotMask[i], wantMask[i])
+			equalChunks(t, hc.name, got, want)
+			for i := range wantMask {
+				if i < len(gotMask) && gotMask[i] != wantMask[i] {
+					t.Fatalf("[%s] chunk %d AtMask: got %v want %v", hc.name, i, gotMask[i], wantMask[i])
+				}
 			}
 		}
 	})
@@ -298,14 +289,14 @@ func TestChunkerError(t *testing.T) {
 }
 
 // BenchmarkChunker measures steady-state chunking throughput across every hash
-// in chunkerHashes and all three Chunker code paths: the fused BoundaryRoller
+// in allHashes and all three Chunker code paths: the fused BoundaryRoller
 // fast path, the BulkRoll-only fallback, and the Roll-only fallback.
 func BenchmarkChunker(b *testing.B) {
 	const window = 64
 	data := testData(1 << 20)
 	const mask, min, max = 0x1fff, 2 << 10, 64 << 10
 
-	for _, h := range chunkerHashes {
+	for _, h := range allHashes {
 		cases := []struct {
 			name string
 			h    rollinghash.Hash

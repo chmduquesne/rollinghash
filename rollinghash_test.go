@@ -21,14 +21,15 @@ var allHashes = []struct {
 	name    string
 	classic hash.Hash
 	rolling rollinghash.Hash
+	new     func() rollinghash.Hash
 }{
-	{"adler32", _adler32.New(), _adler32.New()},
-	{"buzhash32", buzhash32.New(), buzhash32.New()},
-	{"buzhash64", buzhash64.New(), buzhash64.New()},
-	{"bozo32", bozo32.New(), bozo32.New()},
-	{"bozo64", bozo64.New(), bozo64.New()},
-	{"gearhash64", gearhash64.New(), gearhash64.New()},
-	{"rabinkarp64", rabinkarp64.New(), rabinkarp64.New()},
+	{"adler32", _adler32.New(), _adler32.New(), func() rollinghash.Hash { return _adler32.New() }},
+	{"buzhash32", buzhash32.New(), buzhash32.New(), func() rollinghash.Hash { return buzhash32.New() }},
+	{"buzhash64", buzhash64.New(), buzhash64.New(), func() rollinghash.Hash { return buzhash64.New() }},
+	{"bozo32", bozo32.New(), bozo32.New(), func() rollinghash.Hash { return bozo32.New() }},
+	{"bozo64", bozo64.New(), bozo64.New(), func() rollinghash.Hash { return bozo64.New() }},
+	{"gearhash64", gearhash64.New(), gearhash64.New(), func() rollinghash.Hash { return gearhash64.New() }},
+	{"rabinkarp64", rabinkarp64.New(), rabinkarp64.New(), func() rollinghash.Hash { return rabinkarp64.New() }},
 }
 
 // Gets the hash sum as a uint64
