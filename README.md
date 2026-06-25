@@ -40,7 +40,6 @@ read it back out.
 
 ### Scanner
 
-The
 [`rollinghash.Scanner`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Scanner)
 is designed for searching a block within a stream, rsync-style: the
 rolling checksum acts as a cheap filter, and a secondary check (e.g. byte
@@ -79,7 +78,6 @@ across multiple streams without extra allocations.
 
 ### Chunker
 
-The
 [`rollinghash.Chunker`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Chunker)
 is designed for Content Defined Chunking (CDC). It also operates on a
 stream and uses the same batch optimization as the Scanner. The stream is
