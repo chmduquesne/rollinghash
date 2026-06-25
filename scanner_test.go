@@ -81,7 +81,7 @@ func equalSums(t *testing.T, name string, got, want []uint64) {
 func TestScanner(t *testing.T) {
 	// Larger than the default 64 KiB buffer, so several batches are produced.
 	data := bytes.Repeat([]byte("The quick brown fox jumps over the lazy dog. "), 5000)
-	const window = 64
+	const window = 56
 	for _, h := range scannerHashes {
 		want := bulkRollOracle(h.new(), data, window)
 		s := rollinghash.NewScanner(bytes.NewReader(data), h.new(), window)
@@ -266,7 +266,7 @@ func FuzzScanner(f *testing.F) {
 // buzhash64, gearhash64, rabinkarp64) plus the Write+Roll fallback, across
 // batch buffer sizes, showing how the bulk path is amortized as batches grow.
 func BenchmarkScanner(b *testing.B) {
-	const window = 64
+	const window = 56
 	data := make([]byte, 1<<20)
 	for i := range data {
 		data[i] = byte(i*131 + 7)

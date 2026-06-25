@@ -97,7 +97,7 @@ func equalChunks(t *testing.T, name string, got, want [][]byte) {
 // configurations, on data large enough to span many batches.
 func TestChunker(t *testing.T) {
 	data := testData(300 * 1024)
-	const window = 64
+	const window = 56
 	configs := []struct {
 		mask     uint64
 		min, max int
@@ -176,7 +176,7 @@ func TestChunkerPaths(t *testing.T) {
 // and a non-final forced boundary is exactly max bytes.
 func TestChunkerAtMask(t *testing.T) {
 	data := testData(128 * 1024)
-	const window = 64
+	const window = 56
 	const mask, min, max = 0x1ff, 200, 4096
 
 	for _, h := range allHashes {
@@ -299,7 +299,7 @@ func TestChunkerError(t *testing.T) {
 // in allHashes and all three Chunker code paths: the fused BoundaryRoller
 // fast path, the BulkRoll-only fallback, and the Roll-only fallback.
 func BenchmarkChunker(b *testing.B) {
-	const window = 64
+	const window = 56
 	data := testData(1 << 20)
 	const mask, min, max = 0x1fff, 2 << 10, 64 << 10
 

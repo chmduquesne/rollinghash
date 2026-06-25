@@ -166,7 +166,7 @@ func BenchmarkReadUrandom(b *testing.B) {
 }
 
 func BenchmarkBulkRoll(b *testing.B) {
-	const window = 64
+	const window = 56
 	data := make([]byte, 1<<20)
 	for i := range data {
 		data[i] = byte(i*131 + 7)
@@ -183,7 +183,7 @@ func BenchmarkBulkRoll(b *testing.B) {
 }
 
 func BenchmarkBulkBoundaries(b *testing.B) {
-	const window = 64
+	const window = 56
 	const mask = uint64(0x1fff)
 	data := make([]byte, 1<<20)
 	for i := range data {
