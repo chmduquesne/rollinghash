@@ -7,70 +7,120 @@
 
 ## Philosophy
 
-This package contains several various rolling hashes. The API design
-philosophy is to stick as closely as possible to the interface provided by
-the builtin hash package (the hashes implemented here are effectively
-drop-in replacements for their builtin counterparts), while providing
-simultaneously the highest speed and simplicity.
+This package contains several various rolling hashes. The API design philosophy
+is to stick as closely as possible to the interface provided by the builtin hash
+package (the hashes implemented here are effectively drop-in replacements for
+their builtin counterparts), while providing simultaneously the highest speed
+and simplicity.
 
 ## Usage
 
-A
+### Roll
+
 [`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Hash)
-is just a [`hash.Hash`](https://golang.org/pkg/hash/#Hash) which
-implements the
-[`rollinghash.Roller`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Roller)
-interface. Here is how it is typically used:
+is the simplest interface: call `Roll` once per incoming byte and read the
+updated hash immediately. It is the right choice when the data is already in
+memory or when throughput is not the bottleneck. For stream processing at the
+highest speed, prefer the Scanner or Chunker interfaces below.
 
 ```golang
 data := []byte("here is some data to roll on")
 h := buzhash64.New()
 n := 16 // window size
 
-// Initialize the rolling window
 h.Write(data[:n])
 
-for _, c := range(data[n:]) {
-
-    // Slide the window and update the hash
+for _, c := range data[n:] {
     h.Roll(c)
-
-    // Get the updated hash value
     fmt.Println(h.Sum64())
 }
 ```
 
-## Accessing the rolling window
+The hash maintains an internal copy of the rolling window. Use `WriteWindow` to
+read it back out.
 
-A
-[`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Hash)
-maintains a copy of the rolling window in order to keep track of the value
-of the byte exiting the window. It can be accessed through the
-[`io.Reader`](https://golang.org/pkg/io/#Reader) interface of the hash.
+### Scanner
+
+The
+[`rollinghash.Scanner`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Scanner)
+is designed for searching a block within a stream, rsync-style: the rolling
+checksum acts as a cheap filter, and a secondary check (e.g. byte comparison)
+confirms the match. It is shaped like a
+[`bufio.Scanner`](https://golang.org/pkg/bufio/#Scanner) and batches
+computations to exploit instruction-level parallelism. It is about twice as fast
+as `Roll`.
 
 ```golang
-var buf bytes.Buffer
-// The error is always nil for a bytes.Buffer.
-h.WriteWindow(&buf)
-window := buf.Bytes()
+data := []byte("the quick brown fox jumps over the lazy dog")
+
+needle := []byte("brown")
+window := len(needle)
+
+h := bozo64.New()
+h.Write(needle)
+target := h.Sum64()
+
+s := rollinghash.NewScanner(bytes.NewReader(data), bozo64.New(), window)
+for s.Scan() {
+    sums, buf := s.Sums(), s.Bytes()
+    for i, sum := range sums {
+        if sum == target && bytes.Equal(buf[i:i+window], needle) {
+            fmt.Printf("found %q at offset %d\n", needle, i)
+        }
+    }
+}
+if err := s.Err(); err != nil {
+    log.Fatal(err)
+}
 ```
+
+Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`.
+Use `Buffer` to control the batch size and `Reset` to reuse the scanner
+across multiple streams without extra allocations.
+
+### Chunker
+
+The
+[`rollinghash.Chunker`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Chunker)
+is designed for Content Defined Chunking (CDC). It also operates on a
+stream and uses the same batch optimization as the Scanner. The stream is
+split wherever the rolling checksum matches a mask, with chunk sizes kept
+within `[min, max]`.
+
+```golang
+// Cut where the low 8 bits of the rolling checksum are zero,
+// keeping each chunk between 64 and 1024 bytes.
+c := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), 32, 0xff, 64, 1024)
+
+for c.Next() {
+    chunk := c.Chunk()
+    if c.AtMask() {
+        fmt.Printf("boundary: sum=0x%x, len=%d\n", c.Sum(), len(chunk))
+    } else {
+        fmt.Printf("max cut: len=%d\n", len(chunk))
+    }
+}
+if err := c.Err(); err != nil {
+    log.Fatal(err)
+}
+```
+
+Use `Reset` to reuse the chunker across multiple streams without extra
+allocations.
 
 ## Gotchas
 
-### Rolling window initialization
+### Call Write before the first Roll
 
 The rolling window MUST be initialized by calling `Write` first (which
 saves a copy). The byte leaving the rolling window is inferred from the
 internal copy of the rolling window, which is updated with every call to
 `Roll`.
 
-### Casting to the interface type slows down Roll
+### Use concrete types for maximum speed
 
-If you want your code to run at the highest speed, do NOT cast the result
-of a `New()` as a rollinghash.Hash. Instead, use the native type returned
-by `New()`. This is because the go compiler cannot inline calls from an
-interface. When later you call Roll(), the native type call will be
-inlined by the compiler, but not the casted type call.
+Do NOT cast the result of `New()` to rollinghash.Hash. The Go compiler cannot
+inline calls through an interface. This costs roughly 10% performance.
 
 ```golang
 var h1 rollinghash.Hash
@@ -83,7 +133,7 @@ h1.Roll(b) // Not inlined (slow)
 h2.Roll(b) // inlined (fast)
 ```
 
-### Do not use a 64 bytes window with Buzhash for CDC
+### Buzhash CDC: avoid window sizes that are multiples of the word size
 
 When using `buzhash32` or `buzhash64` for Content Defined Chunking, do NOT
 choose a window length that is a multiple of the word size (32 for
@@ -102,86 +152,45 @@ This is inherent to the cyclic polynomial construction and cannot be fixed
 by changing the byte table. Any window length that is not a multiple of
 the word size avoids it (e.g. use 48 or 56 instead of 64).
 
-## What's new
+## Which hash to use
 
-In v4.1.1:
+| Hash | Chunker (MB/s) | Scanner (MB/s) | Uniformly distributed | Parametrizable |
+|---|---|---|---|---|
+| `buzhash64` | 1465 | 1424 | yes¹ | yes |
+| `buzhash32` | 1444 | 1398 | yes¹ | yes |
+| `gearhash64` | 1210 | 1421 | yes | yes |
+| `bozo64` | 1135 | 1275 | yes² | yes (single multiplier) |
+| `bozo32` | 1141 | 1287 | yes² | yes (single multiplier) |
+| `rabinkarp64` | 693 | 807 | yes | yes |
+| `adler32` | 408 | 386 | **no**³ | no |
 
-* The module now follows Go's semantic import versioning. The import path
-  is `github.com/chmduquesne/rollinghash/v4` (v4.1.0 shipped a `go.mod`
-  with the unsuffixed path, which made it uninstallable with `go get`).
-  Update your imports accordingly:
+¹ Provided the window size is not a multiple of the word size (32 for `buzhash32`,
+64 for `buzhash64`). See [Gotchas](#gotchas).
 
-  ```golang
-  import rollinghash "github.com/chmduquesne/rollinghash/v4"
-  // go get github.com/chmduquesne/rollinghash/v4@latest
-  ```
+² For very small windows the output is bounded below 2⁶⁴ before modular wrapping
+kicks in, so high bits are biased. For `bozo64` (multiplier `a ≈ 2³²`) wrapping
+begins at window size 3; for `bozo32` (multiplier `a ≈ 2¹⁶`) at window size 5.
+Any practical CDC window size is well above these thresholds.
 
-In v4.1.0:
+³ `adler32` is not uniformly distributed for small windows: its two component sums
+are bounded by `window × 255`, so the high bits of the output are always zero.
+**Do not use `adler32` for CDC.** It is only useful for rsync-style block matching
+where the peer already uses adler32 (e.g. the rsync protocol itself).
 
-* Refactoring
+**`buzhash64`** is the fastest overall and a solid default for both CDC and
+block search.
 
-  * The internals of rabinkarp64 have been simplified
-    (rabinkarp64.Pol.Deg())
+**`gearhash64`** is the popular choice from the CDC literature (see the FastCDC
+paper). It is essentially as fast as buzhash on the Scanner, has no window-size
+gotcha, and is uniformly distributed.
 
-* Code quality
+**`bozo32`/`bozo64`** are very fast and parametrizable via a single integer
+multiplier (`NewFromInt`), which is simpler than buzhash's 256-entry table but
+sufficient to produce independent hash functions.
 
-  * The test suite has been extended to improve coverage
-
-  * Vulnerability checking has been setup using
-    [govulncheck-action](https://github.com/golang/govulncheck-action)
-
-  * Dependency checking has been setup using
-    [dependabot](https://github.com/dependabot)
-
-* Interface
-
-  * A new rolling hash has been introduced: bozo64. It is equally fast as
-    bozo32, but yields 64 bits hashes.
-
-* Performance Improvements (measured on the author's laptop)
-
-  * adler32.Roll: +5% (algebraic simplifications)
-
-  * buzhash32.Roll and buzhash64.Roll: +24% (using
-    math/bits to improve bit rotation performance)
-
-  * rabinkarp64: +42% (working on locals to allow for compiler
-    optimizations)
-
-* Documentation
-
-  * New caveats found on buzhash. See
-    [Gotchas](#buzhash-and-window-sizes-that-are-a-multiple-of-the-word-size)
-
-In v4.0.0:
-
-* `Write` has become fully consistent with `hash.Hash`. As opposed to
-  previous versions, where writing data would reinitialize the window, it
-  now appends this data to the existing window. In order to reset the
-  window, one should instead use the `Reset` method.
-
-* Calling `Roll` on an empty window is considered a bug, and now triggers
-  a panic.
-
-Brief reminder of the behaviors in previous versions:
-
-* From v0.x.x to v2.x.x: `Roll` returns an error for an empty window.
-  `Write` reinitializes the rolling window.
-
-* v3.x.x : `Roll` does not return anything. `Write` still reinitializes
-  the rolling window. The rolling window always has a minimum size of 1,
-  which yields wrong results when using roll before having initialized the
-  window.
-
-## Go versions
-
-The `RabinKarp64` rollinghash does not yield consistent results before
-go1.7. This is because it uses `Rand.Read()` from the builtin `math/rand`.
-This function was [fixed in go
-1.7](https://golang.org/doc/go1.7#math_rand) to produce a consistent
-stream of bytes that is independant of the size of the input buffer. If
-you depend on this hash, it is strongly recommended to stick to versions
-of go superior to 1.7.
+**`rabinkarp64`** is the slowest but lets you pick a specific irreducible
+polynomial, which matters when you need to match an existing implementation
+(e.g. restic).
 
 ## License
 
