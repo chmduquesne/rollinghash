@@ -11,7 +11,11 @@ import (
 	"github.com/chmduquesne/rollinghash/v4/bozo64"
 )
 
-func Example() {
+// Using Roll() is the easiest way to use this library. Because it manages
+// an internal rolling window, it is very user-friendly. Unfortunately
+// this user-friendliness costs CPU cycles. Consider using the Scanner or
+// the Chunker interface if you want the highest speed.
+func ExampleHash_Roll() {
 	s := []byte("The quick brown fox jumps over the lazy dog")
 
 	// This example works with adler32, but the api is identical for all
@@ -50,12 +54,14 @@ func Example() {
 
 }
 
-// ExampleScanner shows how to use a Scanner to walk a stream and read, for
-// every window position, the rolling checksum together with the bytes it
-// covers. Here we locate a known block within the stream: the rolling
-// checksum is the cheap filter, and the byte comparison confirms the match
-// (rolling-hash matches can collide). The same loop shape serves chunking,
-// analysis, or any custom rule over the checksums.
+// The Scanner interface was designed to support users who want to search
+// for a given block within a stream, rsync-style. In this type of
+// situation, the rolling checksum would be used as a cheap filter, and
+// another method (e.g. byte comparison) confirms the match. This
+// interface is shaped like a bufio.Scanner. Because it can batch the
+// computations, it can use optimization techniques such as ILP
+// exploitation to parallelize processing. This results into a performance
+// that is almost doubled compared to Roll().
 func ExampleScanner() {
 	data := []byte("the quick brown fox jumps over the lazy dog")
 
