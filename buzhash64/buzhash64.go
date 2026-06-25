@@ -254,8 +254,13 @@ func (d *Buzhash64) BulkRoll(dst []uint64, data []byte, window int) {
 
 // BulkBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
-// rollinghash.BoundaryRoller). It mirrors BulkRoll exactly, replacing each
-// "dst[i] = v" with the masked test. It does not modify the receiver.
+// rollinghash.BoundaryRoller). It does not modify the receiver.
+//
+// Boundary hits are accumulated as bits in a uint64 (low 32 = lane A,
+// high 32 = lane B) and extracted with TrailingZeros outside the hot loop,
+// keeping the branch-heavy write-to-slice path out of every iteration.
+// The inner loop is 2x unrolled so table loads for step k+1 can issue
+// while computing step k.
 func (d *Buzhash64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
@@ -302,8 +307,59 @@ func (d *Buzhash64) BulkBoundaries(a, b []int32, data []byte, window int, mask u
 		nb++
 	}
 
-	ia, ib := 0, half
-	for ia < half-1 && ib < n {
+	// Process positions in blocks of blockSize. Boundary hits accumulate as
+	// bits in a single uint64: low blockSize bits for lane A, high blockSize
+	// bits for lane B. This keeps na, nb, a, b out of the hot inner loop.
+	// The inner loop is 2x unrolled so loads for step k+1 can overlap
+	// the computation of step k.
+	const blockSize = 32 // must be ≤ 32 so both halves fit in one uint64
+	limitA := half - 1  // ia runs [0, limitA)
+	limitB := n - half  // ib_rel runs [0, limitB)
+	limit := min(limitA, limitB)
+	fullBlocks := limit / blockSize
+
+	for blk := range fullBlocks {
+		base := blk * blockSize
+		lA := leaving[base : base+blockSize : base+blockSize]
+		lB := leaving[half+base : half+base+blockSize : half+base+blockSize]
+		eA := entering[base : base+blockSize : base+blockSize]
+		eB := entering[half+base : half+base+blockSize : half+base+blockSize]
+
+		var bitsAB uint64
+		for k := 0; k < blockSize; k += 2 {
+			vA = bits.RotateLeft64(vA, 1) ^ rotBH[lA[k]] ^ bh[eA[k]]
+			vB = bits.RotateLeft64(vB, 1) ^ rotBH[lB[k]] ^ bh[eB[k]]
+			if vA&mask == 0 {
+				bitsAB |= 1 << uint(k)
+			}
+			if vB&mask == 0 {
+				bitsAB |= 1 << uint(k+32)
+			}
+			vA = bits.RotateLeft64(vA, 1) ^ rotBH[lA[k+1]] ^ bh[eA[k+1]]
+			vB = bits.RotateLeft64(vB, 1) ^ rotBH[lB[k+1]] ^ bh[eB[k+1]]
+			if vA&mask == 0 {
+				bitsAB |= 1 << uint(k+1)
+			}
+			if vB&mask == 0 {
+				bitsAB |= 1 << uint(k+33)
+			}
+		}
+
+		base32 := int32(base)
+		halfBase := int32(half + base)
+		for bA := bitsAB & 0xffffffff; bA != 0; bA &= bA - 1 {
+			a[na] = base32 + int32(bits.TrailingZeros32(uint32(bA))) + 1
+			na++
+		}
+		for bB := bitsAB >> 32; bB != 0; bB &= bB - 1 {
+			b[nb] = halfBase + int32(bits.TrailingZeros64(bB)) + 1
+			nb++
+		}
+	}
+
+	ia := fullBlocks * blockSize
+	ib := half + ia
+	for ia < limitA && ib < n {
 		vA = bits.RotateLeft64(vA, 1) ^ rotBH[leaving[ia]] ^ bh[entering[ia]]
 		if vA&mask == 0 {
 			a[na] = int32(ia + 1)
@@ -317,7 +373,7 @@ func (d *Buzhash64) BulkBoundaries(a, b []int32, data []byte, window int, mask u
 		ia++
 		ib++
 	}
-	for ; ia < half-1; ia++ {
+	for ; ia < limitA; ia++ {
 		vA = bits.RotateLeft64(vA, 1) ^ rotBH[leaving[ia]] ^ bh[entering[ia]]
 		if vA&mask == 0 {
 			a[na] = int32(ia + 1)
