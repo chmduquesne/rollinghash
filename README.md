@@ -88,7 +88,7 @@ within `[min, max]`.
 c := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), 32, 0xff, 64, 1024)
 
 for c.Next() {
-    chunk := c.Chunk()
+    chunk := c.Bytes()
     if c.AtMask() {
         fmt.Printf("boundary: sum=0x%x, len=%d\n", c.Sum(), len(chunk))
     } else {

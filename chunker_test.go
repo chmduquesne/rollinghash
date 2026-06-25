@@ -72,7 +72,7 @@ func bulkRollOracleHash(classic interface {
 func collectChunks(t *testing.T, c *rollinghash.Chunker) (chunks [][]byte, atMask []bool) {
 	t.Helper()
 	for c.Next() {
-		chunks = append(chunks, append([]byte(nil), c.Chunk()...)) // copy: valid only until next Next
+		chunks = append(chunks, append([]byte(nil), c.Bytes()...)) // copy: valid only until next Next
 		atMask = append(atMask, c.AtMask())
 	}
 	if err := c.Err(); err != nil {
@@ -185,7 +185,7 @@ func TestChunkerAtMask(t *testing.T) {
 		var sums []uint64
 		var atMask []bool
 		for c.Next() {
-			chunks = append(chunks, append([]byte(nil), c.Chunk()...))
+			chunks = append(chunks, append([]byte(nil), c.Bytes()...))
 			sums = append(sums, c.Sum())
 			atMask = append(atMask, c.AtMask())
 		}
@@ -226,9 +226,9 @@ func TestChunkerEdgeCases(t *testing.T) {
 	for _, h := range allHashes {
 		c := rollinghash.NewChunker(bytes.NewReader(testData(window-1)), h.new(), window, 0xff, 1, 64)
 		if c.Next() {
-			t.Errorf("[%s] sub-window: expected no chunks, got %d bytes", h.name, len(c.Chunk()))
+			t.Errorf("[%s] sub-window: expected no chunks, got %d bytes", h.name, len(c.Bytes()))
 		}
-		if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
+		if c.Bytes() != nil || c.Sum() != 0 || c.AtMask() {
 			t.Errorf("[%s] sub-window: expected zero-value accessors", h.name)
 		}
 
@@ -292,7 +292,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 	for _, h := range allHashes {
 		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
 
-		if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
+		if c.Bytes() != nil || c.Sum() != 0 || c.AtMask() {
 			t.Errorf("[%s] expected zero-value accessors before first Next", h.name)
 		}
 
@@ -302,7 +302,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 			t.Fatalf("[%s] Err: %v", h.name, err)
 		}
 
-		if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
+		if c.Bytes() != nil || c.Sum() != 0 || c.AtMask() {
 			t.Errorf("[%s] expected zero-value accessors after Next returns false", h.name)
 		}
 
@@ -310,7 +310,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 		if c.Next() {
 			t.Errorf("[%s] Next() returned true after exhaustion", h.name)
 		}
-		if c.Chunk() != nil || c.Sum() != 0 || c.AtMask() {
+		if c.Bytes() != nil || c.Sum() != 0 || c.AtMask() {
 			t.Errorf("[%s] expected zero-value accessors on repeated Next after exhaustion", h.name)
 		}
 	}
@@ -359,7 +359,7 @@ func BenchmarkChunker(b *testing.B) {
 					r.Reset(data)
 					ck.Reset(r)
 					for ck.Next() {
-						_ = ck.Chunk()
+						_ = ck.Bytes()
 					}
 					if ck.Err() != nil {
 						b.Fatal(ck.Err())

@@ -194,7 +194,7 @@ func ExampleChunker() {
 	var sizes []int
 	total := 0
 	for c.Next() {
-		chunk := c.Chunk()
+		chunk := c.Bytes()
 		sizes = append(sizes, len(chunk))
 		total += len(chunk)
 		if c.AtMask() {

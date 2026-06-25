@@ -17,7 +17,7 @@ const chunkerBatchSize = 16 << 10
 //
 //	c := NewChunker(r, h, window, mask, min, max)
 //	for c.Next() {
-//		chunk := c.Chunk()
+//		chunk := c.Bytes()
 //		if c.AtMask() {
 //			// content-defined boundary; c.Sum() is the hit value
 //		} else {
@@ -315,7 +315,7 @@ func (c *Chunker) fail() bool {
 
 // Chunk returns the current chunk, valid until the next call to Next. Before
 // the first call to Next, and after Next returns false, Chunk returns nil.
-func (c *Chunker) Chunk() []byte { return c.chunk }
+func (c *Chunker) Bytes() []byte { return c.chunk }
 
 // Sum returns the rolling checksum at the current chunk's boundary. Before
 // the first call to Next, and after Next returns false, Sum returns 0.
