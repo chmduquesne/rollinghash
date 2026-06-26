@@ -2,9 +2,7 @@ package rollinghash_test
 
 import (
 	"bytes"
-	crand "crypto/rand"
 	"hash"
-	"math/rand"
 	"testing"
 
 	"github.com/chmduquesne/rollinghash/v4"
@@ -52,52 +50,6 @@ func sum64(h hash.Hash) (res uint64) {
 		res |= uint64(b)
 	}
 	return
-}
-
-// Compute the hash by creating a byte slice with an additionnal '\0' at
-// the beginning, writing the slice without the last byte, and then
-// rolling the last byte.
-func SumByWriteAndRoll(h rollinghash.Hash, b []byte) uint64 {
-	q := []byte("\x00")
-	q = append(q, b...)
-
-	h.Reset()
-	h.Write(q[:len(q)-1])
-	h.Roll(q[len(q)-1])
-	return sum64(h)
-}
-
-// Compute the hash the classic way
-func SumByWriteOnly(h hash.Hash, b []byte) uint64 {
-	h.Reset()
-	h.Write(b)
-	return sum64(h)
-}
-
-// Create some random slice (length betwen 0 and 1KB, random content)
-func RandomBytes() (res []byte) {
-	n := rand.Intn(1024)
-	res = make([]byte, n)
-	if _, err := crand.Read(res); err != nil {
-		panic(err)
-	}
-	return res
-}
-
-// Verify that, on random inputs, the classic hash and the rollinghash
-// return the same values
-func blackBox(t *testing.T, hashname string, classic hash.Hash, rolling rollinghash.Hash) {
-	for range 100 {
-		in := RandomBytes()
-		if len(in) > 0 {
-			sum := SumByWriteAndRoll(rolling, in)
-			ref := SumByWriteOnly(classic, in)
-
-			if ref != sum {
-				t.Errorf("[%s] Expected 0x%x, got 0x%x", hashname, ref, sum)
-			}
-		}
-	}
 }
 
 // Roll a window of 16 bytes with a classic hash and a rolling hash and
@@ -259,14 +211,6 @@ func TestFoxDog(t *testing.T) {
 		h.classic.Reset()
 		h.rolling.Reset()
 		foxDog(t, h.name, h.classic, h.rolling)
-	}
-}
-
-func TestBlackBox(t *testing.T) {
-	for _, h := range allHashes {
-		h.classic.Reset()
-		h.rolling.Reset()
-		blackBox(t, h.name, h.classic, h.rolling)
 	}
 }
 

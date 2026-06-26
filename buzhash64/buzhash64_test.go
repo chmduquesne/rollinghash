@@ -2,7 +2,7 @@ package buzhash64_test
 
 import (
 	"bufio"
-	"crypto/rand"
+	"math/rand"
 	"hash"
 	"io"
 	"strings"
@@ -128,7 +128,7 @@ func BenchmarkRolling64B(b *testing.B) {
 func BenchmarkReadUrandom(b *testing.B) {
 	b.SetBytes(1)
 	b.ReportAllocs()
-	f := rand.Reader
+	f := rand.New(rand.NewSource(0))
 	r := bufio.NewReader(f)
 	ws := 64
 	window := make([]byte, ws)
