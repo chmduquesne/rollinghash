@@ -8,7 +8,7 @@ import (
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	_adler32 "github.com/chmduquesne/rollinghash/v4/adler32"
-	"github.com/chmduquesne/rollinghash/v4/bozo64"
+	"github.com/chmduquesne/rollinghash/v4/buzhash64"
 )
 
 // Using Roll() is the easiest way to use this library. Because it manages
@@ -69,7 +69,7 @@ func ExampleScanner() {
 	needle := []byte("brown")
 	window := len(needle)
 
-	h := bozo64.New()
+	h := buzhash64.New()
 	if _, err := h.Write(needle); err != nil {
 		log.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func ExampleScanner() {
 	// Bytes()[i:i+window]. This input fits in a single batch, so the batch
 	// index i is also the offset in the stream; for larger inputs spanning
 	// multiple Scan() calls you would accumulate an offset across batches.
-	s := rollinghash.NewScanner(bytes.NewReader(data), bozo64.New(), window)
+	s := rollinghash.NewScanner(bytes.NewReader(data), buzhash64.New(), window)
 	for s.Scan() {
 		sums, buf := s.Sums(), s.Bytes()
 		for i, sum := range sums {
@@ -105,13 +105,13 @@ func ExampleScanner_Buffer() {
 	needle := []byte("brown")
 	window := len(needle)
 
-	h := bozo64.New()
+	h := buzhash64.New()
 	if _, err := h.Write(needle); err != nil {
 		log.Fatal(err)
 	}
 	target := h.Sum64()
 
-	s := rollinghash.NewScanner(bytes.NewReader(data), bozo64.New(), window)
+	s := rollinghash.NewScanner(bytes.NewReader(data), buzhash64.New(), window)
 	// Use the smallest valid buffer (window bytes) so every Scan() call
 	// returns exactly one position, exercising the batch-boundary logic.
 	s.Buffer(make([]byte, window))
@@ -138,7 +138,7 @@ func ExampleScanner_Reset() {
 	needle := []byte("fox")
 	window := len(needle)
 
-	h := bozo64.New()
+	h := buzhash64.New()
 	if _, err := h.Write(needle); err != nil {
 		log.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func ExampleScanner_Reset() {
 		[]byte("a fox and another fox"),
 	}
 
-	s := rollinghash.NewScanner(nil, bozo64.New(), window)
+	s := rollinghash.NewScanner(nil, buzhash64.New(), window)
 	for i, data := range streams {
 		s.Reset(bytes.NewReader(data))
 		count := 0
@@ -189,7 +189,7 @@ func ExampleChunker() {
 
 	// Cut where the low 8 bits of the rolling checksum are zero, keeping each
 	// chunk between 64 and 1024 bytes.
-	c := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), 32, 0xff, 64, 1024)
+	c := rollinghash.NewChunker(bytes.NewReader(data), buzhash64.New(), 56, 0xff, 64, 1024)
 
 	var sizes []int
 	total := 0
@@ -209,18 +209,20 @@ func ExampleChunker() {
 
 	fmt.Printf("split %d bytes into %d chunks: %v\n", total, len(sizes), sizes)
 	// Output:
-	// boundary at 354: sum=0x6cc454e7a1242400
-	// boundary at 436: sum=0x7c5ae57726b16b00
-	// boundary at 817: sum=0x1f8d0aa1a9bf2a00
-	// boundary at 1478: sum=0x17589f868227e600
-	// boundary at 2027: sum=0x2d4725d1019b5600
-	// boundary at 2282: sum=0xe5ef9c9bfc164800
-	// boundary at 3046: sum=0x9f1eb174c89b7400
-	// boundary at 3354: sum=0x6b1023a938ef6200
-	// boundary at 3499: sum=0x4fd3f0c989b9cf00
-	// boundary at 3843: sum=0x4c33a51430f4ab00
+	// boundary at 123: sum=0xbd9f33d05f52e700
+	// boundary at 277: sum=0x3a611bc3e53cf900
+	// boundary at 651: sum=0xecb29647a13a3600
+	// boundary at 769: sum=0x3109e14cbfa7da00
+	// boundary at 1436: sum=0xb61cdeda53dac000
+	// boundary at 1522: sum=0x8bef143657fed400
+	// boundary at 1722: sum=0x35f525a03a01d000
+	// boundary at 2173: sum=0xb168bf8f4418ee00
+	// boundary at 2404: sum=0x6c13f4fb45436f00
+	// boundary at 2647: sum=0x33695e700dcdf300
+	// boundary at 3388: sum=0xe915cd64f38a9800
+	// boundary at 3837: sum=0xdfc83351b3d06800
 	// max cut   at 4096
-	// split 4096 bytes into 11 chunks: [354 82 381 661 549 255 764 308 145 344 253]
+	// split 4096 bytes into 13 chunks: [123 154 374 118 667 86 200 451 231 243 741 449 259]
 }
 
 // Reset lets you reuse a Chunker's internal buffers for a new stream without
@@ -243,7 +245,7 @@ func ExampleChunker_Reset() {
 		makeData(2, 4096),
 	}
 
-	c := rollinghash.NewChunker(nil, bozo64.New(), 32, 0xff, 64, 1024)
+	c := rollinghash.NewChunker(nil, buzhash64.New(), 56, 0xff, 64, 1024)
 	for i, data := range streams {
 		c.Reset(bytes.NewReader(data))
 		n := 0
@@ -256,6 +258,6 @@ func ExampleChunker_Reset() {
 		fmt.Printf("stream %d: %d chunks\n", i, n)
 	}
 	// Output:
-	// stream 0: 11 chunks
-	// stream 1: 15 chunks
+	// stream 0: 13 chunks
+	// stream 1: 14 chunks
 }

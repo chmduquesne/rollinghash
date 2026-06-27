@@ -52,11 +52,11 @@ data := []byte("the quick brown fox jumps over the lazy dog")
 needle := []byte("brown")
 window := len(needle)
 
-h := bozo64.New()
+h := buzhash64.New()
 h.Write(needle)
 target := h.Sum64()
 
-s := rollinghash.NewScanner(bytes.NewReader(data), bozo64.New(), window)
+s := rollinghash.NewScanner(bytes.NewReader(data), buzhash64.New(), window)
 for s.Scan() {
     sums, buf := s.Sums(), s.Bytes()
     for i, sum := range sums {
@@ -78,14 +78,21 @@ across multiple streams without extra allocations.
 
 [`rollinghash.Chunker`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Chunker)
 is designed for Content Defined Chunking (CDC). It also operates on a
-stream and uses the same batch optimization as the Scanner. The stream is
-split wherever the rolling checksum matches a mask, with chunk sizes kept
-within `[min, max]`.
+stream, uses the same batch optimization as the Scanner, and therefore
+performs about as well. The stream is split wherever the rolling checksum
+matches a mask, with chunk sizes kept within `[min, max]`.
 
 ```golang
+data := make([]byte, 4096)
+x := uint32(1)
+for i := range data {
+    x ^= x << 13; x ^= x >> 17; x ^= x << 5
+    data[i] = byte(x)
+}
+
 // Cut where the low 8 bits of the rolling checksum are zero,
 // keeping each chunk between 64 and 1024 bytes.
-c := rollinghash.NewChunker(bytes.NewReader(data), bozo64.New(), 32, 0xff, 64, 1024)
+c := rollinghash.NewChunker(bytes.NewReader(data), buzhash64.New(), 56, 0xff, 64, 1024)
 
 for c.Next() {
     chunk := c.Bytes()
