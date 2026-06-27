@@ -17,6 +17,7 @@ import (
 	"math/rand"
 
 	"github.com/chmduquesne/rollinghash/v4"
+	"github.com/chmduquesne/rollinghash/v4/internal/window"
 )
 
 var defaultHashes [256]uint64
@@ -77,15 +78,7 @@ func (d *GearHash64) BlockSize() int { return 1 }
 
 // WriteWindow writes the current window contents to w.
 func (d *GearHash64) WriteWindow(w io.Writer) (n int, err error) {
-	if d.oldest < len(d.window) {
-		n, err = w.Write(d.window[d.oldest:])
-	}
-	if err == nil && d.oldest > 0 {
-		var n2 int
-		n2, err = w.Write(d.window[:d.oldest])
-		n += n2
-	}
-	return
+	return window.Write(w, d.window, d.oldest)
 }
 
 // Write appends data to the rolling window and recomputes the digest. It never
@@ -96,12 +89,8 @@ func (d *GearHash64) Write(data []byte) (int, error) {
 		return 0, nil
 	}
 	// Re-arrange the window so that the leftmost element is at index 0.
-	n := len(d.window)
 	if d.oldest != 0 {
-		tmp := make([]byte, d.oldest)
-		copy(tmp, d.window[:d.oldest])
-		copy(d.window, d.window[d.oldest:])
-		copy(d.window[n-d.oldest:], tmp)
+		window.MoveLeft(d.window, d.oldest)
 		d.oldest = 0
 	}
 	d.window = append(d.window, data...)
