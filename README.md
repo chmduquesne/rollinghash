@@ -149,15 +149,17 @@ the word size avoids it (e.g. use 48 or 56 instead of 64).
 
 ## Which hash to use
 
-| Hash | Chunker (MB/s) | Scanner (MB/s) | Uniformly distributed | Parametrizable |
-|---|---|---|---|---|
-| `buzhash64` | 1465 | 1424 | yes¹ | yes |
-| `buzhash32` | 1444 | 1398 | yes¹ | yes |
-| `gearhash64` | 1210 | 1421 | yes | yes |
-| `bozo64` | 1135 | 1275 | yes² | yes (single multiplier) |
-| `bozo32` | 1141 | 1287 | yes² | yes (single multiplier) |
-| `rabinkarp64` | 693 | 807 | yes | yes |
-| `adler32` | 408 | 386 | **no**³ | no |
+Benchmarked on 2026-06-27, linux/amd64, AMD Ryzen 7 PRO 7840U (`go test -bench='BenchmarkChunker/.*/fused|BenchmarkScanner/.*/1024KiB|BenchmarkRolling64B' -benchtime=3s -count=6`):
+
+| Hash | Roll (MB/s) | Chunker (MB/s) | Scanner (MB/s) | Uniformly distributed | Parametrizable |
+|---|---|---|---|---|---|
+| `buzhash64` | 849 | 1494 | 1476 | yes¹ | yes |
+| `buzhash32` | 835 | 1486 | 1452 | yes¹ | yes |
+| `gearhash64` | 779 | 1485 | 1479 | yes | yes |
+| `bozo32` | 860 | 1141 | 1335 | yes² | yes (single multiplier) |
+| `bozo64` | 834 | 1150 | 1337 | yes² | yes (single multiplier) |
+| `rabinkarp64` | 516 | 761 | 852 | yes | yes |
+| `adler32` | 255 | 398 | 408 | **no**³ | no |
 
 ¹ Provided the window size is not a multiple of the word size (32 for `buzhash32`,
 64 for `buzhash64`). See [Gotchas](#gotchas).
