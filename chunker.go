@@ -5,8 +5,9 @@ import (
 	"io"
 )
 
-// chunkerBatchSize is the read/hash batch the Chunker uses. Kept modest so the
-// per-batch work stays cache-resident.
+// chunkerBatchSize is the read/hash batch the Chunker uses when the hash
+// implements the BulkBoundaries fast path. Kept modest so the per-batch work
+// stays cache-resident.
 const chunkerBatchSize = 16 << 10
 
 // A Chunker splits an io.Reader into content-defined chunks. A boundary is
@@ -26,30 +27,28 @@ const chunkerBatchSize = 16 << 10
 //	}
 //	if err := c.Err(); err != nil { ... }
 //
-// The boundary search is fused into the hashing loop via the boundary fast path
-// when the hash implements it (no checksum stream is materialized); otherwise it
-// falls back to the bulk fast path, or to Write+Roll. A stream shorter than
-// window yields no chunks.
+// When the hash implements BulkBoundaries, boundary detection is fused into the
+// hashing loop (no checksum stream is materialized). Otherwise the Chunker
+// delegates to a Scanner, which handles BulkRoll and Roll fallbacks internally.
 type Chunker struct {
-	r      io.Reader
 	h      Hash
-	brd    boundaryRoller // fused boundary fast path; nil -> fallback
-	bulk   bulkRoller     // bulk fast path; nil -> Roll fallback
-	sum    func() uint64  // reads h's current sum, for Sum() recompute
+	brd    boundaryRoller // fast path; nil -> Scanner fallback
+	s      *Scanner       // fallback; nil when brd != nil
+	sum    func() uint64  // reads h's current sum, for windowSum
 	window int
 	mask   uint64
 	min    int
 	max    int
 
-	// read/hash buffer, carrying window-1 bytes between batches like Scanner
-	rbuf       []byte
-	carry      int
-	prevN      int
-	firstBatch bool
-	eof        bool
+	// BulkBoundaries fast path (brd != nil) fields:
+	r      io.Reader
+	rbuf   []byte
+	carry  int
+	prevN  int
+	eof    bool
+	la, lb []int32
 
-	la, lb []int32  // fused lane hit buffers
-	scan   []uint64 // BulkRoll fallback scratch
+	firstBatch bool
 
 	// chunk byte accumulator; cbuf[head] is the byte at global offset chunkStart
 	cbuf       []byte
@@ -72,32 +71,15 @@ type Chunker struct {
 // chunk length kept in [min, max]. window must be >= 1 and window <= min <= max
 // for well-formed output.
 func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) *Chunker {
-	bufSize := chunkerBatchSize
-	if bufSize < window {
-		bufSize = window
-	}
-	maxOut := bufSize - window + 1
-	if maxOut < 1 {
-		maxOut = 1
-	}
 	brd, _ := h.(boundaryRoller)
-	bulk, _ := h.(bulkRoller)
 	c := &Chunker{
-		r:          r,
 		h:          h,
 		brd:        brd,
-		bulk:       bulk,
 		window:     window,
 		mask:       mask,
 		min:        min,
 		max:        max,
-		rbuf:       make([]byte, bufSize),
 		firstBatch: true,
-		la:         make([]int32, maxOut),
-		lb:         make([]int32, maxOut),
-	}
-	if brd == nil && bulk != nil {
-		c.scan = make([]uint64, maxOut)
 	}
 	switch v := h.(type) {
 	case hash.Hash64:
@@ -114,16 +96,36 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) *Chu
 			return r
 		}
 	}
+	if brd != nil {
+		bufSize := chunkerBatchSize
+		if bufSize < window {
+			bufSize = window
+		}
+		maxOut := bufSize - window + 1
+		if maxOut < 1 {
+			maxOut = 1
+		}
+		c.r = r
+		c.rbuf = make([]byte, bufSize)
+		c.la = make([]int32, maxOut)
+		c.lb = make([]int32, maxOut)
+	} else {
+		c.s = NewScanner(r, h, window)
+	}
 	return c
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
 func (c *Chunker) Reset(r io.Reader) {
-	c.r = r
-	c.carry = 0
-	c.prevN = 0
+	if c.brd != nil {
+		c.r = r
+		c.carry = 0
+		c.prevN = 0
+		c.eof = false
+	} else {
+		c.s.Reset(r)
+	}
 	c.firstBatch = true
-	c.eof = false
 	c.cbuf = c.cbuf[:0]
 	c.head = 0
 	c.chunkStart = 0
@@ -209,9 +211,16 @@ func (c *Chunker) windowSum(e int) uint64 {
 	return c.sum()
 }
 
-// readBatch reads the next block (carrying window-1 bytes for continuity),
-// appends its new bytes to cbuf, and appends its boundary positions to bounds.
+// readBatch dispatches to the BulkBoundaries fast path or the Scanner fallback.
 func (c *Chunker) readBatch() bool {
+	if c.brd != nil {
+		return c.readBatchBrd()
+	}
+	return c.readBatchScanner()
+}
+
+// readBatchBrd reads the next block and finds boundaries via BulkBoundaries.
+func (c *Chunker) readBatchBrd() bool {
 	if c.eof {
 		return false
 	}
@@ -259,49 +268,63 @@ func (c *Chunker) readBatch() bool {
 		c.cbuf = append(c.cbuf, c.rbuf[c.window-1:n]...)
 		c.consumed += n - (c.window - 1)
 	}
-	c.appendBounds(c.rbuf[:n], batchO)
+
+	w := c.window
+	na, nb := c.brd.BulkBoundaries(c.la, c.lb, c.rbuf[:n], w, c.mask)
+	for _, g := range c.la[:na] {
+		c.bounds = append(c.bounds, batchO+int(g)+w-1)
+	}
+	for _, g := range c.lb[:nb] {
+		c.bounds = append(c.bounds, batchO+int(g)+w-1)
+	}
 
 	c.carry = c.window - 1
 	c.prevN = n
 	return true
 }
 
-// appendBounds finds the boundary positions of one batch and appends them, as
-// global boundary-byte indices, to bounds. The boundary byte for the window
-// data[i:i+window] is its last byte, global index batchO+i+window-1.
-func (c *Chunker) appendBounds(data []byte, batchO int) {
+// readBatchScanner reads the next block via the Scanner and finds boundaries by
+// scanning its Sums slice. The Scanner handles BulkRoll and Roll internally.
+func (c *Chunker) readBatchScanner() bool {
+	// Drop the already-emitted prefix from cbuf and the consumed boundaries.
+	if c.head > 0 {
+		m := copy(c.cbuf, c.cbuf[c.head:])
+		c.cbuf = c.cbuf[:m]
+		c.head = 0
+	}
+	if c.bcur > 0 {
+		m := copy(c.bounds, c.bounds[c.bcur:])
+		c.bounds = c.bounds[:m]
+		c.bcur = 0
+	}
+
+	if !c.s.Scan() {
+		c.err = c.s.Err()
+		return false
+	}
+
+	data := c.s.Bytes()
+	sums := c.s.Sums()
 	w := c.window
-	switch {
-	case c.brd != nil:
-		na, nb := c.brd.BulkBoundaries(c.la, c.lb, data, w, c.mask)
-		for _, g := range c.la[:na] {
-			c.bounds = append(c.bounds, batchO+int(g)+w-1)
-		}
-		for _, g := range c.lb[:nb] {
-			c.bounds = append(c.bounds, batchO+int(g)+w-1)
-		}
-	case c.bulk != nil:
-		ns := len(data) - w + 1
-		c.bulk.BulkRoll(c.scan[:ns], data, w)
-		for i := range ns {
-			if c.scan[i]&c.mask == 0 {
-				c.bounds = append(c.bounds, batchO+i+w-1)
-			}
-		}
-	default:
-		// Pure Roll fallback for a Hash implementing neither fast path.
-		c.h.Reset()
-		c.h.Write(data[:w])
-		if c.sum()&c.mask == 0 {
-			c.bounds = append(c.bounds, batchO+w-1)
-		}
-		for i := w; i < len(data); i++ {
-			c.h.Roll(data[i])
-			if c.sum()&c.mask == 0 {
-				c.bounds = append(c.bounds, batchO+i)
-			}
+
+	var batchO int
+	if c.firstBatch {
+		batchO = 0
+		c.cbuf = append(c.cbuf, data...)
+		c.consumed = len(data)
+		c.firstBatch = false
+	} else {
+		batchO = c.consumed - (w - 1)
+		c.cbuf = append(c.cbuf, data[w-1:]...)
+		c.consumed += len(data) - (w - 1)
+	}
+
+	for i, sum := range sums {
+		if sum&c.mask == 0 {
+			c.bounds = append(c.bounds, batchO+i+w-1)
 		}
 	}
+	return true
 }
 
 // fail clears the current chunk state and reports no further chunks.
@@ -313,8 +336,8 @@ func (c *Chunker) fail() bool {
 	return false
 }
 
-// Chunk returns the current chunk, valid until the next call to Next. Before
-// the first call to Next, and after Next returns false, Chunk returns nil.
+// Bytes returns the current chunk, valid until the next call to Next. Before
+// the first call to Next, and after Next returns false, Bytes returns nil.
 func (c *Chunker) Bytes() []byte { return c.chunk }
 
 // Sum returns the rolling checksum at the current chunk's boundary. Before

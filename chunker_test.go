@@ -331,8 +331,8 @@ func TestChunkerError(t *testing.T) {
 }
 
 // BenchmarkChunker measures steady-state chunking throughput across every hash
-// in allHashes and all three Chunker code paths: the fused boundary fast path,
-// the BulkRoll-only fallback, and the Roll-only fallback.
+// in allHashes and both Chunker code paths: the fused BulkBoundaries fast path
+// and the Scanner fallback (exercised via bulkOnly, which strips BulkBoundaries).
 func BenchmarkChunker(b *testing.B) {
 	const window = 56
 	data := testData(1 << 20)
@@ -344,8 +344,7 @@ func BenchmarkChunker(b *testing.B) {
 			h    rollinghash.Hash
 		}{
 			{"fused", h.new()},
-			{"bulkFallback", bulkOnly{h.new()}},
-			{"rollFallback", rollOnly{h.new()}},
+			{"scanner", bulkOnly{h.new()}},
 		}
 		for _, c := range cases {
 			b.Run(h.name+"/"+c.name, func(b *testing.B) {
