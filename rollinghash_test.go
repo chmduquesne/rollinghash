@@ -313,6 +313,7 @@ func FuzzRollingHashConsistency(f *testing.F) {
 	f.Add([]byte("The quick brown fox jumps over the lazy dog"), 16)
 	f.Add([]byte("a"), 1)
 	f.Add([]byte(""), 0)
+	f.Add([]byte("\x00\xff\xab\x01\x00\xfe\x42\x80"), 4)
 
 	f.Fuzz(func(t *testing.T, data []byte, windowSize int) {
 		if windowSize <= 0 || len(data) == 0 {
