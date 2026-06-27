@@ -4,8 +4,7 @@ import (
 	"bufio"
 	"hash"
 	"io"
-	"log"
-	"os"
+	"math/rand"
 	"strings"
 	"testing"
 
@@ -126,16 +125,7 @@ func BenchmarkRolling64B(b *testing.B) {
 func BenchmarkReadUrandom(b *testing.B) {
 	b.SetBytes(1)
 	b.ReportAllocs()
-	f, err := os.Open("/dev/urandom")
-	if err != nil {
-		b.Errorf("could not open /dev/urandom")
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	r := bufio.NewReader(f)
+	r := bufio.NewReader(rand.New(rand.NewSource(0)))
 	ws := 64
 	window := make([]byte, ws)
 	n, err := r.Read(window)
