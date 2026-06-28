@@ -152,14 +152,14 @@ func main() {
 
 	const bufsize = 16 * MiB
 	pr := newPrefetchReader(io.LimitReader(f, int64(fileSize)), bufsize)
-	s := rollinghash.NewScanner(pr, newHash(), window)
+	s := rollinghash.NewBatchRoller(pr, newHash(), window)
 	s.Buffer(make([]byte, bufsize))
 
 	n := uint64(0)
 	nextPrint := uint64(bufsize)
 	t := time.Now()
 
-	for s.Scan() {
+	for s.Next() {
 		sums := s.Sums()
 		if *dostats {
 			for _, sum := range sums {

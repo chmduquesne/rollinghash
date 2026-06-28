@@ -332,7 +332,7 @@ func TestChunkerError(t *testing.T) {
 
 // BenchmarkChunker measures steady-state chunking throughput across every hash
 // in allHashes and both Chunker code paths: the fused BulkBoundaries fast path
-// and the Scanner fallback (exercised via bulkOnly, which strips BulkBoundaries).
+// and the BatchRoller fallback (exercised via bulkOnly, which strips BulkBoundaries).
 func BenchmarkChunker(b *testing.B) {
 	const window = 56
 	data := testData(1 << 20)

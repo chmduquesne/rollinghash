@@ -13,7 +13,7 @@ import (
 
 // Using Roll() is the easiest way to use this library. Because it manages
 // an internal rolling window, it is very user-friendly. Unfortunately
-// this user-friendliness costs CPU cycles. Consider using the Scanner or
+// this user-friendliness costs CPU cycles. Consider using the BatchRoller or
 // the Chunker interface if you want the highest speed.
 func ExampleHash_Roll() {
 	s := []byte("The quick brown fox jumps over the lazy dog")
@@ -54,15 +54,12 @@ func ExampleHash_Roll() {
 
 }
 
-// The Scanner interface was designed to support users who want to search
-// for a given block within a stream, rsync-style. In this type of
-// situation, the rolling checksum would be used as a cheap filter, and
-// another method (e.g. byte comparison) confirms the match. This
-// interface is shaped like a bufio.Scanner. Because it can batch the
-// computations, it can use optimization techniques such as ILP
-// exploitation to parallelize processing. This results into a performance
-// that is almost doubled compared to Roll().
-func ExampleScanner() {
+// BatchRoller is designed to support users who want to search for a given
+// block within a stream, rsync-style. The rolling checksum acts as a cheap
+// filter, and another method (e.g. byte comparison) confirms the match.
+// Because it batches computations, it can exploit instruction-level
+// parallelism, achieving roughly twice the throughput of Roll().
+func ExampleBatchRoller() {
 	data := []byte("the quick brown fox jumps over the lazy dog")
 
 	// The block we are looking for, and its rolling checksum.
@@ -75,12 +72,12 @@ func ExampleScanner() {
 	}
 	target := h.Sum64()
 
-	// Scan the stream. Within each batch, Sums()[i] is the checksum of
+	// Roll the stream. Within each batch, Sums()[i] is the checksum of
 	// Bytes()[i:i+window]. This input fits in a single batch, so the batch
 	// index i is also the offset in the stream; for larger inputs spanning
-	// multiple Scan() calls you would accumulate an offset across batches.
-	s := rollinghash.NewScanner(bytes.NewReader(data), buzhash64.New(), window)
-	for s.Scan() {
+	// multiple Next() calls you would accumulate an offset across batches.
+	s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window)
+	for s.Next() {
 		sums, buf := s.Sums(), s.Bytes()
 		for i, sum := range sums {
 			if sum == target && bytes.Equal(buf[i:i+window], needle) {
@@ -94,12 +91,12 @@ func ExampleScanner() {
 	// Output: found "brown" at offset 10
 }
 
-// Buffer controls the batch size used by the Scanner. A larger buffer means
-// fewer Scan() calls and better amortization of the bulk fast path, at the
-// cost of higher memory use. The default buffer is 64 KiB; here we use a
-// small buffer to show that the Scanner produces correct results regardless
+// Buffer controls the batch size used by the BatchRoller. A larger buffer
+// means fewer Next() calls and better amortization of the bulk fast path, at
+// the cost of higher memory use. The default buffer is 64 KiB; here we use a
+// small buffer to show that the BatchRoller produces correct results regardless
 // of how the input is split across batches.
-func ExampleScanner_Buffer() {
+func ExampleBatchRoller_Buffer() {
 	data := []byte("the quick brown fox jumps over the lazy dog")
 
 	needle := []byte("brown")
@@ -111,13 +108,13 @@ func ExampleScanner_Buffer() {
 	}
 	target := h.Sum64()
 
-	s := rollinghash.NewScanner(bytes.NewReader(data), buzhash64.New(), window)
-	// Use the smallest valid buffer (window bytes) so every Scan() call
+	s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window)
+	// Use the smallest valid buffer (window bytes) so every Next() call
 	// returns exactly one position, exercising the batch-boundary logic.
 	s.Buffer(make([]byte, window))
 
 	off := 0
-	for s.Scan() {
+	for s.Next() {
 		sums, buf := s.Sums(), s.Bytes()
 		for i, sum := range sums {
 			if sum == target && bytes.Equal(buf[i:i+window], needle) {
@@ -132,9 +129,9 @@ func ExampleScanner_Buffer() {
 	// Output: found "brown" at offset 10
 }
 
-// Reset lets you reuse a Scanner's internal buffers for a new stream without
-// any extra allocations. This matters when scanning many streams in a loop.
-func ExampleScanner_Reset() {
+// Reset lets you reuse a BatchRoller's internal buffers for a new stream
+// without any extra allocations. This matters when rolling many streams in a loop.
+func ExampleBatchRoller_Reset() {
 	needle := []byte("fox")
 	window := len(needle)
 
@@ -149,11 +146,11 @@ func ExampleScanner_Reset() {
 		[]byte("a fox and another fox"),
 	}
 
-	s := rollinghash.NewScanner(nil, buzhash64.New(), window)
+	s := rollinghash.NewBatchRoller(nil, buzhash64.New(), window)
 	for i, data := range streams {
 		s.Reset(bytes.NewReader(data))
 		count := 0
-		for s.Scan() {
+		for s.Next() {
 			for _, sum := range s.Sums() {
 				if sum == target {
 					count++
@@ -173,7 +170,7 @@ func ExampleScanner_Reset() {
 // The Chunker interface was designed to support users who want to use
 // rolling hashes for Content Defined Chunking (CDC). It also operates on
 // a stream, which allows for batch computation optimizations similar to
-// the ones used with the Scanner. In this type of situation, The stream
+// the ones used with the BatchRoller. In this type of situation, The stream
 // is split where the rolling checksum hits a mask, with chunk sizes kept
 // within [min, max].
 func ExampleChunker() {

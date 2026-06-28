@@ -29,11 +29,11 @@ const chunkerBatchSize = 16 << 10
 //
 // When the hash implements BulkBoundaries, boundary detection is fused into the
 // hashing loop (no checksum stream is materialized). Otherwise the Chunker
-// delegates to a Scanner, which handles BulkRoll and Roll fallbacks internally.
+// delegates to a BatchRoller, which handles BulkRoll and Roll fallbacks internally.
 type Chunker struct {
 	h      Hash
-	brd    boundaryRoller // fast path; nil -> Scanner fallback
-	s      *Scanner       // fallback; nil when brd != nil
+	brd    boundaryRoller // fast path; nil -> BatchRoller fallback
+	s      *BatchRoller   // fallback; nil when brd != nil
 	sum    func() uint64  // reads h's current sum, for windowSum
 	window int
 	mask   uint64
@@ -110,7 +110,7 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) *Chu
 		c.la = make([]int32, maxOut)
 		c.lb = make([]int32, maxOut)
 	} else {
-		c.s = NewScanner(r, h, window)
+		c.s = NewBatchRoller(r, h, window)
 	}
 	return c
 }
@@ -211,12 +211,12 @@ func (c *Chunker) windowSum(e int) uint64 {
 	return c.sum()
 }
 
-// readBatch dispatches to the BulkBoundaries fast path or the Scanner fallback.
+// readBatch dispatches to the BulkBoundaries fast path or the BatchRoller fallback.
 func (c *Chunker) readBatch() bool {
 	if c.brd != nil {
 		return c.readBatchBrd()
 	}
-	return c.readBatchScanner()
+	return c.readBatchRoller()
 }
 
 // readBatchBrd reads the next block and finds boundaries via BulkBoundaries.
@@ -283,9 +283,9 @@ func (c *Chunker) readBatchBrd() bool {
 	return true
 }
 
-// readBatchScanner reads the next block via the Scanner and finds boundaries by
-// scanning its Sums slice. The Scanner handles BulkRoll and Roll internally.
-func (c *Chunker) readBatchScanner() bool {
+// readBatchRoller reads the next block via the BatchRoller and finds boundaries
+// by scanning its Sums slice. The BatchRoller handles BulkRoll and Roll internally.
+func (c *Chunker) readBatchRoller() bool {
 	// Drop the already-emitted prefix from cbuf and the consumed boundaries.
 	if c.head > 0 {
 		m := copy(c.cbuf, c.cbuf[c.head:])
@@ -298,7 +298,7 @@ func (c *Chunker) readBatchScanner() bool {
 		c.bcur = 0
 	}
 
-	if !c.s.Scan() {
+	if !c.s.Next() {
 		c.err = c.s.Err()
 		return false
 	}

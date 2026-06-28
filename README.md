@@ -36,15 +36,14 @@ for _, c := range data[n:] {
 The hash maintains an internal copy of the rolling window. Use `WriteWindow` to
 read it back out.
 
-### Scanner
+### BatchRoller
 
-[`rollinghash.Scanner`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Scanner)
+[`rollinghash.BatchRoller`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#BatchRoller)
 is designed for searching a block within a stream, rsync-style: the
 rolling checksum acts as a cheap filter, and a secondary check (e.g. byte
-comparison) confirms the match. It is shaped like a
-[`bufio.Scanner`](https://golang.org/pkg/bufio/#Scanner) and batches
-computations to exploit instruction-level parallelism. It is about twice
-as fast as `Roll`.
+comparison) confirms the match. It batches computations to exploit
+instruction-level parallelism, achieving about twice the throughput of
+`Roll`.
 
 ```golang
 data := []byte("the quick brown fox jumps over the lazy dog")
@@ -56,8 +55,8 @@ h := buzhash64.New()
 h.Write(needle)
 target := h.Sum64()
 
-s := rollinghash.NewScanner(bytes.NewReader(data), buzhash64.New(), window)
-for s.Scan() {
+s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window)
+for s.Next() {
     sums, buf := s.Sums(), s.Bytes()
     for i, sum := range sums {
         if sum == target && bytes.Equal(buf[i:i+window], needle) {
@@ -71,14 +70,14 @@ if err := s.Err(); err != nil {
 ```
 
 Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`.
-Use `Buffer` to control the batch size and `Reset` to reuse the scanner
+Use `Buffer` to control the batch size and `Reset` to reuse the batch roller
 across multiple streams without extra allocations.
 
 ### Chunker
 
 [`rollinghash.Chunker`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Chunker)
 is designed for Content Defined Chunking (CDC). It also operates on a
-stream, uses the same batch optimization as the Scanner, and therefore
+stream, uses the same batch optimization as the BatchRoller, and therefore
 performs about as well. The stream is split wherever the rolling checksum
 matches a mask, with chunk sizes kept within `[min, max]`.
 
@@ -156,9 +155,9 @@ the word size avoids it (e.g. use 48 or 56 instead of 64).
 
 ## Which hash to use
 
-Benchmarked on 2026-06-28, linux/amd64, AMD Ryzen 7 PRO 7840U (`go test -bench='BenchmarkChunker/.*/fused|BenchmarkScanner/.*/1024KiB|BenchmarkRolling64B' -benchtime=3s -count=6`):
+Benchmarked on 2026-06-28, linux/amd64, AMD Ryzen 7 PRO 7840U (`go test -bench='BenchmarkChunker/.*/fused|BenchmarkBatchRoller/.*/1024KiB|BenchmarkRolling64B' -benchtime=3s -count=6`):
 
-| Hash | Roll (MB/s) | Chunker (MB/s) | Scanner (MB/s) | Uniformly distributed | Parametrizable |
+| Hash | Roll (MB/s) | Chunker (MB/s) | BatchRoller (MB/s) | Uniformly distributed | Parametrizable |
 |---|---|---|---|---|---|
 | `buzhash64` | 841 | 1539 | 1451 | yes¹ | yes |
 | `buzhash32` | 848 | 1511 | 1358 | yes¹ | yes |
@@ -185,7 +184,7 @@ where the peer already uses adler32 (e.g. the rsync protocol itself).
 block search.
 
 **`gearhash64`** is the popular choice from the CDC literature (see the FastCDC
-paper). It is essentially as fast as buzhash on the Scanner, has no window-size
+paper). It is essentially as fast as buzhash on the BatchRoller, has no window-size
 gotcha, and is uniformly distributed.
 
 **`bozo32`/`bozo64`** are very fast and parametrizable via a single integer

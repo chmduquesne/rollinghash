@@ -4,7 +4,7 @@
 
 ### Added
 
-- `Scanner`: batched bulk-hashing interface for rsync-style block search,
+- `BatchRoller`: batched bulk-hashing interface for rsync-style block search,
   with ~2× throughput vs `Roll` via ILP exploitation.
 - `Chunker`: Content Defined Chunking interface with a fused boundary fast
   path for the same batched performance.

@@ -5,17 +5,17 @@ import (
 	"io"
 )
 
-// defaultScannerBufSize is the batch buffer size used when the caller does
+// defaultBatchRollerBufSize is the batch buffer size used when the caller does
 // not supply one with Buffer. Larger batches amortize the bulk fast path
 // better.
-const defaultScannerBufSize = 1 << 16 // 64 KiB
+const defaultBatchRollerBufSize = 1 << 16 // 64 KiB
 
-// A Scanner walks an io.Reader and yields, in batches, the rolling checksum
-// at every window position together with the bytes those checksums cover. It
-// is shaped like bufio.Scanner:
+// A BatchRoller walks an io.Reader and yields, in batches, the rolling
+// checksum at every window position together with the bytes those checksums
+// cover. Call Next to advance to the next batch, then read Sums and Bytes:
 //
-//	s := NewScanner(r, h, window)
-//	for s.Scan() {
+//	s := NewBatchRoller(r, h, window)
+//	for s.Next() {
 //		sums, data := s.Sums(), s.Bytes()
 //		for i, sum := range sums {
 //			// sum is the rolling checksum of data[i:i+window]
@@ -28,24 +28,24 @@ const defaultScannerBufSize = 1 << 16 // 64 KiB
 //	Sums()[i] is the rolling checksum of the window Bytes()[i:i+window],
 //	and len(Sums()) == len(Bytes()) - window + 1.
 //
-// Each Scan reads a block, computes all its checksums (via the bulk fast path
+// Each Next reads a block, computes all its checksums (via the bulk fast path
 // when the hash implements it, otherwise Write+Roll), and carries the trailing
 // window-1 bytes into the next block so no window position is skipped or
 // duplicated across a batch boundary. Sums() and Bytes() are valid only
-// until the next call to Scan. An input shorter than window yields no
+// until the next call to Next. An input shorter than window yields no
 // batches.
-type Scanner struct {
+type BatchRoller struct {
 	r      io.Reader
 	h      Hash
 	br     bulkRoller // non-nil when h implements the bulk fast path
 	window int
 
-	buf      []byte
-	data     []byte   // current batch's bytes; == buf[:n]; nil outside a batch
-	sums     []uint64 // current batch's checksums; nil outside a batch
+	buf       []byte
+	data      []byte   // current batch's bytes; == buf[:n]; nil outside a batch
+	sums      []uint64 // current batch's checksums; nil outside a batch
 	sumsStore []uint64 // backing array for sums; retained across Reset for reuse
-	carry    int      // window-1 bytes to carry from the previous batch, or 0
-	prevN    int      // length of the previous batch (where its carry tail sits)
+	carry     int      // window-1 bytes to carry from the previous batch, or 0
+	prevN     int      // length of the previous batch (where its carry tail sits)
 
 	sum  func() uint64 // reads h's current sum; fallback path only
 	eof  bool          // the reader has signalled io.EOF
@@ -53,16 +53,17 @@ type Scanner struct {
 	err  error
 }
 
-// NewScanner returns a Scanner over r that produces, for every window-sized
-// slice of the stream, its rolling checksum under h. window must be >= 1.
-func NewScanner(r io.Reader, h Hash, window int) *Scanner {
+// NewBatchRoller returns a BatchRoller over r that produces, for every
+// window-sized slice of the stream, its rolling checksum under h. window
+// must be >= 1.
+func NewBatchRoller(r io.Reader, h Hash, window int) *BatchRoller {
 	br, _ := h.(bulkRoller)
-	s := &Scanner{
+	s := &BatchRoller{
 		r:      r,
 		h:      h,
 		br:     br,
 		window: window,
-		buf:    make([]byte, max(defaultScannerBufSize, window)),
+		buf:    make([]byte, max(defaultBatchRollerBufSize, window)),
 	}
 	if br == nil {
 		// Resolve a non-allocating sum reader once. h.Sum(buf) would escape a
@@ -89,17 +90,17 @@ func NewScanner(r io.Reader, h Hash, window int) *Scanner {
 }
 
 // Buffer sets the buffer used to hold each batch. It must be called before
-// the first call to Scan, and buf must be at least window bytes long. A
+// the first call to Next, and buf must be at least window bytes long. A
 // larger buffer means larger batches and better amortization of the bulk
-// fast path. By default Scanner allocates its own buffer.
-func (s *Scanner) Buffer(buf []byte) {
+// fast path. By default BatchRoller allocates its own buffer.
+func (s *BatchRoller) Buffer(buf []byte) {
 	s.buf = buf
 }
 
-// Reset prepares the Scanner to scan r from the start, reusing the existing
-// batch buffer and sums storage. The hash and window are unchanged. It lets
-// one Scanner process many streams without reallocating.
-func (s *Scanner) Reset(r io.Reader) {
+// Reset prepares the BatchRoller to roll r from the start, reusing the
+// existing batch buffer and sums storage. The hash and window are unchanged.
+// It lets one BatchRoller process many streams without reallocating.
+func (s *BatchRoller) Reset(r io.Reader) {
 	s.r = r
 	s.data = nil
 	s.sums = nil
@@ -111,9 +112,9 @@ func (s *Scanner) Reset(r io.Reader) {
 	s.err = nil
 }
 
-// Scan loads the next batch, returning false at end of input or on the first
+// Next loads the next batch, returning false at end of input or on the first
 // error. After it returns false, Err reports any error other than io.EOF.
-func (s *Scanner) Scan() bool {
+func (s *BatchRoller) Next() bool {
 	if s.err != nil || s.done {
 		s.data = nil
 		s.sums = nil
@@ -121,7 +122,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	// Move the previous batch's trailing window-1 bytes to the front. This is
-	// deferred to here (rather than the end of the previous Scan) so it does
+	// deferred to here (rather than the end of the previous Next) so it does
 	// not clobber the Bytes() the previous batch handed out, which stays valid
 	// until exactly this call. copy is memmove-safe for the possible overlap.
 	if s.carry > 0 {
@@ -165,7 +166,7 @@ func (s *Scanner) Scan() bool {
 	} else {
 		// Remember to carry the trailing window-1 bytes into the next batch,
 		// so windows straddling this boundary are produced there. The actual
-		// move happens at the start of the next Scan to keep this batch's
+		// move happens at the start of the next Next to keep this batch's
 		// Bytes() intact.
 		s.carry = s.window - 1
 		s.prevN = n
@@ -176,7 +177,7 @@ func (s *Scanner) Scan() bool {
 // bulkRoll fills dst with the rolling checksum at every window position of
 // data, using the bulk fast path when available and falling back to
 // Write+Roll otherwise.
-func (s *Scanner) bulkRoll(dst []uint64, data []byte, window int) {
+func (s *BatchRoller) bulkRoll(dst []uint64, data []byte, window int) {
 	if s.br != nil {
 		s.br.BulkRoll(dst, data, window)
 		return
@@ -191,14 +192,14 @@ func (s *Scanner) bulkRoll(dst []uint64, data []byte, window int) {
 }
 
 // Sums returns the checksums of the current batch, one per window position.
-// It is valid only until the next call to Scan. Before the first call to
-// Scan, and after Scan returns false, Sums returns nil.
-func (s *Scanner) Sums() []uint64 { return s.sums }
+// It is valid only until the next call to Next. Before the first call to
+// Next, and after Next returns false, Sums returns nil.
+func (s *BatchRoller) Sums() []uint64 { return s.sums }
 
 // Bytes returns the bytes of the current batch. Sums()[i] is the checksum of
-// Bytes()[i:i+window]. It is valid only until the next call to Scan. Before
-// the first call to Scan, and after Scan returns false, Bytes returns nil.
-func (s *Scanner) Bytes() []byte { return s.data }
+// Bytes()[i:i+window]. It is valid only until the next call to Next. Before
+// the first call to Next, and after Next returns false, Bytes returns nil.
+func (s *BatchRoller) Bytes() []byte { return s.data }
 
-// Err returns the first non-EOF error encountered by Scan, if any.
-func (s *Scanner) Err() error { return s.err }
+// Err returns the first non-EOF error encountered by Next, if any.
+func (s *BatchRoller) Err() error { return s.err }
