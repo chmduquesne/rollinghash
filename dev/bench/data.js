@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782643895908,
+  "lastUpdate": 1782645704747,
   "repoUrl": "https://github.com/chmduquesne/rollinghash",
   "entries": {
     "Go Benchmark": [
@@ -62670,6 +62670,2046 @@ window.BENCHMARK_DATA = {
             "value": 0,
             "unit": "allocs/op",
             "extra": "606 times\n4 procs"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "chmd@chmd.fr",
+            "name": "Christophe-Marie Duquesne",
+            "username": "chmduquesne"
+          },
+          "committer": {
+            "email": "chmd@chmd.fr",
+            "name": "Christophe-Marie Duquesne",
+            "username": "chmduquesne"
+          },
+          "distinct": true,
+          "id": "b5aa07c9a05f33af99baed13f5f6a3a86f48f506",
+          "message": "update benchmark numbers in readme",
+          "timestamp": "2026-06-28T13:18:27+02:00",
+          "tree_id": "0a330b384482f159d871104a014c66f6dc449fb0",
+          "url": "https://github.com/chmduquesne/rollinghash/commit/b5aa07c9a05f33af99baed13f5f6a3a86f48f506"
+        },
+        "date": 1782645703680,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=4KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 4096703,
+            "unit": "ns/op\t 255.96 MB/s\t     112 B/op\t       0 allocs/op",
+            "extra": "292 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 4096703,
+            "unit": "ns/op",
+            "extra": "292 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 255.96,
+            "unit": "MB/s",
+            "extra": "292 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 112,
+            "unit": "B/op",
+            "extra": "292 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "292 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=64KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 3989321,
+            "unit": "ns/op\t 262.85 MB/s\t    1771 B/op\t       0 allocs/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 3989321,
+            "unit": "ns/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 262.85,
+            "unit": "MB/s",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 1771,
+            "unit": "B/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 4046662,
+            "unit": "ns/op\t 259.12 MB/s\t   28339 B/op\t       0 allocs/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 4046662,
+            "unit": "ns/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 259.12,
+            "unit": "MB/s",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 28339,
+            "unit": "B/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/adler32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=4KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1083299,
+            "unit": "ns/op\t 967.95 MB/s\t      29 B/op\t       0 allocs/op",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1083299,
+            "unit": "ns/op",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 967.95,
+            "unit": "MB/s",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 29,
+            "unit": "B/op",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=64KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1024514,
+            "unit": "ns/op\t1023.49 MB/s\t     451 B/op\t       0 allocs/op",
+            "extra": "1162 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1024514,
+            "unit": "ns/op",
+            "extra": "1162 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1023.49,
+            "unit": "MB/s",
+            "extra": "1162 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 451,
+            "unit": "B/op",
+            "extra": "1162 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1162 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1034651,
+            "unit": "ns/op\t1013.46 MB/s\t    7300 B/op\t       0 allocs/op",
+            "extra": "1149 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1034651,
+            "unit": "ns/op",
+            "extra": "1149 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1013.46,
+            "unit": "MB/s",
+            "extra": "1149 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 7300,
+            "unit": "B/op",
+            "extra": "1149 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1149 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 905248,
+            "unit": "ns/op\t1158.33 MB/s\t      24 B/op\t       0 allocs/op",
+            "extra": "1323 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 905248,
+            "unit": "ns/op",
+            "extra": "1323 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1158.33,
+            "unit": "MB/s",
+            "extra": "1323 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 24,
+            "unit": "B/op",
+            "extra": "1323 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1323 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 865252,
+            "unit": "ns/op\t1211.87 MB/s\t     378 B/op\t       0 allocs/op",
+            "extra": "1384 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 865252,
+            "unit": "ns/op",
+            "extra": "1384 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1211.87,
+            "unit": "MB/s",
+            "extra": "1384 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 378,
+            "unit": "B/op",
+            "extra": "1384 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1384 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 885319,
+            "unit": "ns/op\t1184.41 MB/s\t    6204 B/op\t       0 allocs/op",
+            "extra": "1352 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 885319,
+            "unit": "ns/op",
+            "extra": "1352 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1184.41,
+            "unit": "MB/s",
+            "extra": "1352 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 6204,
+            "unit": "B/op",
+            "extra": "1352 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/buzhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1352 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=4KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1338231,
+            "unit": "ns/op\t 783.55 MB/s\t      36 B/op\t       0 allocs/op",
+            "extra": "895 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1338231,
+            "unit": "ns/op",
+            "extra": "895 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 783.55,
+            "unit": "MB/s",
+            "extra": "895 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 36,
+            "unit": "B/op",
+            "extra": "895 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "895 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=64KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1304516,
+            "unit": "ns/op\t 803.80 MB/s\t     589 B/op\t       0 allocs/op",
+            "extra": "889 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1304516,
+            "unit": "ns/op",
+            "extra": "889 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 803.8,
+            "unit": "MB/s",
+            "extra": "889 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 589,
+            "unit": "B/op",
+            "extra": "889 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "889 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1319817,
+            "unit": "ns/op\t 794.49 MB/s\t    9248 B/op\t       0 allocs/op",
+            "extra": "907 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1319817,
+            "unit": "ns/op",
+            "extra": "907 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 794.49,
+            "unit": "MB/s",
+            "extra": "907 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 9248,
+            "unit": "B/op",
+            "extra": "907 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo32/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "907 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=4KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1158339,
+            "unit": "ns/op\t 905.24 MB/s\t      31 B/op\t       0 allocs/op",
+            "extra": "1030 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1158339,
+            "unit": "ns/op",
+            "extra": "1030 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 905.24,
+            "unit": "MB/s",
+            "extra": "1030 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 31,
+            "unit": "B/op",
+            "extra": "1030 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1030 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=64KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1118499,
+            "unit": "ns/op\t 937.49 MB/s\t     490 B/op\t       0 allocs/op",
+            "extra": "1069 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1118499,
+            "unit": "ns/op",
+            "extra": "1069 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 937.49,
+            "unit": "MB/s",
+            "extra": "1069 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 490,
+            "unit": "B/op",
+            "extra": "1069 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1069 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1134834,
+            "unit": "ns/op\t 923.99 MB/s\t    8027 B/op\t       0 allocs/op",
+            "extra": "1045 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1134834,
+            "unit": "ns/op",
+            "extra": "1045 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 923.99,
+            "unit": "MB/s",
+            "extra": "1045 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 8027,
+            "unit": "B/op",
+            "extra": "1045 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/bozo64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1045 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1073813,
+            "unit": "ns/op\t 976.50 MB/s\t      33 B/op\t       0 allocs/op",
+            "extra": "973 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1073813,
+            "unit": "ns/op",
+            "extra": "973 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 976.5,
+            "unit": "MB/s",
+            "extra": "973 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 33,
+            "unit": "B/op",
+            "extra": "973 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "973 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1024715,
+            "unit": "ns/op\t1023.29 MB/s\t     459 B/op\t       0 allocs/op",
+            "extra": "1140 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1024715,
+            "unit": "ns/op",
+            "extra": "1140 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1023.29,
+            "unit": "MB/s",
+            "extra": "1140 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 459,
+            "unit": "B/op",
+            "extra": "1140 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1140 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1038721,
+            "unit": "ns/op\t1009.49 MB/s\t    7339 B/op\t       0 allocs/op",
+            "extra": "1143 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1038721,
+            "unit": "ns/op",
+            "extra": "1143 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1009.49,
+            "unit": "MB/s",
+            "extra": "1143 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 7339,
+            "unit": "B/op",
+            "extra": "1143 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/gearhash64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1143 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=4KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 2382645,
+            "unit": "ns/op\t 440.09 MB/s\t      65 B/op\t       0 allocs/op",
+            "extra": "501 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 2382645,
+            "unit": "ns/op",
+            "extra": "501 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 440.09,
+            "unit": "MB/s",
+            "extra": "501 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 65,
+            "unit": "B/op",
+            "extra": "501 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "501 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=64KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1773509,
+            "unit": "ns/op\t 591.24 MB/s\t     786 B/op\t       0 allocs/op",
+            "extra": "667 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1773509,
+            "unit": "ns/op",
+            "extra": "667 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 591.24,
+            "unit": "MB/s",
+            "extra": "667 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 786,
+            "unit": "B/op",
+            "extra": "667 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "667 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1754604,
+            "unit": "ns/op\t 597.61 MB/s\t   12427 B/op\t       0 allocs/op",
+            "extra": "675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1754604,
+            "unit": "ns/op",
+            "extra": "675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 597.61,
+            "unit": "MB/s",
+            "extra": "675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 12427,
+            "unit": "B/op",
+            "extra": "675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/rabinkarp64/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=4KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 12347796,
+            "unit": "ns/op\t  84.92 MB/s\t     352 B/op\t       0 allocs/op",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 12347796,
+            "unit": "ns/op",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 84.92,
+            "unit": "MB/s",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 352,
+            "unit": "B/op",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=4KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=64KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 12417479,
+            "unit": "ns/op\t  84.44 MB/s\t    5637 B/op\t       0 allocs/op",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 12417479,
+            "unit": "ns/op",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 84.44,
+            "unit": "MB/s",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 5637,
+            "unit": "B/op",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=64KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "93 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=1024KiB (github.com/chmduquesne/rollinghash/v4)",
+            "value": 12424301,
+            "unit": "ns/op\t  84.40 MB/s\t   97541 B/op\t       0 allocs/op",
+            "extra": "86 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 12424301,
+            "unit": "ns/op",
+            "extra": "86 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 84.4,
+            "unit": "MB/s",
+            "extra": "86 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 97541,
+            "unit": "B/op",
+            "extra": "86 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBatchRoller/fallback/buf=1024KiB (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "86 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/fused (github.com/chmduquesne/rollinghash/v4)",
+            "value": 3843474,
+            "unit": "ns/op\t 272.82 MB/s\t     898 B/op\t       0 allocs/op",
+            "extra": "310 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/fused (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 3843474,
+            "unit": "ns/op",
+            "extra": "310 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/fused (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 272.82,
+            "unit": "MB/s",
+            "extra": "310 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/fused (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 898,
+            "unit": "B/op",
+            "extra": "310 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/fused (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "310 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/scanner (github.com/chmduquesne/rollinghash/v4)",
+            "value": 4755884,
+            "unit": "ns/op\t 220.48 MB/s\t    3014 B/op\t       0 allocs/op",
+            "extra": "250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/scanner (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 4755884,
+            "unit": "ns/op",
+            "extra": "250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/scanner (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 220.48,
+            "unit": "MB/s",
+            "extra": "250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/scanner (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 3014,
+            "unit": "B/op",
+            "extra": "250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/adler32/scanner (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/fused (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1069628,
+            "unit": "ns/op\t 980.32 MB/s\t     247 B/op\t       0 allocs/op",
+            "extra": "1125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/fused (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1069628,
+            "unit": "ns/op",
+            "extra": "1125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/fused (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 980.32,
+            "unit": "MB/s",
+            "extra": "1125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/fused (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 247,
+            "unit": "B/op",
+            "extra": "1125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/fused (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/scanner (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1759444,
+            "unit": "ns/op\t 595.97 MB/s\t    1108 B/op\t       0 allocs/op",
+            "extra": "680 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/scanner (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1759444,
+            "unit": "ns/op",
+            "extra": "680 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/scanner (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 595.97,
+            "unit": "MB/s",
+            "extra": "680 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/scanner (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 1108,
+            "unit": "B/op",
+            "extra": "680 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash32/scanner (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "680 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/fused (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1011470,
+            "unit": "ns/op\t1036.68 MB/s\t     236 B/op\t       0 allocs/op",
+            "extra": "1179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/fused (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1011470,
+            "unit": "ns/op",
+            "extra": "1179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/fused (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1036.68,
+            "unit": "MB/s",
+            "extra": "1179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/fused (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 236,
+            "unit": "B/op",
+            "extra": "1179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/fused (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/scanner (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1606685,
+            "unit": "ns/op\t 652.63 MB/s\t    1005 B/op\t       0 allocs/op",
+            "extra": "750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/scanner (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1606685,
+            "unit": "ns/op",
+            "extra": "750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/scanner (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 652.63,
+            "unit": "MB/s",
+            "extra": "750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/scanner (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 1005,
+            "unit": "B/op",
+            "extra": "750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/buzhash64/scanner (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/fused (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1535016,
+            "unit": "ns/op\t 683.10 MB/s\t     356 B/op\t       0 allocs/op",
+            "extra": "781 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/fused (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1535016,
+            "unit": "ns/op",
+            "extra": "781 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/fused (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 683.1,
+            "unit": "MB/s",
+            "extra": "781 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/fused (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 356,
+            "unit": "B/op",
+            "extra": "781 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/fused (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "781 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/scanner (github.com/chmduquesne/rollinghash/v4)",
+            "value": 2059447,
+            "unit": "ns/op\t 509.15 MB/s\t    1290 B/op\t       0 allocs/op",
+            "extra": "584 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/scanner (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 2059447,
+            "unit": "ns/op",
+            "extra": "584 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/scanner (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 509.15,
+            "unit": "MB/s",
+            "extra": "584 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/scanner (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 1290,
+            "unit": "B/op",
+            "extra": "584 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo32/scanner (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "584 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/fused (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1368715,
+            "unit": "ns/op\t 766.10 MB/s\t     317 B/op\t       0 allocs/op",
+            "extra": "876 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/fused (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1368715,
+            "unit": "ns/op",
+            "extra": "876 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/fused (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 766.1,
+            "unit": "MB/s",
+            "extra": "876 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/fused (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 317,
+            "unit": "B/op",
+            "extra": "876 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/fused (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "876 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/scanner (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1851984,
+            "unit": "ns/op\t 566.19 MB/s\t    1189 B/op\t       0 allocs/op",
+            "extra": "634 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/scanner (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1851984,
+            "unit": "ns/op",
+            "extra": "634 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/scanner (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 566.19,
+            "unit": "MB/s",
+            "extra": "634 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/scanner (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 1189,
+            "unit": "B/op",
+            "extra": "634 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/bozo64/scanner (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "634 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/fused (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1024419,
+            "unit": "ns/op\t1023.58 MB/s\t     238 B/op\t       0 allocs/op",
+            "extra": "1168 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/fused (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1024419,
+            "unit": "ns/op",
+            "extra": "1168 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/fused (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 1023.58,
+            "unit": "MB/s",
+            "extra": "1168 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/fused (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 238,
+            "unit": "B/op",
+            "extra": "1168 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/fused (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1168 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/scanner (github.com/chmduquesne/rollinghash/v4)",
+            "value": 1755975,
+            "unit": "ns/op\t 597.15 MB/s\t    1101 B/op\t       0 allocs/op",
+            "extra": "684 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/scanner (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 1755975,
+            "unit": "ns/op",
+            "extra": "684 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/scanner (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 597.15,
+            "unit": "MB/s",
+            "extra": "684 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/scanner (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 1101,
+            "unit": "B/op",
+            "extra": "684 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/gearhash64/scanner (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "684 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/fused (github.com/chmduquesne/rollinghash/v4)",
+            "value": 2184381,
+            "unit": "ns/op\t 480.03 MB/s\t     508 B/op\t       0 allocs/op",
+            "extra": "548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/fused (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 2184381,
+            "unit": "ns/op",
+            "extra": "548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/fused (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 480.03,
+            "unit": "MB/s",
+            "extra": "548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/fused (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 508,
+            "unit": "B/op",
+            "extra": "548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/fused (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/scanner (github.com/chmduquesne/rollinghash/v4)",
+            "value": 2513713,
+            "unit": "ns/op\t 417.14 MB/s\t    1580 B/op\t       0 allocs/op",
+            "extra": "477 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/scanner (github.com/chmduquesne/rollinghash/v4) - ns/op",
+            "value": 2513713,
+            "unit": "ns/op",
+            "extra": "477 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/scanner (github.com/chmduquesne/rollinghash/v4) - MB/s",
+            "value": 417.14,
+            "unit": "MB/s",
+            "extra": "477 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/scanner (github.com/chmduquesne/rollinghash/v4) - B/op",
+            "value": 1580,
+            "unit": "B/op",
+            "extra": "477 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkChunker/rabinkarp64/scanner (github.com/chmduquesne/rollinghash/v4) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "477 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/adler32)",
+            "value": 6.363,
+            "unit": "ns/op\t 157.16 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "189461496 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/adler32) - ns/op",
+            "value": 6.363,
+            "unit": "ns/op",
+            "extra": "189461496 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/adler32) - MB/s",
+            "value": 157.16,
+            "unit": "MB/s",
+            "extra": "189461496 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/adler32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "189461496 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/adler32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "189461496 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/adler32)",
+            "value": 7.731,
+            "unit": "ns/op\t 129.35 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "154586898 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/adler32) - ns/op",
+            "value": 7.731,
+            "unit": "ns/op",
+            "extra": "154586898 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/adler32) - MB/s",
+            "value": 129.35,
+            "unit": "MB/s",
+            "extra": "154586898 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/adler32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "154586898 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/adler32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "154586898 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/adler32)",
+            "value": 4005410,
+            "unit": "ns/op\t 261.79 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/adler32) - ns/op",
+            "value": 4005410,
+            "unit": "ns/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/adler32) - MB/s",
+            "value": 261.79,
+            "unit": "MB/s",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/adler32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/adler32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "296 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/adler32)",
+            "value": 3680256,
+            "unit": "ns/op\t 284.92 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "324 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/adler32) - ns/op",
+            "value": 3680256,
+            "unit": "ns/op",
+            "extra": "324 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/adler32) - MB/s",
+            "value": 284.92,
+            "unit": "MB/s",
+            "extra": "324 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/adler32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "324 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/adler32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "324 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo32)",
+            "value": 1.921,
+            "unit": "ns/op\t 520.67 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "625176843 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo32) - ns/op",
+            "value": 1.921,
+            "unit": "ns/op",
+            "extra": "625176843 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo32) - MB/s",
+            "value": 520.67,
+            "unit": "MB/s",
+            "extra": "625176843 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "625176843 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "625176843 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo32)",
+            "value": 5.327,
+            "unit": "ns/op\t 187.73 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "225109675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo32) - ns/op",
+            "value": 5.327,
+            "unit": "ns/op",
+            "extra": "225109675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo32) - MB/s",
+            "value": 187.73,
+            "unit": "MB/s",
+            "extra": "225109675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "225109675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "225109675 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo32)",
+            "value": 1269814,
+            "unit": "ns/op\t 825.77 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "943 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo32) - ns/op",
+            "value": 1269814,
+            "unit": "ns/op",
+            "extra": "943 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo32) - MB/s",
+            "value": 825.77,
+            "unit": "MB/s",
+            "extra": "943 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "943 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "943 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo32)",
+            "value": 1478197,
+            "unit": "ns/op\t 709.36 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "812 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo32) - ns/op",
+            "value": 1478197,
+            "unit": "ns/op",
+            "extra": "812 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo32) - MB/s",
+            "value": 709.36,
+            "unit": "MB/s",
+            "extra": "812 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "812 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "812 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo64)",
+            "value": 1.838,
+            "unit": "ns/op\t 543.96 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "652214572 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo64) - ns/op",
+            "value": 1.838,
+            "unit": "ns/op",
+            "extra": "652214572 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo64) - MB/s",
+            "value": 543.96,
+            "unit": "MB/s",
+            "extra": "652214572 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "652214572 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/bozo64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "652214572 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo64)",
+            "value": 5.334,
+            "unit": "ns/op\t 187.49 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "220382878 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo64) - ns/op",
+            "value": 5.334,
+            "unit": "ns/op",
+            "extra": "220382878 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo64) - MB/s",
+            "value": 187.49,
+            "unit": "MB/s",
+            "extra": "220382878 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "220382878 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/bozo64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "220382878 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo64)",
+            "value": 1088727,
+            "unit": "ns/op\t 963.12 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo64) - ns/op",
+            "value": 1088727,
+            "unit": "ns/op",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo64) - MB/s",
+            "value": 963.12,
+            "unit": "MB/s",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/bozo64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1102 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo64)",
+            "value": 1314743,
+            "unit": "ns/op\t 797.55 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo64) - ns/op",
+            "value": 1314743,
+            "unit": "ns/op",
+            "extra": "912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo64) - MB/s",
+            "value": 797.55,
+            "unit": "MB/s",
+            "extra": "912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/bozo64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash32)",
+            "value": 1.882,
+            "unit": "ns/op\t 531.45 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "639502742 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash32) - ns/op",
+            "value": 1.882,
+            "unit": "ns/op",
+            "extra": "639502742 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash32) - MB/s",
+            "value": 531.45,
+            "unit": "MB/s",
+            "extra": "639502742 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "639502742 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "639502742 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash32)",
+            "value": 5.352,
+            "unit": "ns/op\t 186.84 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "224971724 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash32) - ns/op",
+            "value": 5.352,
+            "unit": "ns/op",
+            "extra": "224971724 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash32) - MB/s",
+            "value": 186.84,
+            "unit": "MB/s",
+            "extra": "224971724 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "224971724 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "224971724 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash32)",
+            "value": 888031,
+            "unit": "ns/op\t1180.79 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "1350 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash32) - ns/op",
+            "value": 888031,
+            "unit": "ns/op",
+            "extra": "1350 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash32) - MB/s",
+            "value": 1180.79,
+            "unit": "MB/s",
+            "extra": "1350 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "1350 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1350 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash32)",
+            "value": 1004251,
+            "unit": "ns/op\t1044.14 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "1185 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash32) - ns/op",
+            "value": 1004251,
+            "unit": "ns/op",
+            "extra": "1185 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash32) - MB/s",
+            "value": 1044.14,
+            "unit": "MB/s",
+            "extra": "1185 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash32) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "1185 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash32) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1185 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash64)",
+            "value": 1.876,
+            "unit": "ns/op\t 533.07 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "637993179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash64) - ns/op",
+            "value": 1.876,
+            "unit": "ns/op",
+            "extra": "637993179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash64) - MB/s",
+            "value": 533.07,
+            "unit": "MB/s",
+            "extra": "637993179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "637993179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/buzhash64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "637993179 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash64)",
+            "value": 5.34,
+            "unit": "ns/op\t 187.28 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "225242520 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash64) - ns/op",
+            "value": 5.34,
+            "unit": "ns/op",
+            "extra": "225242520 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash64) - MB/s",
+            "value": 187.28,
+            "unit": "MB/s",
+            "extra": "225242520 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "225242520 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/buzhash64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "225242520 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash64)",
+            "value": 837438,
+            "unit": "ns/op\t1252.12 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "1431 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash64) - ns/op",
+            "value": 837438,
+            "unit": "ns/op",
+            "extra": "1431 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash64) - MB/s",
+            "value": 1252.12,
+            "unit": "MB/s",
+            "extra": "1431 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "1431 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/buzhash64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1431 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash64)",
+            "value": 946644,
+            "unit": "ns/op\t1107.68 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "1264 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash64) - ns/op",
+            "value": 946644,
+            "unit": "ns/op",
+            "extra": "1264 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash64) - MB/s",
+            "value": 1107.68,
+            "unit": "MB/s",
+            "extra": "1264 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "1264 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/buzhash64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1264 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/gearhash64)",
+            "value": 2.301,
+            "unit": "ns/op\t 434.54 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "523315204 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/gearhash64) - ns/op",
+            "value": 2.301,
+            "unit": "ns/op",
+            "extra": "523315204 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/gearhash64) - MB/s",
+            "value": 434.54,
+            "unit": "MB/s",
+            "extra": "523315204 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/gearhash64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "523315204 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/gearhash64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "523315204 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/gearhash64)",
+            "value": 5.652,
+            "unit": "ns/op\t 176.92 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "212020814 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/gearhash64) - ns/op",
+            "value": 5.652,
+            "unit": "ns/op",
+            "extra": "212020814 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/gearhash64) - MB/s",
+            "value": 176.92,
+            "unit": "MB/s",
+            "extra": "212020814 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/gearhash64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "212020814 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/gearhash64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "212020814 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/gearhash64)",
+            "value": 957146,
+            "unit": "ns/op\t1095.52 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "1250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/gearhash64) - ns/op",
+            "value": 957146,
+            "unit": "ns/op",
+            "extra": "1250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/gearhash64) - MB/s",
+            "value": 1095.52,
+            "unit": "MB/s",
+            "extra": "1250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/gearhash64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "1250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/gearhash64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1250 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/gearhash64)",
+            "value": 963046,
+            "unit": "ns/op\t1088.81 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "1138 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/gearhash64) - ns/op",
+            "value": 963046,
+            "unit": "ns/op",
+            "extra": "1138 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/gearhash64) - MB/s",
+            "value": 1088.81,
+            "unit": "MB/s",
+            "extra": "1138 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/gearhash64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "1138 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/gearhash64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "1138 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkPolDivMod (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 4.366,
+            "unit": "ns/op",
+            "extra": "274760347 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkPolDiv (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 4.366,
+            "unit": "ns/op",
+            "extra": "274462398 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkPolMod (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 4.42,
+            "unit": "ns/op",
+            "extra": "274288711 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkPolDeg (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 1.559,
+            "unit": "ns/op",
+            "extra": "768940976 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRandomPolynomial (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 83658642,
+            "unit": "ns/op",
+            "extra": "13 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkPolIrreducible (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 15928207,
+            "unit": "ns/op",
+            "extra": "74 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 3.268,
+            "unit": "ns/op\t 306.02 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "363426046 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - ns/op",
+            "value": 3.268,
+            "unit": "ns/op",
+            "extra": "363426046 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - MB/s",
+            "value": 306.02,
+            "unit": "MB/s",
+            "extra": "363426046 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "363426046 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRolling64B (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "363426046 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 5.999,
+            "unit": "ns/op\t 166.69 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "200022061 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - ns/op",
+            "value": 5.999,
+            "unit": "ns/op",
+            "extra": "200022061 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - MB/s",
+            "value": 166.69,
+            "unit": "MB/s",
+            "extra": "200022061 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "200022061 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadUrandom (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "200022061 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 1682015,
+            "unit": "ns/op\t 623.40 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "710 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - ns/op",
+            "value": 1682015,
+            "unit": "ns/op",
+            "extra": "710 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - MB/s",
+            "value": 623.4,
+            "unit": "MB/s",
+            "extra": "710 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "710 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkRoll (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "710 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/rabinkarp64)",
+            "value": 1978933,
+            "unit": "ns/op\t 529.87 MB/s\t       0 B/op\t       0 allocs/op",
+            "extra": "607 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - ns/op",
+            "value": 1978933,
+            "unit": "ns/op",
+            "extra": "607 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - MB/s",
+            "value": 529.87,
+            "unit": "MB/s",
+            "extra": "607 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "607 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkBulkBoundaries (github.com/chmduquesne/rollinghash/v4/rabinkarp64) - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "607 times\n4 procs"
           }
         ]
       }
