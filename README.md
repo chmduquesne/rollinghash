@@ -159,13 +159,13 @@ Benchmarked on 2026-06-28, linux/amd64, AMD Ryzen 7 PRO 7840U (`go test -bench='
 
 | Hash | Roll (MB/s) | Chunker (MB/s) | BatchRoller (MB/s) | Uniformly distributed | Parametrizable |
 |---|---|---|---|---|---|
-| `buzhash64` | 841 | 1539 | 1451 | yes¹ | yes |
-| `buzhash32` | 848 | 1511 | 1358 | yes¹ | yes |
-| `gearhash64` | 776 | 1515 | 1465 | yes | yes |
-| `bozo32` | 844 | 1173 | 1339 | yes² | yes (single multiplier) |
-| `bozo64` | 833 | 1177 | 1330 | yes² | yes (single multiplier) |
-| `rabinkarp64` | 506 | 762 | 866 | yes | yes |
-| `adler32` | 251 | 402 | 411 | **no**³ | no |
+| `buzhash64` | 840 | 1493 | 1471 | yes¹ | yes |
+| `buzhash32` | 848 | 1431 | 1419 | yes¹ | yes |
+| `gearhash64` | 776 | 1435 | 1484 | yes | yes |
+| `bozo32` | 847 | 1149 | 1328 | yes² | yes (single multiplier) |
+| `bozo64` | 836 | 1130 | 1335 | yes² | yes (single multiplier) |
+| `rabinkarp64` | 509 | 745 | 859 | yes | yes |
+| `adler32` | 244 | 386 | 417 | **no**³ | no |
 
 ¹ Provided the window size is not a multiple of the word size (32 for `buzhash32`,
 64 for `buzhash64`). See [Gotchas](#gotchas).
