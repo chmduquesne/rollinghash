@@ -159,15 +159,15 @@ func (d *Buzhash64) Roll(c byte) {
 	d.sum = bits.RotateLeft64(d.sum, 1) ^ h0 ^ hn
 }
 
-// BulkRoll computes the rolling checksum of every window-sized slice of data
+// BatchRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
 // elements: dst[i] is the checksum of data[i:i+window]. It is equivalent to
 // Write(data[:window]) followed by a Roll for each subsequent byte, recording
 // Sum64 after each step, but it indexes the leaving byte directly (data[i])
 // instead of keeping a circular window and rolls two independent lanes so
-// their rotate/XOR chains overlap in the pipeline. BulkRoll does not modify
+// their rotate/XOR chains overlap in the pipeline. BatchRoll does not modify
 // the receiver; only d.bytehash is read.
-func (d *Buzhash64) BulkRoll(dst []uint64, data []byte, window int) {
+func (d *Buzhash64) BatchRoll(dst []uint64, data []byte, window int) {
 	if window <= 0 || len(data) < window {
 		return
 	}
@@ -239,7 +239,7 @@ func (d *Buzhash64) BulkRoll(dst []uint64, data []byte, window int) {
 	}
 }
 
-// BulkBoundaries reports the window positions where the rolling checksum
+// BatchBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
 // the boundary fast path). It does not modify the receiver.
 //
@@ -248,7 +248,7 @@ func (d *Buzhash64) BulkRoll(dst []uint64, data []byte, window int) {
 // keeping the branch-heavy write-to-slice path out of every iteration.
 // The inner loop is 2x unrolled so table loads for step k+1 can issue
 // while computing step k.
-func (d *Buzhash64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+func (d *Buzhash64) BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
 	}

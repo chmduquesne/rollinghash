@@ -8,41 +8,7 @@ import (
 	"testing/iotest"
 
 	"github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/adler32"
 )
-
-// noBulkRoller hides BulkRoll (forcing the BatchRoller's Write+Roll fallback)
-// but still exposes Sum32 - like a typical hash that simply hasn't implemented
-// the fast path. Embedding promotes only the Hash interface's methods, so
-// BulkRoll is hidden; Sum32 is forwarded explicitly so the BatchRoller uses
-// its Hash32 sum reader.
-type noBulkRoller struct{ rollinghash.Hash }
-
-func (n noBulkRoller) Sum32() uint32 {
-	return n.Hash.(interface{ Sum32() uint32 }).Sum32()
-}
-
-// sumOnly additionally hides Sum64, exercising the BatchRoller's generic
-// byte-wise sum reader (the default branch of the sum-reader switch).
-type sumOnly struct{ rollinghash.Hash }
-
-// batchRollerHashes extends allHashes with a Write+Roll fallback entry (a
-// hash that hides BulkRoll) so the BatchRoller's slow path is exercised
-// alongside every bulk fast path implementation.
-var batchRollerHashes = func() []struct {
-	name string
-	new  func() rollinghash.Hash
-} {
-	type E = struct {
-		name string
-		new  func() rollinghash.Hash
-	}
-	out := make([]E, 0, len(allHashes)+1)
-	for _, h := range allHashes {
-		out = append(out, E{h.name, h.new})
-	}
-	return append(out, E{"fallback", func() rollinghash.Hash { return noBulkRoller{adler32.New()} }})
-}()
 
 // collectBatchRollerSums runs a BatchRoller to exhaustion and returns the
 // concatenation of every batch's Sums(), checking the per-batch alignment
@@ -82,8 +48,8 @@ func TestBatchRoller(t *testing.T) {
 	// Larger than the default 64 KiB buffer, so several batches are produced.
 	data := bytes.Repeat([]byte("The quick brown fox jumps over the lazy dog. "), 5000)
 	const window = 56
-	for _, h := range batchRollerHashes {
-		want := bulkRollOracle(h.new(), data, window)
+	for _, h := range allHashes {
+		want := batchRollOracle(h.new(), data, window)
 		s := rollinghash.NewBatchRoller(bytes.NewReader(data), h.new(), window)
 		got := collectBatchRollerSums(t, h.name, s, window)
 		equalSums(t, h.name, got, want)
@@ -103,8 +69,8 @@ func TestBatchRollerBatchBoundaries(t *testing.T) {
 	const window = 16
 	bufSizes := []int{window, window + 1, window + 7, 2 * window, 3*window - 1, 97, len(data)}
 
-	for _, h := range batchRollerHashes {
-		want := bulkRollOracle(h.new(), data, window)
+	for _, h := range allHashes {
+		want := batchRollOracle(h.new(), data, window)
 		for _, bs := range bufSizes {
 			// Plain reader.
 			s := rollinghash.NewBatchRoller(bytes.NewReader(data), h.new(), window)
@@ -158,7 +124,7 @@ func TestBatchRollerBytes(t *testing.T) {
 // sum.
 func TestBatchRollerShortInput(t *testing.T) {
 	const window = 16
-	for _, h := range batchRollerHashes {
+	for _, h := range allHashes {
 		for _, n := range []int{0, 1, window - 1} {
 			s := rollinghash.NewBatchRoller(bytes.NewReader(make([]byte, n)), h.new(), window)
 			if s.Next() {
@@ -186,7 +152,7 @@ func TestBatchRollerShortInput(t *testing.T) {
 func TestBatchRollerAccessorLifecycle(t *testing.T) {
 	const window = 16
 	data := testData(200)
-	for _, h := range batchRollerHashes {
+	for _, h := range allHashes {
 		s := rollinghash.NewBatchRoller(bytes.NewReader(data), h.new(), window)
 
 		if s.Sums() != nil || s.Bytes() != nil {
@@ -213,27 +179,11 @@ func TestBatchRollerAccessorLifecycle(t *testing.T) {
 	}
 }
 
-// TestBatchRollerSumOnlyFallback covers the BatchRoller's generic byte-wise
-// sum reader (used when the hash implements neither the bulk fast path nor
-// Sum64/Sum32).
-func TestBatchRollerSumOnlyFallback(t *testing.T) {
-	data := make([]byte, 300)
-	for i := range data {
-		data[i] = byte(i*53 + 3)
-	}
-	const window = 20
-	h := allHashes[0].new()
-	want := bulkRollOracle(h, data, window)
-	s := rollinghash.NewBatchRoller(bytes.NewReader(data), sumOnly{allHashes[0].new()}, window)
-	got := collectBatchRollerSums(t, "sumOnly", s, window)
-	equalSums(t, "sumOnly", got, want)
-}
-
 // TestBatchRollerError verifies that a reader error is surfaced through Err
 // and stops the roll.
 func TestBatchRollerError(t *testing.T) {
 	boom := errors.New("boom")
-	for _, h := range batchRollerHashes {
+	for _, h := range allHashes {
 		s := rollinghash.NewBatchRoller(iotest.ErrReader(boom), h.new(), 16)
 		if s.Next() {
 			t.Errorf("[%s] expected Next to fail on reader error", h.name)
@@ -266,8 +216,8 @@ func FuzzBatchRoller(f *testing.F) {
 			bufSize = window + (1 << 16)
 		}
 
-		for _, hc := range batchRollerHashes {
-			want := bulkRollOracle(hc.new(), data, window)
+		for _, hc := range allHashes {
+			want := batchRollOracle(hc.new(), data, window)
 			h := hc.new()
 
 			s := rollinghash.NewBatchRoller(bytes.NewReader(data), h, window)
@@ -312,11 +262,10 @@ func BenchmarkBatchRoller(b *testing.B) {
 		name string
 		h    rollinghash.Hash
 	}
-	cases := make([]bcase, 0, len(allHashes)+1)
+	cases := make([]bcase, 0, len(allHashes))
 	for _, h := range allHashes {
 		cases = append(cases, bcase{h.name, h.new()})
 	}
-	cases = append(cases, bcase{"fallback", noBulkRoller{adler32.New()}})
 	bufSizes := []int{4 << 10, 64 << 10, 1 << 20}
 
 	for _, c := range cases {

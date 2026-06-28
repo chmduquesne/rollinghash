@@ -1,9 +1,6 @@
 package rollinghash
 
-import (
-	"hash"
-	"io"
-)
+import "io"
 
 // defaultBatchRollerBufSize is the batch buffer size used when the caller does
 // not supply one with Buffer. Larger batches amortize the bulk fast path
@@ -28,16 +25,15 @@ const defaultBatchRollerBufSize = 1 << 16 // 64 KiB
 //	Sums()[i] is the rolling checksum of the window Bytes()[i:i+window],
 //	and len(Sums()) == len(Bytes()) - window + 1.
 //
-// Each Next reads a block, computes all its checksums (via the bulk fast path
-// when the hash implements it, otherwise Write+Roll), and carries the trailing
-// window-1 bytes into the next block so no window position is skipped or
-// duplicated across a batch boundary. Sums() and Bytes() are valid only
-// until the next call to Next. An input shorter than window yields no
-// batches.
+// Each Next reads a block and computes all its checksums via BatchRoll,
+// carrying the trailing window-1 bytes into the next block so no window
+// position is skipped or duplicated across a batch boundary. Sums() and
+// Bytes() are valid only until the next call to Next. An input shorter than
+// window yields no batches. The hash must implement BatchRoll; NewBatchRoller
+// panics otherwise.
 type BatchRoller struct {
 	r      io.Reader
-	h      Hash
-	br     bulkRoller // non-nil when h implements the bulk fast path
+	br     batchRoller
 	window int
 
 	buf       []byte
@@ -47,46 +43,25 @@ type BatchRoller struct {
 	carry     int      // window-1 bytes to carry from the previous batch, or 0
 	prevN     int      // length of the previous batch (where its carry tail sits)
 
-	sum  func() uint64 // reads h's current sum; fallback path only
-	eof  bool          // the reader has signalled io.EOF
-	done bool          // no more batches will be produced
+	eof  bool // the reader has signalled io.EOF
+	done bool // no more batches will be produced
 	err  error
 }
 
 // NewBatchRoller returns a BatchRoller over r that produces, for every
 // window-sized slice of the stream, its rolling checksum under h. window
-// must be >= 1.
+// must be >= 1. h must implement BatchRoll; NewBatchRoller panics otherwise.
 func NewBatchRoller(r io.Reader, h Hash, window int) *BatchRoller {
-	br, _ := h.(bulkRoller)
-	s := &BatchRoller{
+	br, ok := h.(batchRoller)
+	if !ok {
+		panic("rollinghash: BatchRoller requires BatchRoll; use Roll directly for hashes without BatchRoll")
+	}
+	return &BatchRoller{
 		r:      r,
-		h:      h,
 		br:     br,
 		window: window,
 		buf:    make([]byte, max(defaultBatchRollerBufSize, window)),
 	}
-	if br == nil {
-		// Resolve a non-allocating sum reader once. h.Sum(buf) would escape a
-		// fresh buffer on every position, so prefer Sum64/Sum32 when present.
-		switch v := h.(type) {
-		case hash.Hash64:
-			s.sum = v.Sum64
-		case hash.Hash32:
-			s.sum = func() uint64 { return uint64(v.Sum32()) }
-		default:
-			// Sum appends to a buffer; capture one in the closure so it is
-			// allocated once, not on every position.
-			var scratch [8]byte
-			s.sum = func() uint64 {
-				var res uint64
-				for _, b := range h.Sum(scratch[:0]) {
-					res = res<<8 | uint64(b)
-				}
-				return res
-			}
-		}
-	}
-	return s
 }
 
 // Buffer sets the buffer used to hold each batch. It must be called before
@@ -157,7 +132,7 @@ func (s *BatchRoller) Next() bool {
 	}
 	s.sumsStore = s.sumsStore[:nsums]
 	s.sums = s.sumsStore
-	s.bulkRoll(s.sums, s.data, s.window)
+	s.br.BatchRoll(s.sums, s.data, s.window)
 
 	if s.eof {
 		// All remaining windows have been emitted.
@@ -172,23 +147,6 @@ func (s *BatchRoller) Next() bool {
 		s.prevN = n
 	}
 	return true
-}
-
-// bulkRoll fills dst with the rolling checksum at every window position of
-// data, using the bulk fast path when available and falling back to
-// Write+Roll otherwise.
-func (s *BatchRoller) bulkRoll(dst []uint64, data []byte, window int) {
-	if s.br != nil {
-		s.br.BulkRoll(dst, data, window)
-		return
-	}
-	s.h.Reset()
-	s.h.Write(data[:window])
-	dst[0] = s.sum()
-	for i := window; i < len(data); i++ {
-		s.h.Roll(data[i])
-		dst[i-window+1] = s.sum()
-	}
 }
 
 // Sums returns the checksums of the current batch, one per window position.

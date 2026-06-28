@@ -119,16 +119,16 @@ func (d *Bozo32) Roll(c byte) {
 	d.value = d.value*d.a + enter - leave*d.aⁿ
 }
 
-// BulkRoll computes the rolling checksum of every window-sized slice of
+// BatchRoll computes the rolling checksum of every window-sized slice of
 // data in one pass and writes them to dst, which must have
 // len(data)-window+1 elements: dst[i] is the checksum of data[i:i+window]
 // (the 32-bit value zero-extended into a uint64). It is equivalent to
 // Write(data[:window]) followed by a Roll for each subsequent byte,
 // recording Sum32 after each step, but it indexes the leaving byte directly
 // (data[i]) instead of keeping a circular window and rolls two independent
-// lanes so their multiplies overlap in the pipeline. BulkRoll does not
+// lanes so their multiplies overlap in the pipeline. BatchRoll does not
 // modify the receiver; only d.a (the multiplier) is read.
-func (d *Bozo32) BulkRoll(dst []uint64, data []byte, window int) {
+func (d *Bozo32) BatchRoll(dst []uint64, data []byte, window int) {
 	if window <= 0 || len(data) < window {
 		return
 	}
@@ -192,12 +192,12 @@ func (d *Bozo32) BulkRoll(dst []uint64, data []byte, window int) {
 	}
 }
 
-// BulkBoundaries reports the window positions where the rolling checksum
+// BatchBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
-// the boundary fast path). It mirrors BulkRoll exactly, replacing each
+// the boundary fast path). It mirrors BatchRoll exactly, replacing each
 // "dst[i] = uint64(v)" with the masked test on the zero-extended value. It does
 // not modify the receiver.
-func (d *Bozo32) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+func (d *Bozo32) BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
 	}

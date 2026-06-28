@@ -66,12 +66,12 @@ type Hash64 interface {
 	Roller
 }
 
-// bulkRoller is an optional bulk fast path; see BulkRoll.
-type bulkRoller interface {
-	BulkRoll(dst []uint64, data []byte, window int)
+// batchRoller is an optional bulk fast path; see BatchRoll.
+type batchRoller interface {
+	BatchRoll(dst []uint64, data []byte, window int)
 }
 
-// boundaryRoller is an optional fused boundary fast path; see BulkBoundaries.
+// boundaryRoller is an optional fused boundary fast path; see BatchBoundaries.
 type boundaryRoller interface {
-	BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int)
+	BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int)
 }

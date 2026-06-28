@@ -17,7 +17,7 @@ func refChunk(classic interface {
 	Write([]byte) (int, error)
 	Sum([]byte) []byte
 }, data []byte, window int, mask uint64, min, max int) (chunks [][]byte, atMask []bool) {
-	sums := bulkRollOracleHash(classic, data, window) // sums[g] = checksum of data[g:g+window]
+	sums := batchRollOracleHash(classic, data, window) // sums[g] = checksum of data[g:g+window]
 
 	start := 0
 	for start < len(data) {
@@ -46,7 +46,7 @@ func refChunk(classic interface {
 	return chunks, atMask
 }
 
-func bulkRollOracleHash(classic interface {
+func batchRollOracleHash(classic interface {
 	Reset()
 	Write([]byte) (int, error)
 	Sum([]byte) []byte
@@ -132,45 +132,6 @@ func TestChunker(t *testing.T) {
 	}
 }
 
-// bulkOnly forwards BulkRoll but hides BulkBoundaries, forcing the Chunker's
-// BulkRoll fallback. rollOnly hides both, forcing the Write+Roll fallback.
-type bulkOnly struct{ rollinghash.Hash }
-
-func (b bulkOnly) BulkRoll(dst []uint64, data []byte, window int) {
-	b.Hash.(bulkRoller).BulkRoll(dst, data, window)
-}
-
-type rollOnly struct{ rollinghash.Hash }
-
-// TestChunkerPaths checks that the fused, BulkRoll-fallback, and Roll-fallback
-// paths all produce byte-identical chunks for every hash.
-func TestChunkerPaths(t *testing.T) {
-	data := testData(200 * 1024)
-	const window = 48
-	const mask, min, max = 0x3ff, 300, 20000
-
-	for _, h := range allHashes {
-		fused := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
-		want, wantMask := collectChunks(t, fused)
-
-		for _, p := range []struct {
-			name string
-			h    rollinghash.Hash
-		}{
-			{"bulkFallback", bulkOnly{h.new()}},
-			{"rollFallback", rollOnly{h.new()}},
-		} {
-			c := rollinghash.NewChunker(bytes.NewReader(data), p.h, window, mask, min, max)
-			got, gotMask := collectChunks(t, c)
-			equalChunks(t, h.name+"/"+p.name, got, want)
-			for i := range wantMask {
-				if gotMask[i] != wantMask[i] {
-					t.Fatalf("[%s/%s] chunk %d AtMask mismatch", h.name, p.name, i)
-				}
-			}
-		}
-	}
-}
 
 // TestChunkerAtMask verifies AtMask/Sum: a mask boundary satisfies sum&mask==0,
 // and a non-final forced boundary is exactly max bytes.
@@ -330,41 +291,31 @@ func TestChunkerError(t *testing.T) {
 	}
 }
 
-// BenchmarkChunker measures steady-state chunking throughput across every hash
-// in allHashes and both Chunker code paths: the fused BulkBoundaries fast path
-// and the BatchRoller fallback (exercised via bulkOnly, which strips BulkBoundaries).
+// BenchmarkChunker measures steady-state chunking throughput via BatchBoundaries
+// across every hash in allHashes.
 func BenchmarkChunker(b *testing.B) {
 	const window = 56
 	data := testData(1 << 20)
 	const mask, min, max = 0x1fff, 2 << 10, 64 << 10
 
 	for _, h := range allHashes {
-		cases := []struct {
-			name string
-			h    rollinghash.Hash
-		}{
-			{"fused", h.new()},
-			{"scanner", bulkOnly{h.new()}},
-		}
-		for _, c := range cases {
-			b.Run(h.name+"/"+c.name, func(b *testing.B) {
-				r := bytes.NewReader(data)
-				ck := rollinghash.NewChunker(r, c.h, window, mask, min, max)
+		b.Run(h.name+"/fused", func(b *testing.B) {
+			r := bytes.NewReader(data)
+			ck := rollinghash.NewChunker(r, h.new(), window, mask, min, max)
 
-				b.SetBytes(int64(len(data)))
-				b.ReportAllocs()
-				b.ResetTimer()
-				for range b.N {
-					r.Reset(data)
-					ck.Reset(r)
-					for ck.Next() {
-						_ = ck.Bytes()
-					}
-					if ck.Err() != nil {
-						b.Fatal(ck.Err())
-					}
+			b.SetBytes(int64(len(data)))
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				r.Reset(data)
+				ck.Reset(r)
+				for ck.Next() {
+					_ = ck.Bytes()
 				}
-			})
-		}
+				if ck.Err() != nil {
+					b.Fatal(ck.Err())
+				}
+			}
+		})
 	}
 }

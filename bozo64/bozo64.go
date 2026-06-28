@@ -136,15 +136,15 @@ func bozoWindow(win []byte, a uint64) uint64 {
 	return v
 }
 
-// BulkRoll computes the rolling checksum of every window-sized slice of
+// BatchRoll computes the rolling checksum of every window-sized slice of
 // data in one pass and writes them to dst, which must have
 // len(data)-window+1 elements: dst[i] is the checksum of data[i:i+window].
 // It is equivalent to Write(data[:window]) followed by a Roll for each
 // subsequent byte, recording Sum64 after each step, but it indexes the
 // leaving byte directly (data[i]) instead of keeping a circular window and
 // rolls two independent lanes so their multiplies overlap in the pipeline.
-// BulkRoll does not modify the receiver; only d.a (the multiplier) is read.
-func (d *Bozo64) BulkRoll(dst []uint64, data []byte, window int) {
+// BatchRoll does not modify the receiver; only d.a (the multiplier) is read.
+func (d *Bozo64) BatchRoll(dst []uint64, data []byte, window int) {
 	if window <= 0 || len(data) < window {
 		return
 	}
@@ -196,14 +196,14 @@ func (d *Bozo64) BulkRoll(dst []uint64, data []byte, window int) {
 	}
 }
 
-// BulkBoundaries reports the window positions where the rolling checksum
+// BatchBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop so the
 // checksums are never materialized. Lane-A hits land in a[:na] and lane-B hits
-// in b[:nb] (boundary fast path). It mirrors BulkRoll exactly,
+// in b[:nb] (boundary fast path). It mirrors BatchRoll exactly,
 // replacing each "dst[i] = v" with the masked test; the recurrence is identical
-// and intentionally kept side by side. BulkBoundaries does not modify the
+// and intentionally kept side by side. BatchBoundaries does not modify the
 // receiver.
-func (d *Bozo64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+func (d *Bozo64) BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
 	}

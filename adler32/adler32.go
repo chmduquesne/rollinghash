@@ -118,15 +118,15 @@ func (d *Adler32) Roll(b byte) {
 	d.b = (d.b + d.a + Mod - 1 - (d.n*leave)%Mod) % Mod
 }
 
-// BulkRoll computes the rolling checksum of every window-sized slice of data
+// BatchRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
 // elements: dst[i] is the checksum of data[i:i+window] (the 32-bit value
 // zero-extended into a uint64). It is equivalent to Write(data[:window])
 // followed by a Roll for each subsequent byte, recording Sum32 after each
 // step, but it indexes the leaving byte directly (data[i]) instead of keeping
 // a circular window and rolls two independent lanes so their modular-arithmetic
-// chains overlap in the pipeline. BulkRoll does not modify the receiver.
-func (d *Adler32) BulkRoll(dst []uint64, data []byte, window int) {
+// chains overlap in the pipeline. BatchRoll does not modify the receiver.
+func (d *Adler32) BatchRoll(dst []uint64, data []byte, window int) {
 	if window <= 0 || len(data) < window {
 		return
 	}
@@ -197,13 +197,13 @@ func (d *Adler32) BulkRoll(dst []uint64, data []byte, window int) {
 	}
 }
 
-// BulkBoundaries reports the window positions where the rolling checksum
+// BatchBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
-// the boundary fast path). It mirrors BulkRoll exactly, replacing each
+// the boundary fast path). It mirrors BatchRoll exactly, replacing each
 // "dst[i] = uint64(b<<16 | a)" with the masked test on that value. It does not
 // modify the receiver. (a and b are the lane hit buffers; the adler
 // accumulators are aA/bA and aB/bB.)
-func (d *Adler32) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+func (d *Adler32) BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
 	}

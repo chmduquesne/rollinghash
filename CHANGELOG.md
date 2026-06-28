@@ -4,10 +4,12 @@
 
 ### Added
 
-- `BatchRoller`: batched bulk-hashing interface for rsync-style block search,
-  with ~2× throughput vs `Roll` via ILP exploitation.
+- `BatchRoller`: batch-hashing interface for rsync-style block search,
+  with ~2× throughput vs `Roll` via ILP exploitation. Requires the hash to
+  implement `BatchRoll`; panics at construction otherwise.
 - `Chunker`: Content Defined Chunking interface with a fused boundary fast
-  path for the same batched performance.
+  path for the same batched performance. Requires `BatchBoundaries`; panics
+  at construction otherwise.
 - `gearhash64`: new rolling hash.
 - Fuzz tests covering all hashes and all interfaces.
 

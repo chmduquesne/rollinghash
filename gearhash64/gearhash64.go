@@ -129,13 +129,13 @@ func (d *GearHash64) Roll(c byte) {
 	d.sum = (d.sum << 1) - (h0 << uint(l)) + hn
 }
 
-// BulkRoll computes the rolling checksum of every window-sized slice of data
+// BatchRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
 // elements. Two independent accumulator lanes let the CPU overlap their
 // dependency chains and approach the ILP ceiling of the load-latency-bound
 // step h = (h<<1) - shiftedGear[leaving] + gear[entering]. It does not
 // modify the receiver.
-func (d *GearHash64) BulkRoll(dst []uint64, data []byte, window int) {
+func (d *GearHash64) BatchRoll(dst []uint64, data []byte, window int) {
 	if window <= 0 || len(data) < window {
 		return
 	}
@@ -197,15 +197,15 @@ func (d *GearHash64) BulkRoll(dst []uint64, data []byte, window int) {
 	}
 }
 
-// BulkBoundaries reports the window positions where the rolling checksum
+// BatchBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the boundary test into the hashing loop.
-// It uses the same two-lane design as BulkRoll but avoids the register
+// It uses the same two-lane design as BatchRoll but avoids the register
 // pressure that comes from carrying na, nb, a, and b into the hot loop: each
 // block of 64 positions accumulates hits as bits in a uint64, then extracts
 // positions via TrailingZeros64 in a rare outer step. The inner loop is 2x
 // unrolled so loads for step k+1 can issue while computing step k.
 // It does not modify the receiver.
-func (d *GearHash64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+func (d *GearHash64) BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
 	}

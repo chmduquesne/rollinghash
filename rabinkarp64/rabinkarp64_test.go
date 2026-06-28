@@ -156,7 +156,7 @@ func BenchmarkReadUrandom(b *testing.B) {
 	}
 }
 
-func BenchmarkBulkRoll(b *testing.B) {
+func BenchmarkBatchRoll(b *testing.B) {
 	const window = 56
 	data := make([]byte, 1<<20)
 	for i := range data {
@@ -169,11 +169,11 @@ func BenchmarkBulkRoll(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		h.BulkRoll(dst, data, window)
+		h.BatchRoll(dst, data, window)
 	}
 }
 
-func BenchmarkBulkBoundaries(b *testing.B) {
+func BenchmarkBatchBoundaries(b *testing.B) {
 	const window = 56
 	const mask = uint64(0x1fff)
 	data := make([]byte, 1<<20)
@@ -189,6 +189,6 @@ func BenchmarkBulkBoundaries(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		h.BulkBoundaries(la, lb, data, window, mask)
+		h.BatchBoundaries(la, lb, data, window, mask)
 	}
 }

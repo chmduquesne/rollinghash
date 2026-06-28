@@ -6,7 +6,7 @@ import (
 )
 
 // chunkerBatchSize is the read/hash batch the Chunker uses when the hash
-// implements the BulkBoundaries fast path. Kept modest so the per-batch work
+// implements the BatchBoundaries fast path. Kept modest so the per-batch work
 // stays cache-resident.
 const chunkerBatchSize = 16 << 10
 
@@ -27,20 +27,18 @@ const chunkerBatchSize = 16 << 10
 //	}
 //	if err := c.Err(); err != nil { ... }
 //
-// When the hash implements BulkBoundaries, boundary detection is fused into the
-// hashing loop (no checksum stream is materialized). Otherwise the Chunker
-// delegates to a BatchRoller, which handles BulkRoll and Roll fallbacks internally.
+// Boundary detection is fused into the hashing loop via BatchBoundaries (no
+// checksum stream is materialized). The hash must implement BatchBoundaries;
+// NewChunker panics otherwise.
 type Chunker struct {
 	h      Hash
-	brd    boundaryRoller // fast path; nil -> BatchRoller fallback
-	s      *BatchRoller   // fallback; nil when brd != nil
-	sum    func() uint64  // reads h's current sum, for windowSum
+	brd    boundaryRoller
+	sum    func() uint64 // reads h's current sum, for windowSum
 	window int
 	mask   uint64
 	min    int
 	max    int
 
-	// BulkBoundaries fast path (brd != nil) fields:
 	r      io.Reader
 	rbuf   []byte
 	carry  int
@@ -71,7 +69,10 @@ type Chunker struct {
 // chunk length kept in [min, max]. window must be >= 1 and window <= min <= max
 // for well-formed output.
 func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) *Chunker {
-	brd, _ := h.(boundaryRoller)
+	brd, ok := h.(boundaryRoller)
+	if !ok {
+		panic("rollinghash: Chunker requires BatchBoundaries")
+	}
 	c := &Chunker{
 		h:          h,
 		brd:        brd,
@@ -96,35 +97,27 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) *Chu
 			return r
 		}
 	}
-	if brd != nil {
-		bufSize := chunkerBatchSize
-		if bufSize < window {
-			bufSize = window
-		}
-		maxOut := bufSize - window + 1
-		if maxOut < 1 {
-			maxOut = 1
-		}
-		c.r = r
-		c.rbuf = make([]byte, bufSize)
-		c.la = make([]int32, maxOut)
-		c.lb = make([]int32, maxOut)
-	} else {
-		c.s = NewBatchRoller(r, h, window)
+	bufSize := chunkerBatchSize
+	if bufSize < window {
+		bufSize = window
 	}
+	maxOut := bufSize - window + 1
+	if maxOut < 1 {
+		maxOut = 1
+	}
+	c.r = r
+	c.rbuf = make([]byte, bufSize)
+	c.la = make([]int32, maxOut)
+	c.lb = make([]int32, maxOut)
 	return c
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
 func (c *Chunker) Reset(r io.Reader) {
-	if c.brd != nil {
-		c.r = r
-		c.carry = 0
-		c.prevN = 0
-		c.eof = false
-	} else {
-		c.s.Reset(r)
-	}
+	c.r = r
+	c.carry = 0
+	c.prevN = 0
+	c.eof = false
 	c.firstBatch = true
 	c.cbuf = c.cbuf[:0]
 	c.head = 0
@@ -211,16 +204,8 @@ func (c *Chunker) windowSum(e int) uint64 {
 	return c.sum()
 }
 
-// readBatch dispatches to the BulkBoundaries fast path or the BatchRoller fallback.
+// readBatch reads the next block and finds boundaries via BatchBoundaries.
 func (c *Chunker) readBatch() bool {
-	if c.brd != nil {
-		return c.readBatchBrd()
-	}
-	return c.readBatchRoller()
-}
-
-// readBatchBrd reads the next block and finds boundaries via BulkBoundaries.
-func (c *Chunker) readBatchBrd() bool {
 	if c.eof {
 		return false
 	}
@@ -270,7 +255,7 @@ func (c *Chunker) readBatchBrd() bool {
 	}
 
 	w := c.window
-	na, nb := c.brd.BulkBoundaries(c.la, c.lb, c.rbuf[:n], w, c.mask)
+	na, nb := c.brd.BatchBoundaries(c.la, c.lb, c.rbuf[:n], w, c.mask)
 	for _, g := range c.la[:na] {
 		c.bounds = append(c.bounds, batchO+int(g)+w-1)
 	}
@@ -280,50 +265,6 @@ func (c *Chunker) readBatchBrd() bool {
 
 	c.carry = c.window - 1
 	c.prevN = n
-	return true
-}
-
-// readBatchRoller reads the next block via the BatchRoller and finds boundaries
-// by scanning its Sums slice. The BatchRoller handles BulkRoll and Roll internally.
-func (c *Chunker) readBatchRoller() bool {
-	// Drop the already-emitted prefix from cbuf and the consumed boundaries.
-	if c.head > 0 {
-		m := copy(c.cbuf, c.cbuf[c.head:])
-		c.cbuf = c.cbuf[:m]
-		c.head = 0
-	}
-	if c.bcur > 0 {
-		m := copy(c.bounds, c.bounds[c.bcur:])
-		c.bounds = c.bounds[:m]
-		c.bcur = 0
-	}
-
-	if !c.s.Next() {
-		c.err = c.s.Err()
-		return false
-	}
-
-	data := c.s.Bytes()
-	sums := c.s.Sums()
-	w := c.window
-
-	var batchO int
-	if c.firstBatch {
-		batchO = 0
-		c.cbuf = append(c.cbuf, data...)
-		c.consumed = len(data)
-		c.firstBatch = false
-	} else {
-		batchO = c.consumed - (w - 1)
-		c.cbuf = append(c.cbuf, data[w-1:]...)
-		c.consumed += len(data) - (w - 1)
-	}
-
-	for i, sum := range sums {
-		if sum&c.mask == 0 {
-			c.bounds = append(c.bounds, batchO+i+w-1)
-		}
-	}
 	return true
 }
 

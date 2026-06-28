@@ -248,15 +248,15 @@ func (d *RabinKarp64) Roll(c byte) {
 	d.value = value
 }
 
-// BulkRoll computes the rolling checksum of every window-sized slice of data
+// BatchRoll computes the rolling checksum of every window-sized slice of data
 // in one pass and writes them to dst, which must have len(data)-window+1
 // elements: dst[i] is the checksum of data[i:i+window]. It is equivalent to
 // Write(data[:window]) followed by a Roll for each subsequent byte, recording
 // Sum64 after each step, but it indexes the leaving byte directly (data[i])
 // instead of keeping a circular window and rolls two independent lanes so
-// their table-lookup chains overlap in the pipeline. BulkRoll does not modify
+// their table-lookup chains overlap in the pipeline. BatchRoll does not modify
 // the receiver; it reads d.pol and fetches the (cached) tables for window.
-func (d *RabinKarp64) BulkRoll(dst []uint64, data []byte, window int) {
+func (d *RabinKarp64) BatchRoll(dst []uint64, data []byte, window int) {
 	if window <= 0 || len(data) < window {
 		return
 	}
@@ -322,11 +322,11 @@ func (d *RabinKarp64) BulkRoll(dst []uint64, data []byte, window int) {
 	}
 }
 
-// BulkBoundaries reports the window positions where the rolling checksum
+// BatchBoundaries reports the window positions where the rolling checksum
 // satisfies sum & mask == 0, fusing the test into the hashing loop (see
-// the boundary fast path). It mirrors BulkRoll exactly, replacing each
+// the boundary fast path). It mirrors BatchRoll exactly, replacing each
 // "dst[i] = uint64(v)" with the masked test. It does not modify the receiver.
-func (d *RabinKarp64) BulkBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
+func (d *RabinKarp64) BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int) {
 	if window <= 0 || len(data) < window {
 		return 0, 0
 	}
