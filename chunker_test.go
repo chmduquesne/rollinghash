@@ -16,7 +16,7 @@ func refChunk(classic interface {
 	Reset()
 	Write([]byte) (int, error)
 	Sum([]byte) []byte
-}, data []byte, window int, mask uint64, min, max int) (chunks [][]byte, atMask []bool) {
+}, data []byte, window int, mask uint64, min, max int) (chunks [][]byte, contentDefined []bool) {
 	sums := batchRollOracleHash(classic, data, window) // sums[g] = checksum of data[g:g+window]
 
 	start := 0
@@ -36,14 +36,14 @@ func refChunk(classic interface {
 		}
 		if cut < 0 {
 			chunks = append(chunks, data[start:])
-			atMask = append(atMask, false)
+			contentDefined = append(contentDefined, false)
 			break
 		}
 		chunks = append(chunks, data[start:cut+1])
-		atMask = append(atMask, hit)
+		contentDefined = append(contentDefined, hit)
 		start = cut + 1
 	}
-	return chunks, atMask
+	return chunks, contentDefined
 }
 
 func batchRollOracleHash(classic interface {
@@ -69,16 +69,16 @@ func batchRollOracleHash(classic interface {
 	return out
 }
 
-func collectChunks(t *testing.T, c rollinghash.Chunker) (chunks [][]byte, atMask []bool) {
+func collectChunks(t *testing.T, c rollinghash.Chunker) (chunks [][]byte, contentDefined []bool) {
 	t.Helper()
 	for c.Next() {
 		chunks = append(chunks, append([]byte(nil), c.Bytes()...)) // copy: valid only until next Next
-		atMask = append(atMask, c.AtMask())
+		contentDefined = append(contentDefined, c.ContentDefined())
 	}
 	if err := c.Err(); err != nil {
 		t.Fatalf("Err: %v", err)
 	}
-	return chunks, atMask
+	return chunks, contentDefined
 }
 
 func equalChunks(t *testing.T, name string, got, want [][]byte) {
@@ -109,15 +109,15 @@ func TestChunker(t *testing.T) {
 
 	for _, h := range allHashes {
 		for _, cfg := range configs {
-			wantChunks, wantAtMask := refChunk(h.new(), data, window, cfg.mask, cfg.min, cfg.max)
+			wantChunks, wantContentDefined := refChunk(h.new(), data, window, cfg.mask, cfg.min, cfg.max)
 
 			c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, cfg.mask, cfg.min, cfg.max)
-			gotChunks, gotAtMask := collectChunks(t, c)
+			gotChunks, gotContentDefined := collectChunks(t, c)
 
 			equalChunks(t, h.name, gotChunks, wantChunks)
-			for i := range wantAtMask {
-				if gotAtMask[i] != wantAtMask[i] {
-					t.Fatalf("[%s] chunk %d AtMask: got %v want %v", h.name, i, gotAtMask[i], wantAtMask[i])
+			for i := range wantContentDefined {
+				if gotContentDefined[i] != wantContentDefined[i] {
+					t.Fatalf("[%s] chunk %d ContentDefined: got %v want %v", h.name, i, gotContentDefined[i], wantContentDefined[i])
 				}
 			}
 			if joined := bytes.Join(gotChunks, nil); !bytes.Equal(joined, data) {
@@ -133,9 +133,9 @@ func TestChunker(t *testing.T) {
 }
 
 
-// TestChunkerAtMask verifies AtMask/Sum: a mask boundary satisfies sum&mask==0,
+// TestChunkerContentDefined verifies ContentDefined/Sum: a mask boundary satisfies sum&mask==0,
 // and a non-final forced boundary is exactly max bytes.
-func TestChunkerAtMask(t *testing.T) {
+func TestChunkerContentDefined(t *testing.T) {
 	data := testData(128 * 1024)
 	const window = 56
 	const mask, min, max = 0x1ff, 200, 4096
@@ -144,16 +144,16 @@ func TestChunkerAtMask(t *testing.T) {
 		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
 		var chunks [][]byte
 		var sums []uint64
-		var atMask []bool
+		var contentDefined []bool
 		for c.Next() {
 			chunks = append(chunks, append([]byte(nil), c.Bytes()...))
 			sums = append(sums, c.Sum())
-			atMask = append(atMask, c.AtMask())
+			contentDefined = append(contentDefined, c.ContentDefined())
 		}
 		for i := range chunks {
-			if atMask[i] {
+			if contentDefined[i] {
 				if sums[i]&mask != 0 {
-					t.Fatalf("[%s] chunk %d AtMask but Sum 0x%x & mask != 0", h.name, i, sums[i])
+					t.Fatalf("[%s] chunk %d ContentDefined but Sum 0x%x & mask != 0", h.name, i, sums[i])
 				}
 			} else {
 				if sums[i] != 0 {
@@ -194,7 +194,7 @@ func TestChunkerEdgeCases(t *testing.T) {
 		if c.Next() {
 			t.Errorf("[%s] sub-window: expected no chunks, got %d bytes", h.name, len(c.Bytes()))
 		}
-		if c.Bytes() != nil || c.Sum() != 0 || c.AtMask() {
+		if c.Bytes() != nil || c.Sum() != 0 || c.ContentDefined() {
 			t.Errorf("[%s] sub-window: expected zero-value accessors", h.name)
 		}
 
@@ -233,21 +233,21 @@ func FuzzChunker(f *testing.F) {
 		}
 
 		for _, hc := range allHashes {
-			want, wantMask := refChunk(hc.new(), data, window, mask, min, max)
+			want, wantContentDefined := refChunk(hc.new(), data, window, mask, min, max)
 			c := rollinghash.NewChunker(bytes.NewReader(data), hc.new(), window, mask, min, max)
-			got, gotMask := collectChunks(t, c)
+			got, gotContentDefined := collectChunks(t, c)
 
 			equalChunks(t, hc.name, got, want)
-			for i := range wantMask {
-				if i < len(gotMask) && gotMask[i] != wantMask[i] {
-					t.Fatalf("[%s] chunk %d AtMask: got %v want %v", hc.name, i, gotMask[i], wantMask[i])
+			for i := range wantContentDefined {
+				if i < len(gotContentDefined) && gotContentDefined[i] != wantContentDefined[i] {
+					t.Fatalf("[%s] chunk %d ContentDefined: got %v want %v", hc.name, i, gotContentDefined[i], wantContentDefined[i])
 				}
 			}
 		}
 	})
 }
 
-// TestChunkerAccessorLifecycle verifies that Chunk(), Sum(), and AtMask()
+// TestChunkerAccessorLifecycle verifies that Chunk(), Sum(), and ContentDefined()
 // return zero values both before the first Next() call and after Next()
 // returns false on a stream that produced chunks.
 func TestChunkerAccessorLifecycle(t *testing.T) {
@@ -258,7 +258,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 	for _, h := range allHashes {
 		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
 
-		if c.Bytes() != nil || c.Sum() != 0 || c.AtMask() {
+		if c.Bytes() != nil || c.Sum() != 0 || c.ContentDefined() {
 			t.Errorf("[%s] expected zero-value accessors before first Next", h.name)
 		}
 
@@ -268,7 +268,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 			t.Fatalf("[%s] Err: %v", h.name, err)
 		}
 
-		if c.Bytes() != nil || c.Sum() != 0 || c.AtMask() {
+		if c.Bytes() != nil || c.Sum() != 0 || c.ContentDefined() {
 			t.Errorf("[%s] expected zero-value accessors after Next returns false", h.name)
 		}
 
@@ -276,7 +276,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 		if c.Next() {
 			t.Errorf("[%s] Next() returned true after exhaustion", h.name)
 		}
-		if c.Bytes() != nil || c.Sum() != 0 || c.AtMask() {
+		if c.Bytes() != nil || c.Sum() != 0 || c.ContentDefined() {
 			t.Errorf("[%s] expected zero-value accessors on repeated Next after exhaustion", h.name)
 		}
 	}

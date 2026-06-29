@@ -193,7 +193,7 @@ func ExampleChunker() {
 		chunk := c.Bytes()
 		sizes = append(sizes, len(chunk))
 		total += len(chunk)
-		if c.AtMask() {
+		if c.ContentDefined() {
 			fmt.Printf("boundary at %d: sum=0x%x\n", total, c.Sum())
 		} else {
 			fmt.Printf("max cut   at %d\n", total)

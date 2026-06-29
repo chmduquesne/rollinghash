@@ -100,7 +100,7 @@ type BatchRoller interface {
 //	c := NewChunker(r, h, window, mask, min, max)
 //	for c.Next() {
 //		chunk := c.Bytes()
-//		if c.AtMask() {
+//		if c.ContentDefined() {
 //			// content-defined boundary; Sum() is the hit value
 //		} else {
 //			// forced cut at max, or the final chunk
@@ -108,14 +108,14 @@ type BatchRoller interface {
 //	}
 //	if err := c.Err(); err != nil { ... }
 //
-// Bytes is valid only until the next call to Next. AtMask reports whether the
+// Bytes is valid only until the next call to Next. ContentDefined reports whether the
 // current chunk ended at a mask hit (true) or was forced at max / end of
 // stream (false). Sum returns the rolling checksum at a mask boundary; it
 // returns 0 on forced cuts. Reset reuses internal allocations across streams.
 type Chunker interface {
 	Next() bool
 	Bytes() []byte
-	AtMask() bool
+	ContentDefined() bool
 	Sum() uint64
 	Err() error
 	Reset(r io.Reader)

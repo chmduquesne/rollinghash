@@ -19,7 +19,7 @@ const chunkerBatchSize = 16 << 10
 //	c := Newchunker(r, h, window, mask, min, max)
 //	for c.Next() {
 //		chunk := c.Bytes()
-//		if c.AtMask() {
+//		if c.ContentDefined() {
 //			// content-defined boundary; c.Sum() is the hit value
 //		} else {
 //			// forced cut at max, or the final chunk at end of stream
@@ -61,7 +61,7 @@ type chunker struct {
 	err    error
 	chunk  []byte
 	sumv   uint64
-	atMask bool
+	contentDefined bool
 }
 
 // Newchunker returns a chunker over r. A boundary is placed where the rolling
@@ -129,7 +129,7 @@ func (c *chunker) Reset(r io.Reader) {
 	c.err = nil
 	c.chunk = nil
 	c.sumv = 0
-	c.atMask = false
+	c.contentDefined = false
 }
 
 // Next advances to the next chunk, returning false at end of input or on the
@@ -138,7 +138,7 @@ func (c *chunker) Next() bool {
 	if c.err != nil || c.done {
 		c.chunk = nil
 		c.sumv = 0
-		c.atMask = false
+		c.contentDefined = false
 		return false
 	}
 	for {
@@ -180,15 +180,15 @@ func (c *chunker) Next() bool {
 }
 
 // emit records the chunk ending at global byte e and advances past it.
-func (c *chunker) emit(e int, atMask bool) bool {
+func (c *chunker) emit(e int, contentDefined bool) bool {
 	l := e - c.chunkStart + 1
 	c.chunk = c.cbuf[c.head : c.head+l]
-	if atMask {
+	if contentDefined {
 		c.sumv = c.windowSum(e)
 	} else {
 		c.sumv = 0
 	}
-	c.atMask = atMask
+	c.contentDefined = contentDefined
 	c.head += l
 	c.chunkStart += l
 	return true
@@ -277,7 +277,7 @@ func (c *chunker) fail() bool {
 	c.done = true
 	c.chunk = nil
 	c.sumv = 0
-	c.atMask = false
+	c.contentDefined = false
 	return false
 }
 
@@ -289,10 +289,10 @@ func (c *chunker) Bytes() []byte { return c.chunk }
 // the first call to Next, and after Next returns false, Sum returns 0.
 func (c *chunker) Sum() uint64 { return c.sumv }
 
-// AtMask reports whether the current chunk was cut by the mask (true) rather
+// ContentDefined reports whether the current chunk was cut by the mask (true) rather
 // than forced at max or at end of stream (false). Before the first call to
-// Next, and after Next returns false, AtMask returns false.
-func (c *chunker) AtMask() bool { return c.atMask }
+// Next, and after Next returns false, ContentDefined returns false.
+func (c *chunker) ContentDefined() bool { return c.contentDefined }
 
 // Err returns the first non-EOF error encountered by Next, if any.
 func (c *chunker) Err() error { return c.err }
