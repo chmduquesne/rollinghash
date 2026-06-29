@@ -21,8 +21,8 @@ type batchRoller interface {
 	BatchRoll(dst []uint64, data []byte, window int)
 }
 
-// boundaryRoller mirrors the unexported rollinghash.boundaryRoller interface.
-type boundaryRoller interface {
+// hashBoundaryRoller mirrors the unexported rollinghash.hashBoundaryRoller interface.
+type hashBoundaryRoller interface {
 	BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int)
 }
 
@@ -455,7 +455,7 @@ func FuzzBatchRoll(f *testing.F) {
 // checkBatchBoundaries verifies the boundary fast path against the classic hash: the
 // reported positions (lane a[:na] followed by lane b[:nb]) must be exactly the
 // ascending set {i : classic(data[i:i+window]) & mask == 0}.
-func checkBatchBoundaries(t *testing.T, name string, brd boundaryRoller, classic hash.Hash, data []byte, window int, mask uint64) {
+func checkBatchBoundaries(t *testing.T, name string, brd hashBoundaryRoller, classic hash.Hash, data []byte, window int, mask uint64) {
 	t.Helper()
 	sums := batchRollOracle(classic, data, window)
 	var want []int32
@@ -489,7 +489,7 @@ func checkBatchBoundaries(t *testing.T, name string, brd boundaryRoller, classic
 func TestBatchBoundaries(t *testing.T) {
 	base := []byte("The quick brown fox jumps over the lazy dog")
 	for _, h := range allHashes {
-		brd, ok := h.rolling.(boundaryRoller)
+		brd, ok := h.rolling.(hashBoundaryRoller)
 		if !ok {
 			continue
 		}
@@ -523,7 +523,7 @@ func FuzzBatchBoundaries(f *testing.F) {
 			windowSize = len(data)
 		}
 		for _, h := range allHashes {
-			brd, ok := h.rolling.(boundaryRoller)
+			brd, ok := h.rolling.(hashBoundaryRoller)
 			if !ok {
 				continue
 			}

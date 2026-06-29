@@ -66,9 +66,26 @@ type Hash64 interface {
 	Roller
 }
 
-// BatchRoller is the common interface satisfied by all batch rolling-hash
-// implementations. It lets callers swap algorithms without changing iteration
-// code.
+// BatchRoller walks an io.Reader and yields, per batch, the rolling checksum
+// at every window position together with the bytes those checksums cover.
+// The underlying hash must implement BatchRoll.
+//
+//	s := NewBatchRoller(r, h, window)
+//	for s.Next() {
+//		sums, data := s.Sums(), s.Bytes()
+//		for i, sum := range sums {
+//			// sum == rolling checksum of data[i:i+window]
+//		}
+//	}
+//	if err := s.Err(); err != nil { ... }
+//
+// Per-batch guarantee: len(Sums()) == len(Bytes())-window+1, and Sums()[i]
+// is the checksum of Bytes()[i:i+window]. Consecutive batches overlap by
+// window-1 bytes so no window position is skipped or duplicated.
+//
+// Sums and Bytes are valid only until the next call to Next.
+// Buffer controls the batch size (default 64 KiB; must be called before the
+// first Next). Reset reuses internal allocations across streams.
 type BatchRoller interface {
 	Next() bool
 	Bytes() []byte
@@ -78,10 +95,24 @@ type BatchRoller interface {
 	Buffer(buf []byte)
 }
 
-// Chunker is the common interface satisfied by all CDC chunker implementations.
-// It lets callers swap algorithms without changing iteration code. Sum returns
-// the rolling fingerprint at the last content-defined boundary (AtMask true);
-// it returns 0 on forced cuts.
+// Chunker splits an io.Reader into content-defined chunks. The underlying
+// hash must implement BatchBoundaries.
+//
+//	c := NewChunker(r, h, window, mask, min, max)
+//	for c.Next() {
+//		chunk := c.Bytes()
+//		if c.AtMask() {
+//			// content-defined boundary; Sum() is the hit value
+//		} else {
+//			// forced cut at max, or the final chunk
+//		}
+//	}
+//	if err := c.Err(); err != nil { ... }
+//
+// Bytes is valid only until the next call to Next. AtMask reports whether the
+// current chunk ended at a mask hit (true) or was forced at max / end of
+// stream (false). Sum returns the rolling checksum at a mask boundary; it
+// returns 0 on forced cuts. Reset reuses internal allocations across streams.
 type Chunker interface {
 	Next() bool
 	Bytes() []byte
@@ -91,12 +122,17 @@ type Chunker interface {
 	Reset(r io.Reader)
 }
 
-// hashBatchRoller is an optional bulk fast path; see BatchRoll.
+// hashBatchRoller is the interface a Hash must implement to be usable with
+// NewBatchRoller. BatchRoll must write len(data)-window+1 checksums to dst,
+// where dst[i] is the rolling checksum of data[i:i+window].
 type hashBatchRoller interface {
 	BatchRoll(dst []uint64, data []byte, window int)
 }
 
-// boundaryRoller is an optional fused boundary fast path; see BatchBoundaries.
-type boundaryRoller interface {
+// hashBoundaryRoller is the interface a Hash must implement to be usable with
+// NewChunker. BatchBoundaries must report all window positions in data where
+// the rolling checksum satisfies sum&mask==0, writing them into a and b
+// (two independent lanes for ILP); it returns the counts na and nb.
+type hashBoundaryRoller interface {
 	BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int)
 }

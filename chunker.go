@@ -32,7 +32,7 @@ const chunkerBatchSize = 16 << 10
 // Newchunker panics otherwise.
 type chunker struct {
 	h      Hash
-	brd    boundaryRoller
+	brd    hashBoundaryRoller
 	sum    func() uint64 // reads h's current sum, for windowSum
 	window int
 	mask   uint64
@@ -69,7 +69,7 @@ type chunker struct {
 // chunk length kept in [min, max]. window must be >= 1 and window <= min <= max
 // for well-formed output.
 func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) Chunker {
-	brd, ok := h.(boundaryRoller)
+	brd, ok := h.(hashBoundaryRoller)
 	if !ok {
 		panic("rollinghash: chunker requires BatchBoundaries")
 	}

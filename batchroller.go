@@ -48,9 +48,9 @@ type batchRoller struct {
 	err  error
 }
 
-// NewBatchRoller returns a batchRoller over r that produces, for every
-// window-sized slice of the stream, its rolling checksum under h. window
-// must be >= 1. h must implement BatchRoll; NewBatchRoller panics otherwise.
+// NewBatchRoller returns a BatchRoller over r. window must be >= 1. h must
+// implement BatchRoll; NewBatchRoller panics otherwise. Pass nil for r and
+// call Reset before the first Next to defer stream attachment.
 func NewBatchRoller(r io.Reader, h Hash, window int) BatchRoller {
 	br, ok := h.(hashBatchRoller)
 	if !ok {
@@ -64,10 +64,9 @@ func NewBatchRoller(r io.Reader, h Hash, window int) BatchRoller {
 	}
 }
 
-// Buffer sets the buffer used to hold each batch. It must be called before
-// the first call to Next, and buf must be at least window bytes long. A
-// larger buffer means larger batches and better amortization of the bulk
-// fast path. By default batchRoller allocates its own buffer.
+// Buffer sets the internal batch buffer. Must be called before the first Next.
+// buf must be at least window bytes long; a larger buffer means larger batches
+// and better amortization of the bulk fast path. The default is 64 KiB.
 func (s *batchRoller) Buffer(buf []byte) {
 	s.buf = buf
 }
