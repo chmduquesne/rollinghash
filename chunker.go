@@ -63,6 +63,7 @@ type chunker struct {
 	chunk  []byte
 	sumv   uint64
 	contentDefined bool
+	offset         int
 }
 
 // chunkerOption is a functional option for NewChunker.
@@ -146,6 +147,7 @@ func (c *chunker) Reset(r io.Reader) {
 	c.chunk = nil
 	c.sumv = 0
 	c.contentDefined = false
+	c.offset = 0
 }
 
 // Next advances to the next chunk, returning false at end of input or on the
@@ -155,6 +157,7 @@ func (c *chunker) Next() bool {
 		c.chunk = nil
 		c.sumv = 0
 		c.contentDefined = false
+		c.offset = 0
 		return false
 	}
 	for {
@@ -204,6 +207,7 @@ func (c *chunker) Next() bool {
 func (c *chunker) emit(e int, contentDefined bool) bool {
 	l := e - c.chunkStart + 1
 	c.chunk = c.cbuf[c.head : c.head+l]
+	c.offset = c.chunkStart
 	if contentDefined {
 		c.sumv = c.windowSum(e)
 	} else {
@@ -299,6 +303,7 @@ func (c *chunker) fail() bool {
 	c.chunk = nil
 	c.sumv = 0
 	c.contentDefined = false
+	c.offset = 0
 	return false
 }
 
@@ -317,6 +322,10 @@ func (c *chunker) ContentDefined() bool { return c.contentDefined }
 
 // Err returns the first non-EOF error encountered by Next, if any.
 func (c *chunker) Err() error { return c.err }
+
+// Offset returns the start byte offset of the current chunk in the stream.
+// Before the first call to Next, and after Next returns false, Offset returns 0.
+func (c *chunker) Offset() int { return c.offset }
 
 // WindowSize returns the rolling window size passed to NewChunker.
 func (c *chunker) WindowSize() int { return c.window }

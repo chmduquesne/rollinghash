@@ -113,14 +113,16 @@ type BatchRoller interface {
 // Bytes is valid only until the next call to Next. ContentDefined reports whether the
 // current chunk ended at a mask hit (true) or was forced at max / end of
 // stream (false). Sum returns the rolling checksum at a mask boundary; it
-// returns 0 on forced cuts. WindowSize returns the rolling window size used for
-// boundary detection. Use WithBoundaries to set minimum and maximum chunk
+// returns 0 on forced cuts. Offset returns the start byte offset of the current
+// chunk in the stream; the end offset is Offset()+len(Bytes()). WindowSize
+// returns the rolling window size used for boundary detection. Use WithBoundaries to set minimum and maximum chunk
 // sizes (defaults: 0 and math.MaxInt). Reset reuses internal allocations across streams.
 type Chunker interface {
 	Next() bool
 	Bytes() []byte
 	ContentDefined() bool
 	Sum() uint64
+	Offset() int
 	WindowSize() int
 	Err() error
 	Reset(r io.Reader)

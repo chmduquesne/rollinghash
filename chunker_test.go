@@ -93,6 +93,37 @@ func equalChunks(t *testing.T, name string, got, want [][]byte) {
 	}
 }
 
+// TestChunkerOffset verifies that Offset() returns the start byte position of
+// each chunk in the stream, and returns 0 before and after iteration.
+func TestChunkerOffset(t *testing.T) {
+	data := testData(200 * 1024)
+	const window = 48
+	const mask, min, max = 0x3ff, 512, 16384
+
+	for _, h := range allHashes {
+		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, rollinghash.WithBoundaries(min, max))
+
+		if c.Offset() != 0 {
+			t.Errorf("[%s] Offset() before first Next = %d, want 0", h.name, c.Offset())
+		}
+
+		pos := 0
+		for c.Next() {
+			if c.Offset() != pos {
+				t.Fatalf("[%s] Offset() = %d, want %d", h.name, c.Offset(), pos)
+			}
+			pos += len(c.Bytes())
+		}
+		if err := c.Err(); err != nil {
+			t.Fatalf("[%s] Err: %v", h.name, err)
+		}
+
+		if c.Offset() != 0 {
+			t.Errorf("[%s] Offset() after exhaustion = %d, want 0", h.name, c.Offset())
+		}
+	}
+}
+
 // TestChunkerWindowSize verifies that WindowSize() returns the window
 // passed to NewChunker, independent of stream state.
 func TestChunkerWindowSize(t *testing.T) {

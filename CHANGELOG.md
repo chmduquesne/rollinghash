@@ -13,8 +13,8 @@
 - `WithBuffer`: functional option to control the
   internal batch buffer size (default 64 KiB).
 - `Chunker`: interface for Content Defined Chunking, satisfied by
-  `NewChunker`. Exposes `Next`, `Bytes`, `ContentDefined`, `Sum`, `WindowSize`,
-  `Err`, and `Reset`. Intended to be the common type for CDC implementations;
+  `NewChunker`. Exposes `Next`, `Bytes`, `ContentDefined`, `Sum`, `Offset`,
+  `WindowSize`, `Err`, and `Reset`. Intended to be the common type for CDC implementations;
   future algorithms (e.g. Jump Chunking) will implement it too.
 - `NewChunker`: CDC implementation with a fused boundary fast path,
   achieving ~2× throughput vs a naive rolling-hash scan via batched
