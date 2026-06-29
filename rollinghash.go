@@ -84,15 +84,14 @@ type Hash64 interface {
 // window-1 bytes so no window position is skipped or duplicated.
 //
 // Sums and Bytes are valid only until the next call to Next.
-// Buffer controls the batch size (default 64 KiB; must be called before the
-// first Next). Reset reuses internal allocations across streams.
+// Use WithBuffer to control the batch size (default 64 KiB).
+// Reset reuses internal allocations across streams.
 type BatchRoller interface {
 	Next() bool
 	Bytes() []byte
 	Sums() []uint64
 	Err() error
 	Reset(r io.Reader)
-	Buffer(buf []byte)
 }
 
 // Chunker splits an io.Reader into content-defined chunks. The underlying

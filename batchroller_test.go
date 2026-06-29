@@ -73,14 +73,12 @@ func TestBatchRollerBatchBoundaries(t *testing.T) {
 		want := batchRollOracle(h.new(), data, window)
 		for _, bs := range bufSizes {
 			// Plain reader.
-			s := rollinghash.NewBatchRoller(bytes.NewReader(data), h.new(), window)
-			s.Buffer(make([]byte, bs))
+			s := rollinghash.NewBatchRoller(bytes.NewReader(data), h.new(), window, rollinghash.WithBuffer(make([]byte, bs)))
 			got := collectBatchRollerSums(t, h.name, s, window)
 			equalSums(t, h.name, got, want)
 
 			// One byte per Read, to exercise the buffer-fill loop.
-			s = rollinghash.NewBatchRoller(iotest.OneByteReader(bytes.NewReader(data)), h.new(), window)
-			s.Buffer(make([]byte, bs))
+			s = rollinghash.NewBatchRoller(iotest.OneByteReader(bytes.NewReader(data)), h.new(), window, rollinghash.WithBuffer(make([]byte, bs)))
 			got = collectBatchRollerSums(t, h.name, s, window)
 			equalSums(t, h.name, got, want)
 		}
@@ -103,8 +101,7 @@ func TestBatchRollerBytes(t *testing.T) {
 	data := testData(5000)
 	const window = 16
 	for _, bs := range []int{window, window + 1, 64, 333, len(data)} {
-		s := rollinghash.NewBatchRoller(bytes.NewReader(data), allHashes[0].new(), window)
-		s.Buffer(make([]byte, bs))
+		s := rollinghash.NewBatchRoller(bytes.NewReader(data), allHashes[0].new(), window, rollinghash.WithBuffer(make([]byte, bs)))
 		off := 0
 		for s.Next() {
 			b := s.Bytes()
@@ -220,8 +217,7 @@ func FuzzBatchRoller(f *testing.F) {
 			want := batchRollOracle(hc.new(), data, window)
 			h := hc.new()
 
-			s := rollinghash.NewBatchRoller(bytes.NewReader(data), h, window)
-			s.Buffer(make([]byte, bufSize))
+			s := rollinghash.NewBatchRoller(bytes.NewReader(data), h, window, rollinghash.WithBuffer(make([]byte, bufSize)))
 
 			var got []uint64
 			off := 0
@@ -271,8 +267,7 @@ func BenchmarkBatchRoller(b *testing.B) {
 	for _, c := range cases {
 		for _, bs := range bufSizes {
 			b.Run(fmt.Sprintf("%s/buf=%dKiB", c.name, bs>>10), func(b *testing.B) {
-				s := rollinghash.NewBatchRoller(nil, c.h, window)
-				s.Buffer(make([]byte, bs))
+				s := rollinghash.NewBatchRoller(nil, c.h, window, rollinghash.WithBuffer(make([]byte, bs)))
 				r := bytes.NewReader(data)
 
 				b.SetBytes(int64(len(data)))
