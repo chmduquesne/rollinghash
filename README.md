@@ -13,7 +13,7 @@ are drop-in replacements whenever a builtin counterpart exists.
 
 ## Usage
 
-### Roll
+### Roller
 
 [`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Hash)
 is the simplest interface: call `Roll` once per incoming byte and read the
