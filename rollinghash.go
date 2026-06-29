@@ -153,3 +153,15 @@ type hashBatchRoller interface {
 type hashBoundaryRoller interface {
 	BatchBoundaries(a, b []int32, data []byte, window int, mask uint64) (na, nb int)
 }
+
+// jumpBoundaryRoller is a windowless CDC fast path using the Jump Chunking
+// algorithm. JumpBoundaries scans data starting at firstSkip (the remaining
+// min-zone bytes for the current chunk; fp is 0 in that zone). After each
+// boundary it advances minStep bytes before resuming (the next chunk's min
+// zone); after a false maskJ hit it advances jumpLen bytes. It returns boundary
+// positions in a[:n], the updated fingerprint newFp, and skip: bytes to skip at
+// the start of the next data slice when a jump or min-step crossed the batch
+// boundary (fp is 0 in that case).
+type jumpBoundaryRoller interface {
+	JumpBoundaries(a []int32, data []byte, maskC uint64, jumpLen int, fp uint64, firstSkip, minStep int) (n int, newFp uint64, skip int)
+}

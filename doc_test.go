@@ -9,6 +9,7 @@ import (
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	_adler32 "github.com/chmduquesne/rollinghash/v4/adler32"
 	"github.com/chmduquesne/rollinghash/v4/buzhash64"
+	"github.com/chmduquesne/rollinghash/v4/gearhash64"
 )
 
 // Using Roll() is the easiest way to use this library. Because it manages
@@ -215,6 +216,40 @@ func ExampleChunker() {
 	// boundary at 3837: sum=0xdfc83351b3d06800
 	// max cut   at 4096
 	// split 4096 bytes into 13 chunks: [123 154 374 118 667 86 200 451 231 243 741 449 259]
+}
+
+// JumpChunker uses the Jump Chunking algorithm for Content Defined Chunking.
+// Unlike Chunker, it uses a windowless accumulating fingerprint with a
+// dual-mask trick to skip large regions of data, achieving higher throughput
+// at the cost of producing different chunk boundaries. Currently only
+// gearhash64 supports JumpChunker.
+func ExampleJumpChunker() {
+	// Repeatable pseudo-random data (xorshift), so the boundaries are stable.
+	data := make([]byte, 4096)
+	x := uint32(1)
+	for i := range data {
+		x ^= x << 13
+		x ^= x >> 17
+		x ^= x << 5
+		data[i] = byte(x)
+	}
+
+	// Target ~256-byte chunks, keeping each between 64 and 1024 bytes.
+	// JumpChunker derives its boundary mask from normalSize internally.
+	c := rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.New(), 256, 64, 1024)
+
+	total := 0
+	chunks := 0
+	for c.Next() {
+		total += len(c.Bytes())
+		chunks++
+	}
+	if err := c.Err(); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("split %d bytes into %d chunks\n", total, chunks)
+	// Output:
+	// split 4096 bytes into 16 chunks
 }
 
 // Reset lets you reuse a Chunker's internal buffers for a new stream without

@@ -352,3 +352,50 @@ func (d *GearHash64) BatchBoundaries(a, b []int32, data []byte, window int, mask
 	}
 	return na, nb
 }
+
+// JumpBoundaries finds CDC boundaries in data using the Jump Chunking
+// algorithm (windowless, accumulating fingerprint). Scanning begins at
+// firstSkip (the remaining min-zone bytes for the current chunk; fp is treated
+// as 0 there). After each boundary the next chunk's min zone is skipped by
+// advancing minStep bytes; after a false maskJ hit the speculative jump
+// advances jumpLen bytes. fp is the incoming fingerprint state (0 at chunk
+// start or after any jump). Boundary positions are written to a[:n]. newFp is
+// the fingerprint since the last reset. When a jump or min-step crosses the end
+// of data, skip is the number of bytes to carry over to the next slice (newFp
+// is 0). Does not modify the receiver.
+func (d *GearHash64) JumpBoundaries(a []int32, data []byte, maskC uint64, jumpLen int, fp uint64, firstSkip, minStep int) (n int, newFp uint64, skip int) {
+	if len(data) == 0 || len(a) == 0 {
+		return 0, fp, 0
+	}
+	if firstSkip >= len(data) {
+		return 0, 0, firstSkip - len(data)
+	}
+	maskJ := maskC & (maskC - 1)
+	g := &d.gear
+	end := len(data)
+	if firstSkip > 0 {
+		fp = 0 // bytes before firstSkip are the min zone; no fp contribution
+	}
+	for i := firstSkip; i < end; {
+		fp = (fp << 1) + g[data[i]]
+		i++
+		if fp&maskJ == 0 {
+			atBoundary := fp&maskC == 0
+			fp = 0
+			if atBoundary {
+				a[n] = int32(i - 1)
+				n++
+				if n >= len(a) {
+					return n, 0, 0
+				}
+				i += minStep
+			} else {
+				i += jumpLen - 1
+			}
+			if i >= end {
+				return n, 0, i - end
+			}
+		}
+	}
+	return n, fp, 0
+}

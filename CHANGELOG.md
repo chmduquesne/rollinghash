@@ -32,6 +32,11 @@
 - `WithBoundaries`: functional option to set the minimum
   and maximum chunk size (defaults: 0 and `math.MaxInt`).
 - `gearhash64`: new rolling hash.
+- `JumpChunker`: Content Defined Chunking via the Jump Chunking (JC) algorithm.
+  Windowless accumulating fingerprint with a dual-mask trick skips large regions
+  provably free of boundaries, yielding ~55% higher throughput than `Chunker`
+  at the cost of different boundary positions. `gearhash64` is the only built-in
+  hash that supports it. Panics at construction if the hash lacks `JumpBoundaries`.
 - Fuzz tests covering all hashes and all interfaces.
 - `bozo32.NewFromInt`, `bozo64.NewFromInt`: godoc now documents the odd->1
   constraint and the reason (even multipliers accumulate factors of 2 in
