@@ -42,6 +42,16 @@ func equalSums(t *testing.T, name string, got, want []uint64) {
 	}
 }
 
+// TestBatchRollerWindowSize verifies that WindowSize() returns the window
+// passed to NewBatchRoller, independent of stream state.
+func TestBatchRollerWindowSize(t *testing.T) {
+	const window = 56
+	s := rollinghash.NewBatchRoller(bytes.NewReader(nil), allHashes[0].new(), window)
+	if s.WindowSize() != window {
+		t.Fatalf("WindowSize() = %d, want %d", s.WindowSize(), window)
+	}
+}
+
 // TestBatchRoller checks that the concatenated Sums() over a multi-batch
 // stream equal the classic hash of every window position.
 func TestBatchRoller(t *testing.T) {

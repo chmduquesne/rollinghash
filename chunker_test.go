@@ -93,6 +93,16 @@ func equalChunks(t *testing.T, name string, got, want [][]byte) {
 	}
 }
 
+// TestChunkerWindowSize verifies that WindowSize() returns the window
+// passed to NewChunker, independent of stream state.
+func TestChunkerWindowSize(t *testing.T) {
+	const window = 56
+	c := rollinghash.NewChunker(bytes.NewReader(nil), allHashes[0].new(), window, 0xff)
+	if c.WindowSize() != window {
+		t.Fatalf("WindowSize() = %d, want %d", c.WindowSize(), window)
+	}
+}
+
 // TestChunker checks the Chunker against the reference across several
 // configurations, on data large enough to span many batches.
 func TestChunker(t *testing.T) {

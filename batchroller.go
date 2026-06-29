@@ -7,13 +7,13 @@ import "io"
 // better.
 const defaultBatchRollerBufSize = 1 << 16 // 64 KiB
 
-// BatchRollerOption is a functional option for NewBatchRoller.
-type BatchRollerOption func(*batchRoller)
+// batchRollerOption is a functional option for NewBatchRoller.
+type batchRollerOption func(*batchRoller)
 
 // WithBuffer sets the internal batch buffer. buf must be at least window bytes
 // long; a larger buffer means larger batches and better amortization of the
 // bulk fast path. The default is 64 KiB.
-func WithBuffer(buf []byte) BatchRollerOption {
+func WithBuffer(buf []byte) batchRollerOption {
 	return func(s *batchRoller) { s.buf = buf }
 }
 
@@ -46,7 +46,7 @@ type batchRoller struct {
 // implement BatchRoll; NewBatchRoller panics otherwise. Pass nil for r and
 // call Reset before the first Next to defer stream attachment. Use WithBuffer
 // to control the batch size (default 64 KiB).
-func NewBatchRoller(r io.Reader, h Hash, window int, opts ...BatchRollerOption) BatchRoller {
+func NewBatchRoller(r io.Reader, h Hash, window int, opts ...batchRollerOption) BatchRoller {
 	br, ok := h.(hashBatchRoller)
 	if !ok {
 		panic("rollinghash: BatchRoller requires BatchRoll; use Roll directly for hashes without BatchRoll")
@@ -152,3 +152,6 @@ func (s *batchRoller) Bytes() []byte { return s.data }
 
 // Err returns the first non-EOF error encountered by Next, if any.
 func (s *batchRoller) Err() error { return s.err }
+
+// WindowSize returns the rolling window size passed to NewBatchRoller.
+func (s *batchRoller) WindowSize() int { return s.window }

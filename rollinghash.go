@@ -84,12 +84,14 @@ type Hash64 interface {
 // window-1 bytes so no window position is skipped or duplicated.
 //
 // Sums and Bytes are valid only until the next call to Next.
+// WindowSize returns the rolling window size; Sums()[i] covers Bytes()[i:i+WindowSize()].
 // Use WithBuffer to control the batch size (default 64 KiB).
 // Reset reuses internal allocations across streams.
 type BatchRoller interface {
 	Next() bool
 	Bytes() []byte
 	Sums() []uint64
+	WindowSize() int
 	Err() error
 	Reset(r io.Reader)
 }
@@ -111,13 +113,15 @@ type BatchRoller interface {
 // Bytes is valid only until the next call to Next. ContentDefined reports whether the
 // current chunk ended at a mask hit (true) or was forced at max / end of
 // stream (false). Sum returns the rolling checksum at a mask boundary; it
-// returns 0 on forced cuts. Use WithBoundaries to set minimum and maximum chunk
+// returns 0 on forced cuts. WindowSize returns the rolling window size used for
+// boundary detection. Use WithBoundaries to set minimum and maximum chunk
 // sizes (defaults: 0 and math.MaxInt). Reset reuses internal allocations across streams.
 type Chunker interface {
 	Next() bool
 	Bytes() []byte
 	ContentDefined() bool
 	Sum() uint64
+	WindowSize() int
 	Err() error
 	Reset(r io.Reader)
 }

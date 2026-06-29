@@ -65,14 +65,14 @@ type chunker struct {
 	contentDefined bool
 }
 
-// ChunkerOption is a functional option for NewChunker.
-type ChunkerOption func(*chunker)
+// chunkerOption is a functional option for NewChunker.
+type chunkerOption func(*chunker)
 
 // WithBoundaries sets the minimum and maximum chunk size. Chunks shorter than
 // min bytes are extended to the next boundary; chunks that reach max bytes
 // without a mask hit are cut there unconditionally. Defaults are 0 and
 // math.MaxInt.
-func WithBoundaries(min, max int) ChunkerOption {
+func WithBoundaries(min, max int) chunkerOption {
 	return func(c *chunker) { c.min = min; c.max = max }
 }
 
@@ -81,7 +81,7 @@ func WithBoundaries(min, max int) ChunkerOption {
 // chunk length kept in [min, max]. window must be >= 1. Use WithMinSize and
 // WithMaxSize to set min (default 0) and max (default math.MaxInt).
 // The hash must implement BatchBoundaries; NewChunker panics otherwise.
-func NewChunker(r io.Reader, h Hash, window int, mask uint64, opts ...ChunkerOption) Chunker {
+func NewChunker(r io.Reader, h Hash, window int, mask uint64, opts ...chunkerOption) Chunker {
 	brd, ok := h.(hashBoundaryRoller)
 	if !ok {
 		panic("rollinghash: chunker requires BatchBoundaries")
@@ -317,3 +317,6 @@ func (c *chunker) ContentDefined() bool { return c.contentDefined }
 
 // Err returns the first non-EOF error encountered by Next, if any.
 func (c *chunker) Err() error { return c.err }
+
+// WindowSize returns the rolling window size passed to NewChunker.
+func (c *chunker) WindowSize() int { return c.window }
