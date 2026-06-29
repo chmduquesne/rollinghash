@@ -153,6 +153,14 @@ This is inherent to the cyclic polynomial construction and cannot be fixed
 by changing the byte table. Any window length that is not a multiple of
 the word size avoids it (e.g. use 48 or 56 instead of 64).
 
+### BatchRoller and Chunker bypass the hash's rolling window
+
+`BatchRoll` and `BatchBoundaries` are bulk operations that do not update
+the hash's internal rolling window. After passing a hash to `NewBatchRoller`
+or `NewChunker`, calling `h.WriteWindow()` on that hash will not reflect the
+stream contents — its state is undefined. Use `WindowSize()` on the
+`BatchRoller` or `Chunker` instead.
+
 ## Which hash to use
 
 Benchmarked on 2026-06-28, linux/amd64, AMD Ryzen 7 PRO 7840U (`go test -bench='BenchmarkChunker/.*/fused|BenchmarkBatchRoller/.*/1024KiB|BenchmarkRolling64B' -benchtime=3s -count=6`):

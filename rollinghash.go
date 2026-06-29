@@ -84,13 +84,19 @@ type Hash64 interface {
 // window-1 bytes so no window position is skipped or duplicated.
 //
 // Sums and Bytes are valid only until the next call to Next.
+// Offset returns the stream position of Bytes()[0]; Sums()[i] is at Offset()+i.
 // WindowSize returns the rolling window size; Sums()[i] covers Bytes()[i:i+WindowSize()].
 // Use WithBufferSize to control the batch size in bytes (default 64 KiB).
 // Reset reuses internal allocations across streams.
+//
+// Note: BatchRoll bypasses the hash's internal rolling window. After passing h
+// to NewBatchRoller, h.WriteWindow() will not reflect the stream — use
+// WindowSize() on the BatchRoller instead.
 type BatchRoller interface {
 	Next() bool
 	Bytes() []byte
 	Sums() []uint64
+	Offset() int
 	WindowSize() int
 	Err() error
 	Reset(r io.Reader)
@@ -115,8 +121,13 @@ type BatchRoller interface {
 // stream (false). Sum returns the rolling checksum at a mask boundary; it
 // returns 0 on forced cuts. Offset returns the start byte offset of the current
 // chunk in the stream; the end offset is Offset()+len(Bytes()). WindowSize
-// returns the rolling window size used for boundary detection. Use WithBoundaries to set minimum and maximum chunk
-// sizes (defaults: 0 and math.MaxInt). Reset reuses internal allocations across streams.
+// returns the rolling window size used for boundary detection. Use WithBoundaries
+// to set minimum and maximum chunk sizes (defaults: 0 and math.MaxInt).
+// Reset reuses internal allocations across streams.
+//
+// Note: BatchBoundaries bypasses the hash's internal rolling window. After
+// passing h to NewChunker, h.WriteWindow() will not reflect the stream — use
+// WindowSize() on the Chunker instead.
 type Chunker interface {
 	Next() bool
 	Bytes() []byte

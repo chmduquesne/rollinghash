@@ -5,7 +5,7 @@
 ### Added
 
 - `BatchRoller`: interface for batch rolling-hash iteration, satisfied by
-  `NewBatchRoller`. Exposes `Next`, `Bytes`, `Sums`, `WindowSize`, `Err`, and `Reset`.
+  `NewBatchRoller`. Exposes `Next`, `Bytes`, `Sums`, `Offset`, `WindowSize`, `Err`, and `Reset`.
 - `NewBatchRoller`: batch-hashing implementation for rsync-style block
   search, with ~2× throughput vs `Roll` via ILP exploitation. Requires the
   hash to implement `BatchRoll`; panics at construction otherwise. Returns

@@ -37,6 +37,8 @@ type batchRoller struct {
 	carry     int      // window-1 bytes to carry from the previous batch, or 0
 	prevN     int      // length of the previous batch (where its carry tail sits)
 
+	offset int  // stream position of Bytes()[0] in the current batch
+
 	eof  bool // the reader has signalled io.EOF
 	done bool // no more batches will be produced
 	err  error
@@ -73,6 +75,7 @@ func (s *batchRoller) Reset(r io.Reader) {
 	// sumsStore is intentionally kept to reuse its backing array.
 	s.carry = 0
 	s.prevN = 0
+	s.offset = 0
 	s.eof = false
 	s.done = false
 	s.err = nil
@@ -84,8 +87,13 @@ func (s *batchRoller) Next() bool {
 	if s.err != nil || s.done {
 		s.data = nil
 		s.sums = nil
+		s.offset = 0
 		return false
 	}
+
+	// Advance past the new bytes yielded by the previous batch (all but the
+	// window-1 carry bytes that overlap into this one).
+	s.offset += s.prevN - s.carry
 
 	// Move the previous batch's trailing window-1 bytes to the front. This is
 	// deferred to here (rather than the end of the previous Next) so it does
@@ -113,6 +121,7 @@ func (s *batchRoller) Next() bool {
 		s.done = true
 		s.data = nil
 		s.sums = nil
+		s.offset = 0
 		return false
 	}
 
@@ -152,6 +161,11 @@ func (s *batchRoller) Bytes() []byte { return s.data }
 
 // Err returns the first non-EOF error encountered by Next, if any.
 func (s *batchRoller) Err() error { return s.err }
+
+// Offset returns the stream position of Bytes()[0] in the current batch.
+// Sums()[i] is the checksum of the window starting at Offset()+i.
+// Before the first call to Next, and after Next returns false, Offset returns 0.
+func (s *batchRoller) Offset() int { return s.offset }
 
 // WindowSize returns the rolling window size passed to NewBatchRoller.
 func (s *batchRoller) WindowSize() int { return s.window }

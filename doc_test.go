@@ -112,15 +112,13 @@ func ExampleWithBufferSize() {
 	// returns exactly one position, exercising the batch-boundary logic.
 	s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window, rollinghash.WithBufferSize(window))
 
-	off := 0
 	for s.Next() {
 		sums, buf := s.Sums(), s.Bytes()
 		for i, sum := range sums {
 			if sum == target && bytes.Equal(buf[i:i+window], needle) {
-				fmt.Printf("found %q at offset %d\n", needle, off+i)
+				fmt.Printf("found %q at offset %d\n", needle, s.Offset()+i)
 			}
 		}
-		off += len(buf) - (window - 1)
 	}
 	if err := s.Err(); err != nil {
 		log.Fatal(err)
@@ -169,9 +167,9 @@ func ExampleBatchRoller_Reset() {
 // The Chunker interface was designed to support users who want to use
 // rolling hashes for Content Defined Chunking (CDC). It also operates on
 // a stream, which allows for batch computation optimizations similar to
-// the ones used with the BatchRoller. In this type of situation, The stream
-// is split where the rolling checksum hits a mask, with chunk sizes kept
-// within [min, max].
+// the ones used with the BatchRoller. In this type of situation, the stream
+// is split where the rolling checksum hits a mask. Use WithBoundaries to
+// keep chunk sizes within a desired range.
 func ExampleChunker() {
 	// Repeatable pseudo-random data (xorshift), so the boundaries are stable.
 	data := make([]byte, 4096)
