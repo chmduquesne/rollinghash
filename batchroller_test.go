@@ -13,7 +13,7 @@ import (
 // collectBatchRollerSums runs a BatchRoller to exhaustion and returns the
 // concatenation of every batch's Sums(), checking the per-batch alignment
 // invariant (len(Sums) == len(Bytes)-window+1) along the way.
-func collectBatchRollerSums(t *testing.T, name string, s *rollinghash.BatchRoller, window int) []uint64 {
+func collectBatchRollerSums(t *testing.T, name string, s rollinghash.BatchRoller, window int) []uint64 {
 	t.Helper()
 	var got []uint64
 	for s.Next() {

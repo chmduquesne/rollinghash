@@ -7,7 +7,7 @@ import "io"
 // better.
 const defaultBatchRollerBufSize = 1 << 16 // 64 KiB
 
-// A BatchRoller walks an io.Reader and yields, in batches, the rolling
+// hashBatchRoller walks an io.Reader and yields, in batches, the rolling
 // checksum at every window position together with the bytes those checksums
 // cover. Call Next to advance to the next batch, then read Sums and Bytes:
 //
@@ -31,9 +31,9 @@ const defaultBatchRollerBufSize = 1 << 16 // 64 KiB
 // Bytes() are valid only until the next call to Next. An input shorter than
 // window yields no batches. The hash must implement BatchRoll; NewBatchRoller
 // panics otherwise.
-type BatchRoller struct {
+type batchRoller struct {
 	r      io.Reader
-	br     batchRoller
+	br     hashBatchRoller
 	window int
 
 	buf       []byte
@@ -48,15 +48,15 @@ type BatchRoller struct {
 	err  error
 }
 
-// NewBatchRoller returns a BatchRoller over r that produces, for every
+// NewBatchRoller returns a batchRoller over r that produces, for every
 // window-sized slice of the stream, its rolling checksum under h. window
 // must be >= 1. h must implement BatchRoll; NewBatchRoller panics otherwise.
-func NewBatchRoller(r io.Reader, h Hash, window int) *BatchRoller {
-	br, ok := h.(batchRoller)
+func NewBatchRoller(r io.Reader, h Hash, window int) BatchRoller {
+	br, ok := h.(hashBatchRoller)
 	if !ok {
 		panic("rollinghash: BatchRoller requires BatchRoll; use Roll directly for hashes without BatchRoll")
 	}
-	return &BatchRoller{
+	return &batchRoller{
 		r:      r,
 		br:     br,
 		window: window,
@@ -67,15 +67,15 @@ func NewBatchRoller(r io.Reader, h Hash, window int) *BatchRoller {
 // Buffer sets the buffer used to hold each batch. It must be called before
 // the first call to Next, and buf must be at least window bytes long. A
 // larger buffer means larger batches and better amortization of the bulk
-// fast path. By default BatchRoller allocates its own buffer.
-func (s *BatchRoller) Buffer(buf []byte) {
+// fast path. By default batchRoller allocates its own buffer.
+func (s *batchRoller) Buffer(buf []byte) {
 	s.buf = buf
 }
 
-// Reset prepares the BatchRoller to roll r from the start, reusing the
+// Reset prepares the batchRoller to roll r from the start, reusing the
 // existing batch buffer and sums storage. The hash and window are unchanged.
-// It lets one BatchRoller process many streams without reallocating.
-func (s *BatchRoller) Reset(r io.Reader) {
+// It lets one batchRoller process many streams without reallocating.
+func (s *batchRoller) Reset(r io.Reader) {
 	s.r = r
 	s.data = nil
 	s.sums = nil
@@ -89,7 +89,7 @@ func (s *BatchRoller) Reset(r io.Reader) {
 
 // Next loads the next batch, returning false at end of input or on the first
 // error. After it returns false, Err reports any error other than io.EOF.
-func (s *BatchRoller) Next() bool {
+func (s *batchRoller) Next() bool {
 	if s.err != nil || s.done {
 		s.data = nil
 		s.sums = nil
@@ -152,12 +152,12 @@ func (s *BatchRoller) Next() bool {
 // Sums returns the checksums of the current batch, one per window position.
 // It is valid only until the next call to Next. Before the first call to
 // Next, and after Next returns false, Sums returns nil.
-func (s *BatchRoller) Sums() []uint64 { return s.sums }
+func (s *batchRoller) Sums() []uint64 { return s.sums }
 
 // Bytes returns the bytes of the current batch. Sums()[i] is the checksum of
 // Bytes()[i:i+window]. It is valid only until the next call to Next. Before
 // the first call to Next, and after Next returns false, Bytes returns nil.
-func (s *BatchRoller) Bytes() []byte { return s.data }
+func (s *batchRoller) Bytes() []byte { return s.data }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (s *BatchRoller) Err() error { return s.err }
+func (s *batchRoller) Err() error { return s.err }

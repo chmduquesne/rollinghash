@@ -1,15 +1,24 @@
 # Changelog
 
-## v4.2.0 - 2026-06-25
+## v4.2.0 - 2026-06-29
 
 ### Added
 
-- `BatchRoller`: batch-hashing interface for rsync-style block search,
-  with ~2× throughput vs `Roll` via ILP exploitation. Requires the hash to
-  implement `BatchRoll`; panics at construction otherwise.
-- `Chunker`: Content Defined Chunking interface with a fused boundary fast
-  path for the same batched performance. Requires `BatchBoundaries`; panics
-  at construction otherwise.
+- `BatchRoller`: interface for batch rolling-hash iteration, satisfied by
+  `NewBatchRoller`. Exposes `Next`, `Bytes`, `Sums`, `Err`, `Reset`, and
+  `Buffer`.
+- `NewBatchRoller`: batch-hashing implementation for rsync-style block
+  search, with ~2× throughput vs `Roll` via ILP exploitation. Requires the
+  hash to implement `BatchRoll`; panics at construction otherwise. Returns
+  the `BatchRoller` interface.
+- `Chunker`: interface for Content Defined Chunking, satisfied by
+  `NewChunker`. Exposes `Next`, `Bytes`, `AtMask`, `Sum`, `Err`, and
+  `Reset`. Intended to be the common type for CDC implementations; future
+  algorithms (e.g. Jump Chunking) will implement it too.
+- `NewChunker`: CDC implementation with a fused boundary fast path,
+  achieving ~2× throughput vs a naive rolling-hash scan via batched
+  `BatchBoundaries`. Requires the hash to implement `BatchBoundaries`;
+  panics at construction otherwise. Returns the `Chunker` interface.
 - `gearhash64`: new rolling hash.
 - Fuzz tests covering all hashes and all interfaces.
 
