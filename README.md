@@ -60,7 +60,7 @@ for s.Next() {
     sums, buf := s.Sums(), s.Bytes()
     for i, sum := range sums {
         if sum == target && bytes.Equal(buf[i:i+window], needle) {
-            fmt.Printf("found %q at offset %d\n", needle, i)
+            fmt.Printf("found %q at offset %d\n", needle, s.Offset()+i)
         }
     }
 }
@@ -69,9 +69,10 @@ if err := s.Err(); err != nil {
 }
 ```
 
-Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`.
-Use `Buffer` to control the batch size and `Reset` to reuse the batch roller
-across multiple streams without extra allocations.
+Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`, at
+stream position `Offset()+i`. Use `WithBufferSize` to control the batch size
+and `Reset` to reuse the batch roller across multiple streams without extra
+allocations.
 
 ### Chunker
 
@@ -79,7 +80,7 @@ across multiple streams without extra allocations.
 is designed for Content Defined Chunking (CDC). It also operates on a
 stream, uses the same batch optimization as the BatchRoller, and therefore
 performs about as well. The stream is split wherever the rolling checksum
-matches a mask, with chunk sizes kept within `[min, max]`.
+matches a mask. Use `WithBoundaries` to keep chunk sizes within a desired range.
 
 ```golang
 data := make([]byte, 4096)
@@ -91,14 +92,15 @@ for i := range data {
 
 // Cut where the low 8 bits of the rolling checksum are zero,
 // keeping each chunk between 64 and 1024 bytes.
-c := rollinghash.NewChunker(bytes.NewReader(data), buzhash64.New(), 56, 0xff, 64, 1024)
+c := rollinghash.NewChunker(bytes.NewReader(data), buzhash64.New(), 56, 0xff,
+    rollinghash.WithBoundaries(64, 1024))
 
 for c.Next() {
     chunk := c.Bytes()
-    if c.AtMask() {
-        fmt.Printf("boundary: sum=0x%x, len=%d\n", c.Sum(), len(chunk))
+    if c.ContentDefined() {
+        fmt.Printf("boundary at %d: sum=0x%x\n", c.Offset()+len(chunk), c.Sum())
     } else {
-        fmt.Printf("max cut: len=%d\n", len(chunk))
+        fmt.Printf("max cut at %d\n", c.Offset()+len(chunk))
     }
 }
 if err := c.Err(); err != nil {
@@ -163,17 +165,17 @@ stream contents — its state is undefined. Use `WindowSize()` on the
 
 ## Which hash to use
 
-Benchmarked on 2026-06-28, linux/amd64, AMD Ryzen 7 PRO 7840U (`go test -bench='BenchmarkChunker/.*/fused|BenchmarkBatchRoller/.*/1024KiB|BenchmarkRolling64B' -benchtime=3s -count=6`):
+Benchmarked on 2026-06-30, linux/amd64, AMD Ryzen 7 PRO 7840U (`go test -bench='BenchmarkChunker/.*/fused|BenchmarkBatchRoller/.*/1024KiB|BenchmarkRolling64B' -benchtime=3s -count=6 ./...`):
 
 | Hash | Roll (MB/s) | Chunker (MB/s) | BatchRoller (MB/s) | Uniformly distributed | Parametrizable |
 |---|---|---|---|---|---|
-| `buzhash64` | 840 | 1493 | 1471 | yes¹ | yes |
-| `buzhash32` | 848 | 1431 | 1419 | yes¹ | yes |
-| `gearhash64` | 776 | 1435 | 1484 | yes | yes |
-| `bozo32` | 847 | 1149 | 1328 | yes² | yes (single multiplier) |
-| `bozo64` | 836 | 1130 | 1335 | yes² | yes (single multiplier) |
-| `rabinkarp64` | 509 | 745 | 859 | yes | yes |
-| `adler32` | 244 | 386 | 417 | **no**³ | no |
+| `buzhash64` | 833 | 1491 | 1522 | yes¹ | yes |
+| `buzhash32` | 838 | 1453 | 1505 | yes¹ | yes |
+| `gearhash64` | 771 | 1476 | 1450 | yes | yes |
+| `bozo32` | 847 | 1139 | 1371 | yes² | yes (single multiplier) |
+| `bozo64` | 830 | 1131 | 1329 | yes² | yes (single multiplier) |
+| `rabinkarp64` | 508 | 780 | 847 | yes | yes |
+| `adler32` | 250 | 402 | 420 | **no**³ | no |
 
 ¹ Provided the window size is not a multiple of the word size (32 for `buzhash32`,
 64 for `buzhash64`). See [Gotchas](#gotchas).
