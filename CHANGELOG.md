@@ -10,8 +10,8 @@
   search, with ~2× throughput vs `Roll` via ILP exploitation. Requires the
   hash to implement `BatchRoll`; panics at construction otherwise. Returns
   the `BatchRoller` interface. Accepts variadic options.
-- `WithBuffer`: functional option to control the
-  internal batch buffer size (default 64 KiB).
+- `WithBufferSize`: functional option to control the
+  internal batch buffer size in bytes (default 64 KiB).
 - `Chunker`: interface for Content Defined Chunking, satisfied by
   `NewChunker`. Exposes `Next`, `Bytes`, `ContentDefined`, `Sum`, `Offset`,
   `WindowSize`, `Err`, and `Reset`. Intended to be the common type for CDC implementations;

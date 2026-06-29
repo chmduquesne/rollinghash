@@ -85,7 +85,7 @@ type Hash64 interface {
 //
 // Sums and Bytes are valid only until the next call to Next.
 // WindowSize returns the rolling window size; Sums()[i] covers Bytes()[i:i+WindowSize()].
-// Use WithBuffer to control the batch size (default 64 KiB).
+// Use WithBufferSize to control the batch size in bytes (default 64 KiB).
 // Reset reuses internal allocations across streams.
 type BatchRoller interface {
 	Next() bool

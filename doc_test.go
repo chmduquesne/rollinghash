@@ -96,7 +96,7 @@ func ExampleBatchRoller() {
 // the cost of higher memory use. The default buffer is 64 KiB; here we use a
 // small buffer to show that the BatchRoller produces correct results regardless
 // of how the input is split across batches.
-func ExampleWithBuffer() {
+func ExampleWithBufferSize() {
 	data := []byte("the quick brown fox jumps over the lazy dog")
 
 	needle := []byte("brown")
@@ -110,7 +110,7 @@ func ExampleWithBuffer() {
 
 	// Use the smallest valid buffer (window bytes) so every Next() call
 	// returns exactly one position, exercising the batch-boundary logic.
-	s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window, rollinghash.WithBuffer(make([]byte, window)))
+	s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window, rollinghash.WithBufferSize(window))
 
 	off := 0
 	for s.Next() {

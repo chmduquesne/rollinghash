@@ -3,18 +3,18 @@ package rollinghash
 import "io"
 
 // defaultBatchRollerBufSize is the batch buffer size used when the caller does
-// not supply one via WithBuffer. Larger batches amortize the bulk fast path
+// not supply one via WithBufferSize. Larger batches amortize the bulk fast path
 // better.
 const defaultBatchRollerBufSize = 1 << 16 // 64 KiB
 
 // batchRollerOption is a functional option for NewBatchRoller.
 type batchRollerOption func(*batchRoller)
 
-// WithBuffer sets the internal batch buffer. buf must be at least window bytes
-// long; a larger buffer means larger batches and better amortization of the
-// bulk fast path. The default is 64 KiB.
-func WithBuffer(buf []byte) batchRollerOption {
-	return func(s *batchRoller) { s.buf = buf }
+// WithBufferSize sets the internal batch buffer size in bytes. A larger buffer
+// means larger batches and better amortization of the bulk fast path; it must
+// be at least window bytes. The default is 64 KiB.
+func WithBufferSize(n int) batchRollerOption {
+	return func(s *batchRoller) { s.buf = make([]byte, n) }
 }
 
 // batchRoller walks an io.Reader and yields, in batches, the rolling checksum
@@ -44,7 +44,7 @@ type batchRoller struct {
 
 // NewBatchRoller returns a BatchRoller over r. window must be >= 1. h must
 // implement BatchRoll; NewBatchRoller panics otherwise. Pass nil for r and
-// call Reset before the first Next to defer stream attachment. Use WithBuffer
+// call Reset before the first Next to defer stream attachment. Use WithBufferSize
 // to control the batch size (default 64 KiB).
 func NewBatchRoller(r io.Reader, h Hash, window int, opts ...batchRollerOption) BatchRoller {
 	br, ok := h.(hashBatchRoller)

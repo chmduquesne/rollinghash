@@ -152,7 +152,7 @@ func main() {
 
 	const bufsize = 16 * MiB
 	pr := newPrefetchReader(io.LimitReader(f, int64(fileSize)), bufsize)
-	s := rollinghash.NewBatchRoller(pr, newHash(), window, rollinghash.WithBuffer(make([]byte, bufsize)))
+	s := rollinghash.NewBatchRoller(pr, newHash(), window, rollinghash.WithBufferSize(bufsize))
 
 	n := uint64(0)
 	nextPrint := uint64(bufsize)
