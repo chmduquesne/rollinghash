@@ -3,6 +3,7 @@ package rollinghash
 import (
 	"hash"
 	"io"
+	"math"
 )
 
 // chunkerBatchSize is the read/hash batch the chunker uses when the hash
@@ -64,11 +65,23 @@ type chunker struct {
 	contentDefined bool
 }
 
-// Newchunker returns a chunker over r. A boundary is placed where the rolling
+// ChunkerOption is a functional option for NewChunker.
+type ChunkerOption func(*chunker)
+
+// WithBoundaries sets the minimum and maximum chunk size. Chunks shorter than
+// min bytes are extended to the next boundary; chunks that reach max bytes
+// without a mask hit are cut there unconditionally. Defaults are 0 and
+// math.MaxInt.
+func WithBoundaries(min, max int) ChunkerOption {
+	return func(c *chunker) { c.min = min; c.max = max }
+}
+
+// NewChunker returns a chunker over r. A boundary is placed where the rolling
 // checksum under h (over window bytes) satisfies checksum & mask == 0, with the
-// chunk length kept in [min, max]. window must be >= 1 and window <= min <= max
-// for well-formed output.
-func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) Chunker {
+// chunk length kept in [min, max]. window must be >= 1. Use WithMinSize and
+// WithMaxSize to set min (default 0) and max (default math.MaxInt).
+// The hash must implement BatchBoundaries; NewChunker panics otherwise.
+func NewChunker(r io.Reader, h Hash, window int, mask uint64, opts ...ChunkerOption) Chunker {
 	brd, ok := h.(hashBoundaryRoller)
 	if !ok {
 		panic("rollinghash: chunker requires BatchBoundaries")
@@ -78,9 +91,12 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) Chun
 		brd:        brd,
 		window:     window,
 		mask:       mask,
-		min:        min,
-		max:        max,
+		min:        0,
+		max:        math.MaxInt,
 		firstBatch: true,
+	}
+	for _, opt := range opts {
+		opt(c)
 	}
 	switch v := h.(type) {
 	case hash.Hash64:
@@ -143,7 +159,12 @@ func (c *chunker) Next() bool {
 	}
 	for {
 		minByte := c.chunkStart + c.min - 1 // smallest boundary byte with L >= min
-		maxByte := c.chunkStart + c.max - 1 // forced-cut boundary byte (L == max)
+		var maxByte int
+		if c.max == math.MaxInt {
+			maxByte = math.MaxInt // no forced cut; avoid overflow
+		} else {
+			maxByte = c.chunkStart + c.max - 1 // forced-cut boundary byte (L == max)
+		}
 
 		// First mask boundary with min <= L <= max, among the boundaries known
 		// so far.

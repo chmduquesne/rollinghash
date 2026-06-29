@@ -20,6 +20,9 @@
   achieving ~2× throughput vs a naive rolling-hash scan via batched
   `BatchBoundaries`. Requires the hash to implement `BatchBoundaries`;
   panics at construction otherwise. Returns the `Chunker` interface.
+  Accepts `ChunkerOption` variadic options.
+- `ChunkerOption`, `WithBoundaries`: functional option to set the minimum
+  and maximum chunk size (defaults: 0 and `math.MaxInt`).
 - `gearhash64`: new rolling hash.
 - Fuzz tests covering all hashes and all interfaces.
 

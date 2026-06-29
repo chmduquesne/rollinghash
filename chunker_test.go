@@ -111,7 +111,7 @@ func TestChunker(t *testing.T) {
 		for _, cfg := range configs {
 			wantChunks, wantContentDefined := refChunk(h.new(), data, window, cfg.mask, cfg.min, cfg.max)
 
-			c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, cfg.mask, cfg.min, cfg.max)
+			c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, cfg.mask, rollinghash.WithBoundaries(cfg.min, cfg.max))
 			gotChunks, gotContentDefined := collectChunks(t, c)
 
 			equalChunks(t, h.name, gotChunks, wantChunks)
@@ -141,7 +141,7 @@ func TestChunkerContentDefined(t *testing.T) {
 	const mask, min, max = 0x1ff, 200, 4096
 
 	for _, h := range allHashes {
-		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
+		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, rollinghash.WithBoundaries(min, max))
 		var chunks [][]byte
 		var sums []uint64
 		var contentDefined []bool
@@ -175,10 +175,10 @@ func TestChunkerDeterminism(t *testing.T) {
 	const mask, min, max = 0x3ff, 512, 16384
 
 	for _, h := range allHashes {
-		base := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
+		base := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, rollinghash.WithBoundaries(min, max))
 		want, _ := collectChunks(t, base)
 
-		slow := rollinghash.NewChunker(iotest.OneByteReader(bytes.NewReader(data)), h.new(), window, mask, min, max)
+		slow := rollinghash.NewChunker(iotest.OneByteReader(bytes.NewReader(data)), h.new(), window, mask, rollinghash.WithBoundaries(min, max))
 		got, _ := collectChunks(t, slow)
 
 		equalChunks(t, h.name+"/onebyte", got, want)
@@ -190,7 +190,7 @@ func TestChunkerEdgeCases(t *testing.T) {
 	const window = 16
 
 	for _, h := range allHashes {
-		c := rollinghash.NewChunker(bytes.NewReader(testData(window-1)), h.new(), window, 0xff, 1, 64)
+		c := rollinghash.NewChunker(bytes.NewReader(testData(window-1)), h.new(), window, 0xff, rollinghash.WithBoundaries(1, 64))
 		if c.Next() {
 			t.Errorf("[%s] sub-window: expected no chunks, got %d bytes", h.name, len(c.Bytes()))
 		}
@@ -199,13 +199,13 @@ func TestChunkerEdgeCases(t *testing.T) {
 		}
 
 		data := testData(window)
-		c = rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, 0xffffffff, 1, 64)
+		c = rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, 0xffffffff, rollinghash.WithBoundaries(1, 64))
 		got, _ := collectChunks(t, c)
 		if len(got) != 1 || !bytes.Equal(got[0], data) {
 			t.Errorf("[%s] exactly-window: expected one chunk of the whole input, got %d chunks", h.name, len(got))
 		}
 
-		c = rollinghash.NewChunker(bytes.NewReader(nil), h.new(), window, 0xff, 1, 64)
+		c = rollinghash.NewChunker(bytes.NewReader(nil), h.new(), window, 0xff, rollinghash.WithBoundaries(1, 64))
 		if c.Next() {
 			t.Errorf("[%s] empty: expected no chunks", h.name)
 		}
@@ -234,7 +234,7 @@ func FuzzChunker(f *testing.F) {
 
 		for _, hc := range allHashes {
 			want, wantContentDefined := refChunk(hc.new(), data, window, mask, min, max)
-			c := rollinghash.NewChunker(bytes.NewReader(data), hc.new(), window, mask, min, max)
+			c := rollinghash.NewChunker(bytes.NewReader(data), hc.new(), window, mask, rollinghash.WithBoundaries(min, max))
 			got, gotContentDefined := collectChunks(t, c)
 
 			equalChunks(t, hc.name, got, want)
@@ -256,7 +256,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 	const mask, min, max = 0x3ff, 512, 16384
 
 	for _, h := range allHashes {
-		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, min, max)
+		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, rollinghash.WithBoundaries(min, max))
 
 		if c.Bytes() != nil || c.Sum() != 0 || c.ContentDefined() {
 			t.Errorf("[%s] expected zero-value accessors before first Next", h.name)
@@ -286,7 +286,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 func TestChunkerError(t *testing.T) {
 	boom := errors.New("boom")
 	for _, h := range allHashes {
-		c := rollinghash.NewChunker(iotest.ErrReader(boom), h.new(), 16, 0xff, 1, 64)
+		c := rollinghash.NewChunker(iotest.ErrReader(boom), h.new(), 16, 0xff, rollinghash.WithBoundaries(1, 64))
 		if c.Next() {
 			t.Errorf("[%s] expected Next to fail on reader error", h.name)
 		}
@@ -306,7 +306,7 @@ func BenchmarkChunker(b *testing.B) {
 	for _, h := range allHashes {
 		b.Run(h.name+"/fused", func(b *testing.B) {
 			r := bytes.NewReader(data)
-			ck := rollinghash.NewChunker(r, h.new(), window, mask, min, max)
+			ck := rollinghash.NewChunker(r, h.new(), window, mask, rollinghash.WithBoundaries(min, max))
 
 			b.SetBytes(int64(len(data)))
 			b.ReportAllocs()

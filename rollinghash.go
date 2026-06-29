@@ -97,7 +97,7 @@ type BatchRoller interface {
 // Chunker splits an io.Reader into content-defined chunks. The underlying
 // hash must implement BatchBoundaries.
 //
-//	c := NewChunker(r, h, window, mask, min, max)
+//	c := NewChunker(r, h, window, mask)
 //	for c.Next() {
 //		chunk := c.Bytes()
 //		if c.ContentDefined() {
@@ -111,7 +111,8 @@ type BatchRoller interface {
 // Bytes is valid only until the next call to Next. ContentDefined reports whether the
 // current chunk ended at a mask hit (true) or was forced at max / end of
 // stream (false). Sum returns the rolling checksum at a mask boundary; it
-// returns 0 on forced cuts. Reset reuses internal allocations across streams.
+// returns 0 on forced cuts. Use WithBoundaries to set minimum and maximum chunk
+// sizes (defaults: 0 and math.MaxInt). Reset reuses internal allocations across streams.
 type Chunker interface {
 	Next() bool
 	Bytes() []byte

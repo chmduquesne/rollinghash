@@ -185,7 +185,7 @@ func ExampleChunker() {
 
 	// Cut where the low 8 bits of the rolling checksum are zero, keeping each
 	// chunk between 64 and 1024 bytes.
-	c := rollinghash.NewChunker(bytes.NewReader(data), buzhash64.New(), 56, 0xff, 64, 1024)
+	c := rollinghash.NewChunker(bytes.NewReader(data), buzhash64.New(), 56, 0xff, rollinghash.WithBoundaries(64, 1024))
 
 	var sizes []int
 	total := 0
@@ -241,7 +241,7 @@ func ExampleChunker_Reset() {
 		makeData(2, 4096),
 	}
 
-	c := rollinghash.NewChunker(nil, buzhash64.New(), 56, 0xff, 64, 1024)
+	c := rollinghash.NewChunker(nil, buzhash64.New(), 56, 0xff, rollinghash.WithBoundaries(64, 1024))
 	for i, data := range streams {
 		c.Reset(bytes.NewReader(data))
 		n := 0
