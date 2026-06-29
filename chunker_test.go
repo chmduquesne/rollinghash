@@ -69,7 +69,7 @@ func batchRollOracleHash(classic interface {
 	return out
 }
 
-func collectChunks(t *testing.T, c *rollinghash.Chunker) (chunks [][]byte, atMask []bool) {
+func collectChunks(t *testing.T, c rollinghash.Chunker) (chunks [][]byte, atMask []bool) {
 	t.Helper()
 	for c.Next() {
 		chunks = append(chunks, append([]byte(nil), c.Bytes()...)) // copy: valid only until next Next
@@ -155,8 +155,13 @@ func TestChunkerAtMask(t *testing.T) {
 				if sums[i]&mask != 0 {
 					t.Fatalf("[%s] chunk %d AtMask but Sum 0x%x & mask != 0", h.name, i, sums[i])
 				}
-			} else if i != len(chunks)-1 && len(chunks[i]) != max {
-				t.Fatalf("[%s] chunk %d forced cut but length %d != max %d", h.name, i, len(chunks[i]), max)
+			} else {
+				if sums[i] != 0 {
+					t.Fatalf("[%s] chunk %d forced cut but Sum 0x%x != 0", h.name, i, sums[i])
+				}
+				if i != len(chunks)-1 && len(chunks[i]) != max {
+					t.Fatalf("[%s] chunk %d forced cut but length %d != max %d", h.name, i, len(chunks[i]), max)
+				}
 			}
 		}
 	}

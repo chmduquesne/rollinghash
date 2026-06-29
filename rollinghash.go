@@ -66,6 +66,19 @@ type Hash64 interface {
 	Roller
 }
 
+// Chunker is the common interface satisfied by all CDC chunker implementations.
+// It lets callers swap algorithms without changing iteration code. Sum returns
+// the rolling fingerprint at the last content-defined boundary (AtMask true);
+// it returns 0 on forced cuts.
+type Chunker interface {
+	Next() bool
+	Bytes() []byte
+	AtMask() bool
+	Sum() uint64
+	Err() error
+	Reset(r io.Reader)
+}
+
 // batchRoller is an optional bulk fast path; see BatchRoll.
 type batchRoller interface {
 	BatchRoll(dst []uint64, data []byte, window int)

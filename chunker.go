@@ -5,18 +5,18 @@ import (
 	"io"
 )
 
-// chunkerBatchSize is the read/hash batch the Chunker uses when the hash
+// chunkerBatchSize is the read/hash batch the chunker uses when the hash
 // implements the BatchBoundaries fast path. Kept modest so the per-batch work
 // stays cache-resident.
 const chunkerBatchSize = 16 << 10
 
-// A Chunker splits an io.Reader into content-defined chunks. A boundary is
+// chunker splits an io.Reader into content-defined chunks. A boundary is
 // placed after the first byte at which the rolling checksum (over the preceding
 // window bytes) satisfies checksum & mask == 0, subject to a chunk length in
 // [min, max]; if no such boundary is found by max, the chunk is cut at max. The
 // trailing bytes of the stream form a final chunk.
 //
-//	c := NewChunker(r, h, window, mask, min, max)
+//	c := Newchunker(r, h, window, mask, min, max)
 //	for c.Next() {
 //		chunk := c.Bytes()
 //		if c.AtMask() {
@@ -29,8 +29,8 @@ const chunkerBatchSize = 16 << 10
 //
 // Boundary detection is fused into the hashing loop via BatchBoundaries (no
 // checksum stream is materialized). The hash must implement BatchBoundaries;
-// NewChunker panics otherwise.
-type Chunker struct {
+// Newchunker panics otherwise.
+type chunker struct {
 	h      Hash
 	brd    boundaryRoller
 	sum    func() uint64 // reads h's current sum, for windowSum
@@ -64,16 +64,16 @@ type Chunker struct {
 	atMask bool
 }
 
-// NewChunker returns a Chunker over r. A boundary is placed where the rolling
+// Newchunker returns a chunker over r. A boundary is placed where the rolling
 // checksum under h (over window bytes) satisfies checksum & mask == 0, with the
 // chunk length kept in [min, max]. window must be >= 1 and window <= min <= max
 // for well-formed output.
-func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) *Chunker {
+func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) Chunker {
 	brd, ok := h.(boundaryRoller)
 	if !ok {
-		panic("rollinghash: Chunker requires BatchBoundaries")
+		panic("rollinghash: chunker requires BatchBoundaries")
 	}
-	c := &Chunker{
+	c := &chunker{
 		h:          h,
 		brd:        brd,
 		window:     window,
@@ -112,8 +112,8 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, min, max int) *Chu
 	return c
 }
 
-// Reset prepares the Chunker to split r from the start, reusing its buffers.
-func (c *Chunker) Reset(r io.Reader) {
+// Reset prepares the chunker to split r from the start, reusing its buffers.
+func (c *chunker) Reset(r io.Reader) {
 	c.r = r
 	c.carry = 0
 	c.prevN = 0
@@ -134,7 +134,7 @@ func (c *Chunker) Reset(r io.Reader) {
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error. After it returns false, Err reports any error other than EOF.
-func (c *Chunker) Next() bool {
+func (c *chunker) Next() bool {
 	if c.err != nil || c.done {
 		c.chunk = nil
 		c.sumv = 0
@@ -180,10 +180,14 @@ func (c *Chunker) Next() bool {
 }
 
 // emit records the chunk ending at global byte e and advances past it.
-func (c *Chunker) emit(e int, atMask bool) bool {
+func (c *chunker) emit(e int, atMask bool) bool {
 	l := e - c.chunkStart + 1
 	c.chunk = c.cbuf[c.head : c.head+l]
-	c.sumv = c.windowSum(e)
+	if atMask {
+		c.sumv = c.windowSum(e)
+	} else {
+		c.sumv = 0
+	}
 	c.atMask = atMask
 	c.head += l
 	c.chunkStart += l
@@ -193,7 +197,7 @@ func (c *Chunker) emit(e int, atMask bool) bool {
 // windowSum recomputes the rolling checksum of the window ending at global byte
 // e from the buffered bytes (cheap: once per emitted chunk). Returns 0 when the
 // window is not fully buffered (a final chunk shorter than window).
-func (c *Chunker) windowSum(e int) uint64 {
+func (c *chunker) windowSum(e int) uint64 {
 	start := e - c.window + 1
 	if start < c.chunkStart {
 		return 0
@@ -205,7 +209,7 @@ func (c *Chunker) windowSum(e int) uint64 {
 }
 
 // readBatch reads the next block and finds boundaries via BatchBoundaries.
-func (c *Chunker) readBatch() bool {
+func (c *chunker) readBatch() bool {
 	if c.eof {
 		return false
 	}
@@ -269,7 +273,7 @@ func (c *Chunker) readBatch() bool {
 }
 
 // fail clears the current chunk state and reports no further chunks.
-func (c *Chunker) fail() bool {
+func (c *chunker) fail() bool {
 	c.done = true
 	c.chunk = nil
 	c.sumv = 0
@@ -279,16 +283,16 @@ func (c *Chunker) fail() bool {
 
 // Bytes returns the current chunk, valid until the next call to Next. Before
 // the first call to Next, and after Next returns false, Bytes returns nil.
-func (c *Chunker) Bytes() []byte { return c.chunk }
+func (c *chunker) Bytes() []byte { return c.chunk }
 
 // Sum returns the rolling checksum at the current chunk's boundary. Before
 // the first call to Next, and after Next returns false, Sum returns 0.
-func (c *Chunker) Sum() uint64 { return c.sumv }
+func (c *chunker) Sum() uint64 { return c.sumv }
 
 // AtMask reports whether the current chunk was cut by the mask (true) rather
 // than forced at max or at end of stream (false). Before the first call to
 // Next, and after Next returns false, AtMask returns false.
-func (c *Chunker) AtMask() bool { return c.atMask }
+func (c *chunker) AtMask() bool { return c.atMask }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *Chunker) Err() error { return c.err }
+func (c *chunker) Err() error { return c.err }
