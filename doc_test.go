@@ -73,15 +73,13 @@ func ExampleBatchRoller() {
 	target := h.Sum64()
 
 	// Roll the stream. Within each batch, Sums()[i] is the checksum of
-	// Bytes()[i:i+window]. This input fits in a single batch, so the batch
-	// index i is also the offset in the stream; for larger inputs spanning
-	// multiple Next() calls you would accumulate an offset across batches.
+	// Bytes()[i:i+window], at stream position Offset()+i.
 	s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window)
 	for s.Next() {
 		sums, buf := s.Sums(), s.Bytes()
 		for i, sum := range sums {
 			if sum == target && bytes.Equal(buf[i:i+window], needle) {
-				fmt.Printf("found %q at offset %d\n", needle, i)
+				fmt.Printf("found %q at offset %d\n", needle, s.Offset()+i)
 			}
 		}
 	}

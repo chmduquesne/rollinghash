@@ -42,6 +42,38 @@ func equalSums(t *testing.T, name string, got, want []uint64) {
 	}
 }
 
+// TestBatchRollerOffset verifies that Offset() returns the stream position of
+// Bytes()[0] for each batch, returns 0 before and after iteration, and is
+// consistent across adversarial buffer sizes.
+func TestBatchRollerOffset(t *testing.T) {
+	data := testData(5000)
+	const window = 16
+	bufSizes := []int{window, window + 1, 64, 333, len(data)}
+
+	for _, bs := range bufSizes {
+		s := rollinghash.NewBatchRoller(bytes.NewReader(data), allHashes[0].new(), window, rollinghash.WithBufferSize(bs))
+
+		if s.Offset() != 0 {
+			t.Errorf("buf=%d: Offset() before first Next = %d, want 0", bs, s.Offset())
+		}
+
+		pos := 0
+		for s.Next() {
+			if s.Offset() != pos {
+				t.Fatalf("buf=%d: Offset() = %d, want %d", bs, s.Offset(), pos)
+			}
+			pos += len(s.Bytes()) - (window - 1)
+		}
+		if err := s.Err(); err != nil {
+			t.Fatalf("buf=%d: Err %v", bs, err)
+		}
+
+		if s.Offset() != 0 {
+			t.Errorf("buf=%d: Offset() after exhaustion = %d, want 0", bs, s.Offset())
+		}
+	}
+}
+
 // TestBatchRollerWindowSize verifies that WindowSize() returns the window
 // passed to NewBatchRoller, independent of stream state.
 func TestBatchRollerWindowSize(t *testing.T) {
