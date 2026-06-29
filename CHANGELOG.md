@@ -5,12 +5,13 @@
 ### Added
 
 - `BatchRoller`: interface for batch rolling-hash iteration, satisfied by
-  `NewBatchRoller`. Exposes `Next`, `Bytes`, `Sums`, `Err`, `Reset`, and
-  `Buffer`.
+  `NewBatchRoller`. Exposes `Next`, `Bytes`, `Sums`, `Err`, and `Reset`.
 - `NewBatchRoller`: batch-hashing implementation for rsync-style block
   search, with ~2× throughput vs `Roll` via ILP exploitation. Requires the
   hash to implement `BatchRoll`; panics at construction otherwise. Returns
-  the `BatchRoller` interface.
+  the `BatchRoller` interface. Accepts `BatchRollerOption` variadic options.
+- `BatchRollerOption`, `WithBuffer`: functional option to control the
+  internal batch buffer size (default 64 KiB).
 - `Chunker`: interface for Content Defined Chunking, satisfied by
   `NewChunker`. Exposes `Next`, `Bytes`, `AtMask`, `Sum`, `Err`, and
   `Reset`. Intended to be the common type for CDC implementations; future
