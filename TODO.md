@@ -1,5 +1,5 @@
 TODO for next release
-* Split roll/roll by checksum
-* Refactor to use the Window branch
-* Fixed Size window Checksums
-* Consider Assembly optimization
+Measure those things:
+Uniformity
+Bit entropy per bit
+Trailing zero decay
