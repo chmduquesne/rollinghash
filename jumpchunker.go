@@ -53,18 +53,31 @@ type JumpChunker struct {
 	atMask bool
 }
 
+// JumpChunkerOption is a functional option for NewJumpChunker.
+type JumpChunkerOption func(*JumpChunker)
+
+// WithJumpMask overrides the maskC and jumpLen that would otherwise be derived
+// from normalSize. Use this to interoperate with another implementation that
+// fixes its own boundary mask and jump stride.
+func WithJumpMask(maskC uint64, jumpLen int) JumpChunkerOption {
+	return func(c *JumpChunker) {
+		c.maskC = maskC
+		c.jumpLen = jumpLen
+	}
+}
+
 // NewJumpChunker returns a JumpChunker over r. normalSize is the target average
 // chunk length; the JC algorithm internally derives the boundary mask and jump
 // length from it to maximize throughput at that target. Chunk lengths are kept
 // in [min, max]. h must implement JumpBoundaries; NewJumpChunker panics
-// otherwise.
-func NewJumpChunker(r io.Reader, h Hash, normalSize, min, max int) *JumpChunker {
+// otherwise. Options (e.g. WithJumpMask) can override derived parameters.
+func NewJumpChunker(r io.Reader, h Hash, normalSize, min, max int, opts ...JumpChunkerOption) *JumpChunker {
 	jbrd, ok := h.(jumpBoundaryRoller)
 	if !ok {
 		panic("rollinghash: JumpChunker requires JumpBoundaries")
 	}
 	maskC, jumpLen := jumpParams(normalSize)
-	return &JumpChunker{
+	c := &JumpChunker{
 		jbrd:    jbrd,
 		r:       r,
 		maskC:   maskC,
@@ -74,6 +87,10 @@ func NewJumpChunker(r io.Reader, h Hash, normalSize, min, max int) *JumpChunker 
 		cbuf:    make([]byte, 0, max+chunkerBatchSize),
 		la:      make([]int32, chunkerBatchSize),
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // jumpParams derives the maskC and jumpLen for a given target normalSize.
