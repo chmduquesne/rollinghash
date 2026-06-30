@@ -104,6 +104,48 @@ func TestGolden(t *testing.T) {
 	}
 }
 
+// FuzzNewFromInt verifies that for any multiplier a passed to NewFromInt,
+// Roll and BatchRoll both agree with a fresh Write+Sum64 at every window position.
+func FuzzNewFromInt(f *testing.F) {
+	f.Add(uint64(4294967291), []byte("The quick brown fox jumps over the lazy dog"), 16)
+	f.Add(uint64(1), []byte("hello world"), 4)
+	f.Add(uint64(0), []byte("abcdef"), 3)
+	f.Add(uint64(1<<32-5), []byte("aaaaaa"), 2)
+
+	f.Fuzz(func(t *testing.T, a uint64, data []byte, window int) {
+		if window < 1 || window > len(data) {
+			return
+		}
+
+		classic := rollsum.NewFromInt(a)
+
+		// Verify Roll.
+		rolling := rollsum.NewFromInt(a)
+		rolling.Write(data[:window])
+		for i := window; i < len(data); i++ {
+			rolling.Roll(data[i])
+			classic.Reset()
+			classic.Write(data[i-window+1 : i+1])
+			if rolling.Sum64() != classic.Sum64() {
+				t.Fatalf("Roll mismatch at pos %d (a=%d): got 0x%x want 0x%x",
+					i, a, rolling.Sum64(), classic.Sum64())
+			}
+		}
+
+		// Verify BatchRoll.
+		dst := make([]uint64, len(data)-window+1)
+		rollsum.NewFromInt(a).BatchRoll(dst, data, window)
+		for i := range dst {
+			classic.Reset()
+			classic.Write(data[i : i+window])
+			if dst[i] != classic.Sum64() {
+				t.Fatalf("BatchRoll mismatch at pos %d (a=%d): got 0x%x want 0x%x",
+					i, a, dst[i], classic.Sum64())
+			}
+		}
+	})
+}
+
 func BenchmarkRolling64B(b *testing.B) {
 	b.SetBytes(1)
 	b.ReportAllocs()
