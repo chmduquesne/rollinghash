@@ -153,7 +153,9 @@ func rollSpeed[H interface {
 	if err != nil && err != io.ErrUnexpectedEOF {
 		log.Fatal(err)
 	}
-	h.Write(buf[:window])
+	if _, err := h.Write(buf[:window]); err != nil {
+		log.Fatal(err)
+	}
 
 	t := time.Now()
 	rolled := int64(0)
@@ -228,7 +230,9 @@ func speedDataSource(size int64, input string) (io.Reader, int64, func()) {
 	}
 	buf := make([]byte, 1*MiB)
 	rr := &randReader{rng: rand.New(rand.NewSource(0))}
-	rr.Read(buf)
+	if _, err := rr.Read(buf); err != nil {
+		log.Fatal(err)
+	}
 	return &cycleReader{data: buf, remaining: size}, size, func() {}
 }
 
@@ -419,7 +423,9 @@ func main() {
 	case "speed":
 		fs := flag.NewFlagSet("speed", flag.ExitOnError)
 		iface := fs.String("interface", "batchroll", "interface to benchmark: roll, batchroll, chunk")
-		fs.Parse(args[1:])
+		if err := fs.Parse(args[1:]); err != nil {
+			log.Fatal(err)
+		}
 		cmdSpeed(newHash, *hashName, *input, *iface, int64(size))
 	case "stat":
 		cmdStat(newHash, *hashName, *input, int64(size))
