@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.2.0 - 2026-06-29
+## v4.2.0 - 2026-06-30
 
 ### Added
 
@@ -25,6 +25,12 @@
   and maximum chunk size (defaults: 0 and `math.MaxInt`).
 - `gearhash64`: new rolling hash.
 - Fuzz tests covering all hashes and all interfaces.
+- `bozo32.NewFromInt`, `bozo64.NewFromInt`: godoc now documents the odd->1
+  constraint and the reason (even multipliers accumulate factors of 2 in
+  window powers; a=1 collapses the hash to a bounded sum).
+- `FuzzNewFromInt`, `FuzzNewFromIntCDC`: fuzz tests for `bozo32` and
+  `bozo64` verifying correctness of `Roll`/`BatchRoll` for arbitrary
+  multipliers and geometric trailing-zero decay for odd multipliers >1.
 
 ### Changed
 

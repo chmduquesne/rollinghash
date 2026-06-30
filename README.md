@@ -1,7 +1,7 @@
 [![CI](https://github.com/chmduquesne/rollinghash/actions/workflows/ci.yml/badge.svg)](https://github.com/chmduquesne/rollinghash/actions/workflows/ci.yml)
 [![Coverage Status](https://codecov.io/gh/chmduquesne/rollinghash/branch/master/graph/badge.svg)](https://codecov.io/gh/chmduquesne/rollinghash)
 [![GoDoc Reference](https://pkg.go.dev/badge/github.com/chmduquesne/rollinghash/v4.svg)](https://pkg.go.dev/github.com/chmduquesne/rollinghash/v4)
-![Go 1.21+](https://img.shields.io/badge/go-1.21%2B-blue.svg)
+![Go 1.23+](https://img.shields.io/badge/go-1.23%2B-blue.svg)
 
 # Rolling Hashes
 
