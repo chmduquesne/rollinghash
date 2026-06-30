@@ -83,6 +83,7 @@ performs about as well. The stream is split wherever the rolling checksum
 matches a mask. Use `WithBoundaries` to keep chunk sizes within a desired range.
 
 ```golang
+// Generate 4KiB of pseudo-random data
 data := make([]byte, 4096)
 x := uint32(1)
 for i := range data {
