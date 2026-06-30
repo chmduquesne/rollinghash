@@ -123,11 +123,15 @@ func FuzzNewFromInt(f *testing.F) {
 
 		// Verify Roll.
 		rolling := rollsum.NewFromInt(a)
-		rolling.Write(data[:window])
+		if _, err := rolling.Write(data[:window]); err != nil {
+			t.Fatal(err)
+		}
 		for i := window; i < len(data); i++ {
 			rolling.Roll(data[i])
 			classic.Reset()
-			classic.Write(data[i-window+1 : i+1])
+			if _, err := classic.Write(data[i-window+1 : i+1]); err != nil {
+				t.Fatal(err)
+			}
 			if rolling.Sum32() != classic.Sum32() {
 				t.Fatalf("Roll mismatch at pos %d (a=%d): got 0x%x want 0x%x",
 					i, a, rolling.Sum32(), classic.Sum32())
@@ -139,7 +143,9 @@ func FuzzNewFromInt(f *testing.F) {
 		rollsum.NewFromInt(a).BatchRoll(dst, data, window)
 		for i := range dst {
 			classic.Reset()
-			classic.Write(data[i : i+window])
+			if _, err := classic.Write(data[i : i+window]); err != nil {
+				t.Fatal(err)
+			}
 			if uint32(dst[i]) != classic.Sum32() {
 				t.Fatalf("BatchRoll mismatch at pos %d (a=%d): got 0x%x want 0x%x",
 					i, a, uint32(dst[i]), classic.Sum32())
