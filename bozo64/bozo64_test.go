@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"hash"
 	"io"
+	"math"
+	"math/bits"
 	"math/rand"
 	"strings"
 	"testing"
@@ -141,6 +143,62 @@ func FuzzNewFromInt(f *testing.F) {
 			if dst[i] != classic.Sum64() {
 				t.Fatalf("BatchRoll mismatch at pos %d (a=%d): got 0x%x want 0x%x",
 					i, a, dst[i], classic.Sum64())
+			}
+		}
+	})
+}
+
+// FuzzNewFromIntCDC checks that bozo64.NewFromInt(a) produces hash values
+// with geometric trailing-zero decay, which is the property that makes a
+// rolling hash suitable for CDC (chunk boundaries hit with probability 2^-k
+// for a k-bit mask).
+//
+// Even multipliers are skipped: a^n accumulates factors of 2 for large
+// windows, zeroing the low bits and ruining the distribution. a<=1 is also
+// skipped: a=1 collapses the hash to a simple sum bounded by window*255,
+// leaving the high bits permanently zero.
+func FuzzNewFromIntCDC(f *testing.F) {
+	f.Add(uint64(4294967291)) // default: largest prime fitting in 32 bits
+	f.Add(uint64(6700417))    // a smaller prime
+	f.Add(uint64(1<<32 + 7))  // large odd
+
+	f.Fuzz(func(t *testing.T, a uint64) {
+		if a&1 == 0 || a <= 1 {
+			t.Skip()
+		}
+
+		// 1 MiB of fixed pseudo-random data: enough for k<=10 to be
+		// statistically meaningful (expected count at k=10 is ~1M/2048 ≈ 488).
+		const n = 1 << 20
+		data := make([]byte, n)
+		rng := rand.New(rand.NewSource(42))
+		for i := range data {
+			data[i] = byte(rng.Uint64())
+		}
+
+		const win = 56
+		nPos := n - win + 1
+		dst := make([]uint64, nPos)
+		rollsum.NewFromInt(a).BatchRoll(dst, data, win)
+
+		var tzHist [64]uint64
+		for _, v := range dst {
+			tzHist[bits.TrailingZeros64(v)]++
+		}
+
+		// Use a 4σ threshold per k value. At expected=1000, 4σ ≈ 12.6% of
+		// expected, giving a per-k false positive rate of ~0.006%. With ~9
+		// k values tested, the combined false positive rate is ~0.05%.
+		total := float64(nPos)
+		for k := range 20 {
+			expected := total * math.Pow(0.5, float64(k+1))
+			if expected < 1000 {
+				break
+			}
+			sigma := math.Sqrt(expected)
+			if math.Abs(float64(tzHist[k])-expected) > 4*sigma {
+				t.Errorf("a=%d: trailing zeros k=%d: observed=%d expected=%.0f (>4σ deviation)",
+					a, k, tzHist[k], expected)
 			}
 		}
 	})

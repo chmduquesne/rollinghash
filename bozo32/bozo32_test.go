@@ -2,9 +2,11 @@ package bozo32_test
 
 import (
 	"bufio"
-	"math/rand"
 	"hash"
 	"io"
+	"math"
+	"math/bits"
+	"math/rand"
 	"strings"
 	"testing"
 
@@ -102,6 +104,99 @@ func TestGolden(t *testing.T) {
 			continue
 		}
 	}
+}
+
+// FuzzNewFromInt verifies that for any multiplier a passed to NewFromInt,
+// Roll and BatchRoll both agree with a fresh Write+Sum32 at every window position.
+func FuzzNewFromInt(f *testing.F) {
+	f.Add(uint32(65521), []byte("The quick brown fox jumps over the lazy dog"), 16)
+	f.Add(uint32(1), []byte("hello world"), 4)
+	f.Add(uint32(0), []byte("abcdef"), 3)
+	f.Add(uint32(1<<16-15), []byte("aaaaaa"), 2)
+
+	f.Fuzz(func(t *testing.T, a uint32, data []byte, window int) {
+		if window < 1 || window > len(data) {
+			return
+		}
+
+		classic := rollsum.NewFromInt(a)
+
+		// Verify Roll.
+		rolling := rollsum.NewFromInt(a)
+		rolling.Write(data[:window])
+		for i := window; i < len(data); i++ {
+			rolling.Roll(data[i])
+			classic.Reset()
+			classic.Write(data[i-window+1 : i+1])
+			if rolling.Sum32() != classic.Sum32() {
+				t.Fatalf("Roll mismatch at pos %d (a=%d): got 0x%x want 0x%x",
+					i, a, rolling.Sum32(), classic.Sum32())
+			}
+		}
+
+		// Verify BatchRoll.
+		dst := make([]uint64, len(data)-window+1)
+		rollsum.NewFromInt(a).BatchRoll(dst, data, window)
+		for i := range dst {
+			classic.Reset()
+			classic.Write(data[i : i+window])
+			if uint32(dst[i]) != classic.Sum32() {
+				t.Fatalf("BatchRoll mismatch at pos %d (a=%d): got 0x%x want 0x%x",
+					i, a, uint32(dst[i]), classic.Sum32())
+			}
+		}
+	})
+}
+
+// FuzzNewFromIntCDC checks that bozo32.NewFromInt(a) produces hash values
+// with geometric trailing-zero decay, which is the property that makes a
+// rolling hash suitable for CDC (chunk boundaries hit with probability 2^-k
+// for a k-bit mask).
+//
+// Even multipliers are skipped: a^n accumulates factors of 2 for large
+// windows, zeroing the low bits and ruining the distribution. a<=1 is also
+// skipped: a=1 collapses the hash to a simple sum bounded by window*255,
+// leaving the high bits permanently zero.
+func FuzzNewFromIntCDC(f *testing.F) {
+	f.Add(uint32(65521))       // default: largest prime fitting in 16 bits
+	f.Add(uint32(32771))       // a smaller odd prime
+	f.Add(uint32(1<<16 + 3))   // large odd
+
+	f.Fuzz(func(t *testing.T, a uint32) {
+		if a&1 == 0 || a <= 1 {
+			t.Skip()
+		}
+
+		const n = 1 << 20
+		data := make([]byte, n)
+		rng := rand.New(rand.NewSource(42))
+		for i := range data {
+			data[i] = byte(rng.Uint64())
+		}
+
+		const win = 56
+		nPos := n - win + 1
+		dst := make([]uint64, nPos)
+		rollsum.NewFromInt(a).BatchRoll(dst, data, win)
+
+		var tzHist [32]uint64
+		for _, v := range dst {
+			tzHist[bits.TrailingZeros32(uint32(v))]++
+		}
+
+		total := float64(nPos)
+		for k := range 20 {
+			expected := total * math.Pow(0.5, float64(k+1))
+			if expected < 1000 {
+				break
+			}
+			sigma := math.Sqrt(expected)
+			if math.Abs(float64(tzHist[k])-expected) > 4*sigma {
+				t.Errorf("a=%d: trailing zeros k=%d: observed=%d expected=%.0f (>4σ deviation)",
+					a, k, tzHist[k], expected)
+			}
+		}
+	})
 }
 
 func BenchmarkRolling64B(b *testing.B) {

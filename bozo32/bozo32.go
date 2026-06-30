@@ -37,6 +37,11 @@ func (d *Bozo32) Reset() {
 	d.window = d.window[:0]
 }
 
+// NewFromInt returns a Bozo32 with the given multiplier a. For good
+// rolling-hash and CDC properties, a should be odd and greater than 1:
+// even multipliers cause low bits to accumulate factors of 2 for large
+// windows, and a=1 collapses the hash to a bounded sum. Use New() for a
+// safe default.
 func NewFromInt(a uint32) *Bozo32 {
 	return &Bozo32{
 		a:      a,
