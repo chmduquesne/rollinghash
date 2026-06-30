@@ -1,2 +1,2 @@
 ignore:
-  - "rollstat/"
+  - "rollstat/**"
