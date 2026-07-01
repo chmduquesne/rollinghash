@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `gearhash64.Roll`: throughput improvement via a precomputed
+  shifted-leaving-byte table, computed once per `Write` instead of
+  shifting by a variable count on every `Roll`.
+
 ## v4.2.0 - 2026-06-30
 
 ### Added
