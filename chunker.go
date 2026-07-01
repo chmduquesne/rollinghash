@@ -11,6 +11,270 @@ import (
 // stays cache-resident.
 const chunkerBatchSize = 16 << 10
 
+// coreState is the result of one non-blocking attempt to advance a
+// chunkerCore or batchRollerCore: whether a result was emitted, more input
+// is needed before one can be, or no more results will ever come.
+type coreState int
+
+const (
+	needMore coreState = iota
+	emitted
+	coreDone
+)
+
+// chunkerCore holds all content-defined-chunking state that doesn't depend
+// on how bytes arrive: the chunk accumulator, the pending boundary queue,
+// and the min/max selection logic. The pull-based chunker (fed by
+// chunker.fillCore from an io.Reader) and the push-based chunkWriter (fed
+// directly by Write) each wrap one, supplying only their own "how do I get
+// more bytes" mechanism.
+type chunkerCore struct {
+	h      Hash
+	brd    hashBoundaryRoller
+	sum    func() uint64 // reads h's current sum, for windowSum
+	window int
+	mask   uint64
+	min    int
+	max    int
+	la, lb []int32
+
+	// chunk byte accumulator; cbuf[head] is the byte at global offset chunkStart
+	cbuf       []byte
+	head       int
+	chunkStart int
+	consumed   int // global offset of the next not-yet-buffered byte
+
+	bounds []int // ascending global boundary-byte positions, not yet consumed
+	bcur   int
+
+	carryBuf []byte // last window-1 raw bytes, prepended to the next feed
+	scratch  []byte // reused: carryBuf ++ newBytes, passed to BatchBoundaries
+	eof      bool   // finish() was called: no more data will ever arrive
+
+	done           bool
+	err            error
+	chunk          []byte
+	sumv           uint64
+	contentDefined bool
+	offset         int
+}
+
+// newChunkerCore builds the shared boundary-finding state for both chunker
+// and chunkWriter. It panics if h does not implement hashBoundaryRoller.
+func newChunkerCore(h Hash, window int, mask uint64, min, max int) *chunkerCore {
+	brd, ok := h.(hashBoundaryRoller)
+	if !ok {
+		panic("rollinghash: chunker requires BatchBoundaries")
+	}
+	c := &chunkerCore{
+		h:      h,
+		brd:    brd,
+		window: window,
+		mask:   mask,
+		min:    min,
+		max:    max,
+	}
+	switch v := h.(type) {
+	case hash.Hash64:
+		c.sum = v.Sum64
+	case hash.Hash32:
+		c.sum = func() uint64 { return uint64(v.Sum32()) }
+	default:
+		var b [8]byte
+		c.sum = func() uint64 {
+			var r uint64
+			for _, x := range h.Sum(b[:0]) {
+				r = r<<8 | uint64(x)
+			}
+			return r
+		}
+	}
+	return c
+}
+
+// reset clears all buffered state for reuse with a new stream, keeping
+// internal allocations (la, lb, cbuf, bounds, carryBuf, scratch backing
+// arrays).
+func (c *chunkerCore) reset() {
+	c.cbuf = c.cbuf[:0]
+	c.head = 0
+	c.chunkStart = 0
+	c.consumed = 0
+	c.bounds = c.bounds[:0]
+	c.bcur = 0
+	c.carryBuf = c.carryBuf[:0]
+	c.eof = false
+	c.done = false
+	c.err = nil
+	c.chunk = nil
+	c.sumv = 0
+	c.contentDefined = false
+	c.offset = 0
+}
+
+// finish signals that no more data will ever arrive, so next() can flush
+// the trailing chunk instead of returning needMore.
+func (c *chunkerCore) finish() { c.eof = true }
+
+// feed ingests newBytes (bytes not previously seen), finds any boundaries
+// within them via BatchBoundaries (using carryBuf to supply window-1 bytes
+// of context left over from the previous feed), and appends them to the
+// chunk accumulator. It also compacts the already-emitted prefix of cbuf
+// and bounds first, so both stay bounded across many chunks.
+func (c *chunkerCore) feed(newBytes []byte) {
+	if c.head > 0 {
+		m := copy(c.cbuf, c.cbuf[c.head:])
+		c.cbuf = c.cbuf[:m]
+		c.head = 0
+	}
+	if c.bcur > 0 {
+		m := copy(c.bounds, c.bounds[c.bcur:])
+		c.bounds = c.bounds[:m]
+		c.bcur = 0
+	}
+
+	c.scratch = append(c.scratch[:0], c.carryBuf...)
+	c.scratch = append(c.scratch, newBytes...)
+	batchO := c.consumed - len(c.carryBuf)
+
+	c.cbuf = append(c.cbuf, newBytes...)
+	c.consumed += len(newBytes)
+
+	w := c.window
+	if len(c.scratch) >= w {
+		need := len(c.scratch) - w + 1
+		if cap(c.la) < need {
+			c.la = make([]int32, need)
+		} else {
+			c.la = c.la[:need]
+		}
+		if cap(c.lb) < need {
+			c.lb = make([]int32, need)
+		} else {
+			c.lb = c.lb[:need]
+		}
+		na, nb := c.brd.BatchBoundaries(c.la, c.lb, c.scratch, w, c.mask)
+		for _, g := range c.la[:na] {
+			c.bounds = append(c.bounds, batchO+int(g)+w-1)
+		}
+		for _, g := range c.lb[:nb] {
+			c.bounds = append(c.bounds, batchO+int(g)+w-1)
+		}
+	}
+
+	tailLen := min(w-1, len(c.scratch))
+	c.carryBuf = append(c.carryBuf[:0], c.scratch[len(c.scratch)-tailLen:]...)
+}
+
+// next attempts one non-blocking chunk selection from currently buffered
+// state: an in-range mask boundary, a forced cut at max, or (once finish
+// has been called) the trailing bytes as a final chunk. It returns
+// needMore if none of those is currently possible.
+func (c *chunkerCore) next() coreState {
+	if c.err != nil || c.done {
+		c.chunk = nil
+		c.sumv = 0
+		c.contentDefined = false
+		c.offset = 0
+		return coreDone
+	}
+
+	minByte := c.chunkStart + c.min - 1 // smallest boundary byte with L >= min
+	var maxByte int
+	if c.max == math.MaxInt {
+		maxByte = math.MaxInt // no forced cut; avoid overflow
+	} else {
+		maxByte = c.chunkStart + c.max - 1 // forced-cut boundary byte (L == max)
+	}
+
+	for c.bcur < len(c.bounds) {
+		e := c.bounds[c.bcur]
+		if e < minByte {
+			c.bcur++ // too short for this chunk; never reusable
+			continue
+		}
+		if e <= maxByte {
+			c.bcur++
+			c.emit(e, true)
+			return emitted
+		}
+		break // next boundary is past max; force a cut instead
+	}
+
+	// No in-range mask boundary: force a cut at max once those bytes exist.
+	if c.consumed-1 >= maxByte {
+		c.emit(maxByte, false)
+		return emitted
+	}
+
+	if c.eof {
+		// A stream that never reached a full window yields no chunks at
+		// all (matches BatchRoller: "an input shorter than window yields
+		// no batches"), even though feed() unconditionally buffers
+		// whatever bytes it saw into cbuf.
+		if c.consumed >= c.window && c.head < len(c.cbuf) { // trailing bytes -> final chunk
+			c.done = true
+			c.emit(c.consumed-1, false)
+			return emitted
+		}
+		c.done = true
+		c.chunk = nil
+		c.sumv = 0
+		c.contentDefined = false
+		c.offset = 0
+		return coreDone
+	}
+
+	return needMore
+}
+
+// emit records the chunk ending at global byte e and advances past it.
+func (c *chunkerCore) emit(e int, contentDefined bool) {
+	l := e - c.chunkStart + 1
+	c.chunk = c.cbuf[c.head : c.head+l]
+	c.offset = c.chunkStart
+	if contentDefined {
+		c.sumv = c.windowSum(e)
+	} else {
+		c.sumv = 0
+	}
+	c.contentDefined = contentDefined
+	c.head += l
+	c.chunkStart += l
+}
+
+// windowSum recomputes the rolling checksum of the window ending at global byte
+// e from the buffered bytes (cheap: once per emitted chunk). Returns 0 when the
+// window is not fully buffered (a final chunk shorter than window).
+func (c *chunkerCore) windowSum(e int) uint64 {
+	start := e - c.window + 1
+	if start < c.chunkStart {
+		return 0
+	}
+	off := c.head + (start - c.chunkStart)
+	c.h.Reset()
+	c.h.Write(c.cbuf[off : off+c.window])
+	return c.sum()
+}
+
+// Bytes returns the current chunk, valid until the next call to next/feed.
+func (c *chunkerCore) Bytes() []byte { return c.chunk }
+
+// Sum returns the rolling checksum at the current chunk's boundary.
+func (c *chunkerCore) Sum() uint64 { return c.sumv }
+
+// ContentDefined reports whether the current chunk was cut by the mask.
+func (c *chunkerCore) ContentDefined() bool { return c.contentDefined }
+
+// Err returns the first non-EOF error encountered, if any.
+func (c *chunkerCore) Err() error { return c.err }
+
+// Offset returns the start byte offset of the current chunk in the stream.
+func (c *chunkerCore) Offset() int { return c.offset }
+
+// WindowSize returns the rolling window size.
+func (c *chunkerCore) WindowSize() int { return c.window }
+
 // chunker splits an io.Reader into content-defined chunks. A boundary is
 // placed after the first byte at which the rolling checksum (over the preceding
 // window bytes) satisfies checksum & mask == 0, subject to a chunk length in
@@ -32,49 +296,21 @@ const chunkerBatchSize = 16 << 10
 // checksum stream is materialized). The hash must implement BatchBoundaries;
 // Newchunker panics otherwise.
 type chunker struct {
-	h      Hash
-	brd    hashBoundaryRoller
-	sum    func() uint64 // reads h's current sum, for windowSum
-	window int
-	mask   uint64
-	min    int
-	max    int
+	core *chunkerCore
 
-	r      io.Reader
-	rbuf   []byte
-	carry  int
-	prevN  int
-	eof    bool
-	la, lb []int32
-
-	firstBatch bool
-
-	// chunk byte accumulator; cbuf[head] is the byte at global offset chunkStart
-	cbuf       []byte
-	head       int
-	chunkStart int
-	consumed   int // global offset of the next not-yet-buffered byte
-
-	bounds []int // ascending global boundary-byte positions, not yet consumed
-	bcur   int
-
-	done   bool
-	err    error
-	chunk  []byte
-	sumv   uint64
-	contentDefined bool
-	offset         int
+	r    io.Reader
+	rbuf []byte
 }
 
-// chunkerOption is a functional option for NewChunker.
-type chunkerOption func(*chunker)
+// chunkerOption is a functional option shared by NewChunker and NewChunkWriter.
+type chunkerOption func(*chunkerCore)
 
 // WithBoundaries sets the minimum and maximum chunk size. Chunks shorter than
 // min bytes are extended to the next boundary; chunks that reach max bytes
 // without a mask hit are cut there unconditionally. Defaults are 0 and
 // math.MaxInt.
 func WithBoundaries(min, max int) chunkerOption {
-	return func(c *chunker) { c.min = min; c.max = max }
+	return func(c *chunkerCore) { c.min = min; c.max = max }
 }
 
 // NewChunker returns a chunker over r. A boundary is placed where the rolling
@@ -83,249 +319,93 @@ func WithBoundaries(min, max int) chunkerOption {
 // WithMaxSize to set min (default 0) and max (default math.MaxInt).
 // The hash must implement BatchBoundaries; NewChunker panics otherwise.
 func NewChunker(r io.Reader, h Hash, window int, mask uint64, opts ...chunkerOption) Chunker {
-	brd, ok := h.(hashBoundaryRoller)
-	if !ok {
-		panic("rollinghash: chunker requires BatchBoundaries")
-	}
-	c := &chunker{
-		h:          h,
-		brd:        brd,
-		window:     window,
-		mask:       mask,
-		min:        0,
-		max:        math.MaxInt,
-		firstBatch: true,
-	}
+	core := newChunkerCore(h, window, mask, 0, math.MaxInt)
 	for _, opt := range opts {
-		opt(c)
+		opt(core)
 	}
-	switch v := h.(type) {
-	case hash.Hash64:
-		c.sum = v.Sum64
-	case hash.Hash32:
-		c.sum = func() uint64 { return uint64(v.Sum32()) }
-	default:
-		var b [8]byte
-		c.sum = func() uint64 {
-			var r uint64
-			for _, x := range h.Sum(b[:0]) {
-				r = r<<8 | uint64(x)
-			}
-			return r
-		}
+	bufSize := max(chunkerBatchSize, window)
+	return &chunker{
+		core: core,
+		r:    r,
+		rbuf: make([]byte, bufSize),
 	}
-	bufSize := chunkerBatchSize
-	if bufSize < window {
-		bufSize = window
-	}
-	maxOut := bufSize - window + 1
-	if maxOut < 1 {
-		maxOut = 1
-	}
-	c.r = r
-	c.rbuf = make([]byte, bufSize)
-	c.la = make([]int32, maxOut)
-	c.lb = make([]int32, maxOut)
-	return c
 }
 
 // Reset prepares the chunker to split r from the start, reusing its buffers.
 func (c *chunker) Reset(r io.Reader) {
 	c.r = r
-	c.carry = 0
-	c.prevN = 0
-	c.eof = false
-	c.firstBatch = true
-	c.cbuf = c.cbuf[:0]
-	c.head = 0
-	c.chunkStart = 0
-	c.consumed = 0
-	c.bounds = c.bounds[:0]
-	c.bcur = 0
-	c.done = false
-	c.err = nil
-	c.chunk = nil
-	c.sumv = 0
-	c.contentDefined = false
-	c.offset = 0
+	c.core.reset()
 }
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error. After it returns false, Err reports any error other than EOF.
 func (c *chunker) Next() bool {
-	if c.err != nil || c.done {
-		c.chunk = nil
-		c.sumv = 0
-		c.contentDefined = false
-		c.offset = 0
-		return false
-	}
 	for {
-		minByte := c.chunkStart + c.min - 1 // smallest boundary byte with L >= min
-		var maxByte int
-		if c.max == math.MaxInt {
-			maxByte = math.MaxInt // no forced cut; avoid overflow
-		} else {
-			maxByte = c.chunkStart + c.max - 1 // forced-cut boundary byte (L == max)
-		}
-
-		// First mask boundary with min <= L <= max, among the boundaries known
-		// so far.
-		for c.bcur < len(c.bounds) {
-			e := c.bounds[c.bcur]
-			if e < minByte {
-				c.bcur++ // too short for this chunk; never reusable
-				continue
+		switch c.core.next() {
+		case emitted:
+			return true
+		case coreDone:
+			return false
+		case needMore:
+			if !c.fillCore() {
+				if c.core.err != nil {
+					return false
+				}
+				// Reader exhausted; loop back so next() can flush the
+				// trailing chunk (or report coreDone).
 			}
-			if e <= maxByte {
-				c.bcur++
-				return c.emit(e, true)
-			}
-			break // next boundary is past max; force a cut instead
-		}
-
-		// No in-range mask boundary: force a cut at max once those bytes exist.
-		if c.consumed-1 >= maxByte {
-			return c.emit(maxByte, false)
-		}
-
-		// Need more data.
-		if !c.readBatch() {
-			if c.err != nil {
-				return c.fail()
-			}
-			if c.head < len(c.cbuf) { // trailing bytes -> final chunk
-				c.done = true
-				return c.emit(c.consumed-1, false)
-			}
-			return c.fail()
 		}
 	}
 }
 
-// emit records the chunk ending at global byte e and advances past it.
-func (c *chunker) emit(e int, contentDefined bool) bool {
-	l := e - c.chunkStart + 1
-	c.chunk = c.cbuf[c.head : c.head+l]
-	c.offset = c.chunkStart
-	if contentDefined {
-		c.sumv = c.windowSum(e)
-	} else {
-		c.sumv = 0
-	}
-	c.contentDefined = contentDefined
-	c.head += l
-	c.chunkStart += l
-	return true
-}
-
-// windowSum recomputes the rolling checksum of the window ending at global byte
-// e from the buffered bytes (cheap: once per emitted chunk). Returns 0 when the
-// window is not fully buffered (a final chunk shorter than window).
-func (c *chunker) windowSum(e int) uint64 {
-	start := e - c.window + 1
-	if start < c.chunkStart {
-		return 0
-	}
-	off := c.head + (start - c.chunkStart)
-	c.h.Reset()
-	c.h.Write(c.cbuf[off : off+c.window])
-	return c.sum()
-}
-
-// readBatch reads the next block and finds boundaries via BatchBoundaries.
-func (c *chunker) readBatch() bool {
-	if c.eof {
+// fillCore reads the next block from r into rbuf and feeds it to core. It
+// returns false once the reader is exhausted (core.finish has been called)
+// or on error (core.err is set).
+func (c *chunker) fillCore() bool {
+	if c.core.eof {
 		return false
 	}
-
-	// Drop the already-emitted prefix from cbuf and the consumed boundaries.
-	if c.head > 0 {
-		m := copy(c.cbuf, c.cbuf[c.head:])
-		c.cbuf = c.cbuf[:m]
-		c.head = 0
-	}
-	if c.bcur > 0 {
-		m := copy(c.bounds, c.bounds[c.bcur:])
-		c.bounds = c.bounds[:m]
-		c.bcur = 0
-	}
-
-	// Carry the previous batch's trailing window-1 bytes to the front, then fill.
-	if c.carry > 0 {
-		copy(c.rbuf[:c.carry], c.rbuf[c.prevN-c.carry:c.prevN])
-	}
-	n := c.carry
-	for n < len(c.rbuf) && !c.eof {
+	n := 0
+	eof := false
+	for n < len(c.rbuf) && !eof {
 		m, err := c.r.Read(c.rbuf[n:])
 		n += m
 		if err == io.EOF {
-			c.eof = true
+			eof = true
 		} else if err != nil {
-			c.err = err
+			c.core.err = err
 			return false
 		}
 	}
-	if n < c.window {
-		c.eof = true
+	if n > 0 {
+		c.core.feed(c.rbuf[:n])
+	}
+	if eof {
+		c.core.finish()
 		return false
 	}
-
-	var batchO int
-	if c.firstBatch {
-		batchO = 0
-		c.cbuf = append(c.cbuf, c.rbuf[:n]...)
-		c.consumed = n
-		c.firstBatch = false
-	} else {
-		batchO = c.consumed - (c.window - 1)
-		c.cbuf = append(c.cbuf, c.rbuf[c.window-1:n]...)
-		c.consumed += n - (c.window - 1)
-	}
-
-	w := c.window
-	na, nb := c.brd.BatchBoundaries(c.la, c.lb, c.rbuf[:n], w, c.mask)
-	for _, g := range c.la[:na] {
-		c.bounds = append(c.bounds, batchO+int(g)+w-1)
-	}
-	for _, g := range c.lb[:nb] {
-		c.bounds = append(c.bounds, batchO+int(g)+w-1)
-	}
-
-	c.carry = c.window - 1
-	c.prevN = n
 	return true
-}
-
-// fail clears the current chunk state and reports no further chunks.
-func (c *chunker) fail() bool {
-	c.done = true
-	c.chunk = nil
-	c.sumv = 0
-	c.contentDefined = false
-	c.offset = 0
-	return false
 }
 
 // Bytes returns the current chunk, valid until the next call to Next. Before
 // the first call to Next, and after Next returns false, Bytes returns nil.
-func (c *chunker) Bytes() []byte { return c.chunk }
+func (c *chunker) Bytes() []byte { return c.core.Bytes() }
 
 // Sum returns the rolling checksum at the current chunk's boundary. Before
 // the first call to Next, and after Next returns false, Sum returns 0.
-func (c *chunker) Sum() uint64 { return c.sumv }
+func (c *chunker) Sum() uint64 { return c.core.Sum() }
 
 // ContentDefined reports whether the current chunk was cut by the mask (true) rather
 // than forced at max or at end of stream (false). Before the first call to
 // Next, and after Next returns false, ContentDefined returns false.
-func (c *chunker) ContentDefined() bool { return c.contentDefined }
+func (c *chunker) ContentDefined() bool { return c.core.ContentDefined() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *chunker) Err() error { return c.err }
+func (c *chunker) Err() error { return c.core.Err() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
 // Before the first call to Next, and after Next returns false, Offset returns 0.
-func (c *chunker) Offset() int { return c.offset }
+func (c *chunker) Offset() int { return c.core.Offset() }
 
 // WindowSize returns the rolling window size passed to NewChunker.
-func (c *chunker) WindowSize() int { return c.window }
+func (c *chunker) WindowSize() int { return c.core.WindowSize() }

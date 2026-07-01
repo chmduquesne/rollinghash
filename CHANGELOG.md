@@ -2,11 +2,26 @@
 
 ## Unreleased
 
+### Added
+
+- `ChunkWriter`: push-based counterpart to `Chunker`, satisfied by
+  `NewChunkWriter`. Fed via `Write`/`Close` (`io.WriteCloser`) instead of
+  owning an `io.Reader`, for callers whose data arrives in caller-controlled
+  pieces (e.g. content-addressable storage writers). Shares its
+  boundary-finding core with `Chunker`.
+- `BatchWriter`: push-based counterpart to `BatchRoller`, satisfied by
+  `NewBatchWriter`. Fed via `Write`/`Close` instead of owning an
+  `io.Reader`. Shares its batching core with `BatchRoller`.
+
 ### Changed
 
 - `gearhash64.Roll`: throughput improvement via a precomputed
   shifted-leaving-byte table, computed once per `Write` instead of
   shifting by a variable count on every `Roll`.
+- `chunker.go`/`batchroller.go`: internal refactor extracting the
+  source-agnostic boundary-finding/batching logic into `chunkerCore`/
+  `batchRollerCore`, now shared with `ChunkWriter`/`BatchWriter`. No
+  behavior change for `Chunker`/`BatchRoller`.
 
 ## v4.2.0 - 2026-06-30
 

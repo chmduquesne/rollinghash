@@ -217,6 +217,56 @@ func ExampleChunker() {
 	// split 4096 bytes into 13 chunks: [123 154 374 118 667 86 200 451 231 243 741 449 259]
 }
 
+// BatchWriter is the push-based counterpart to BatchRoller: instead of
+// owning an io.Reader, it's fed via Write, for callers whose data arrives in
+// caller-controlled pieces (network reads, a callback API) rather than as
+// something they can wrap in an io.Reader.
+func ExampleBatchWriter() {
+	needle := []byte("brown")
+	window := len(needle)
+
+	h := buzhash64.New()
+	if _, err := h.Write(needle); err != nil {
+		log.Fatal(err)
+	}
+	target := h.Sum64()
+
+	w := rollinghash.NewBatchWriter(buzhash64.New(), window)
+
+	// Data can arrive in arbitrarily sized pieces; here it's split across
+	// two Writes to show that boundary-straddling windows are still found.
+	pieces := [][]byte{
+		[]byte("the quick brown fox "),
+		[]byte("jumps over the lazy dog"),
+	}
+	for _, p := range pieces {
+		if _, err := w.Write(p); err != nil {
+			log.Fatal(err)
+		}
+		for w.Next() {
+			sums, buf := w.Sums(), w.Bytes()
+			for i, sum := range sums {
+				if sum == target && bytes.Equal(buf[i:i+window], needle) {
+					fmt.Printf("found %q at offset %d\n", needle, w.Offset()+i)
+				}
+			}
+		}
+	}
+	w.Close()
+	for w.Next() {
+		sums, buf := w.Sums(), w.Bytes()
+		for i, sum := range sums {
+			if sum == target && bytes.Equal(buf[i:i+window], needle) {
+				fmt.Printf("found %q at offset %d\n", needle, w.Offset()+i)
+			}
+		}
+	}
+	if err := w.Err(); err != nil {
+		log.Fatal(err)
+	}
+	// Output: found "brown" at offset 10
+}
+
 // Reset lets you reuse a Chunker's internal buffers for a new stream without
 // any extra allocations. This matters when chunking many streams in a loop.
 func ExampleChunker_Reset() {
@@ -252,4 +302,48 @@ func ExampleChunker_Reset() {
 	// Output:
 	// stream 0: 13 chunks
 	// stream 1: 14 chunks
+}
+
+// ChunkWriter is the push-based counterpart to Chunker: instead of owning
+// an io.Reader, it's fed via Write, for callers whose data arrives in
+// caller-controlled pieces (network reads, a callback API) rather than as
+// something they can wrap in an io.Reader.
+func ExampleChunkWriter() {
+	// Repeatable pseudo-random data (xorshift), so the boundaries are stable.
+	data := make([]byte, 4096)
+	x := uint32(1)
+	for i := range data {
+		x ^= x << 13
+		x ^= x >> 17
+		x ^= x << 5
+		data[i] = byte(x)
+	}
+
+	cw := rollinghash.NewChunkWriter(buzhash64.New(), 56, 0xff, rollinghash.WithBoundaries(64, 1024))
+
+	var sizes []int
+	total := 0
+	// Data can arrive in arbitrarily sized pieces; here it's split into two
+	// Writes to show that a chunk boundary straddling them is still found.
+	for _, piece := range [][]byte{data[:2000], data[2000:]} {
+		if _, err := cw.Write(piece); err != nil {
+			log.Fatal(err)
+		}
+		for cw.Next() {
+			sizes = append(sizes, len(cw.Bytes()))
+			total += len(cw.Bytes())
+		}
+	}
+	cw.Close()
+	for cw.Next() {
+		sizes = append(sizes, len(cw.Bytes()))
+		total += len(cw.Bytes())
+	}
+	if err := cw.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("split %d bytes into %d chunks: %v\n", total, len(sizes), sizes)
+	// Output:
+	// split 4096 bytes into 13 chunks: [123 154 374 118 667 86 200 451 231 243 741 449 259]
 }
