@@ -4,6 +4,7 @@ Package rollinghash implements rolling versions of some hashes
 package rollinghash
 
 import (
+	"errors"
 	"hash"
 	"io"
 )
@@ -11,6 +12,10 @@ import (
 // DefaultWindowCap is the default capacity of the internal window of a
 // new Hash.
 const DefaultWindowCap = 64
+
+// ErrClosed is returned by ChunkWriter.Write and BatchWriter.Write when
+// called after Close.
+var ErrClosed = errors.New("rollinghash: Write called after Close")
 
 // A Roller is a type that has the method Roll. Roll updates the hash of a
 // rolling window from just the entering byte. You MUST call Write()
@@ -90,7 +95,7 @@ type Hash64 interface {
 // Reset reuses internal allocations across streams.
 //
 // Note: BatchRoll bypasses the hash's internal rolling window. After passing h
-// to NewBatchRoller, h.WriteWindow() will not reflect the stream — use
+// to NewBatchRoller, h.WriteWindow() will not reflect the stream; use
 // WindowSize() on the BatchRoller instead.
 type BatchRoller interface {
 	Next() bool
@@ -126,7 +131,7 @@ type BatchRoller interface {
 // Reset reuses internal allocations across streams.
 //
 // Note: BatchBoundaries bypasses the hash's internal rolling window. After
-// passing h to NewChunker, h.WriteWindow() will not reflect the stream — use
+// passing h to NewChunker, h.WriteWindow() will not reflect the stream; use
 // WindowSize() on the Chunker instead.
 type Chunker interface {
 	Next() bool
@@ -137,6 +142,84 @@ type Chunker interface {
 	WindowSize() int
 	Err() error
 	Reset(r io.Reader)
+}
+
+// BatchWriter computes rolling checksums over a pushed stream, like
+// BatchRoller, but is fed via Write instead of owning an io.Reader. Use it
+// when data arrives in caller-controlled pieces (network reads, a callback
+// API) rather than as something you can wrap in an io.Reader.
+//
+//	bw := NewBatchWriter(h, window)
+//	for moreData() {
+//		bw.Write(next())
+//		for bw.Next() {
+//			sums, buf := bw.Sums(), bw.Bytes()
+//			// sums[i] is the checksum of buf[i:i+window], at bw.Offset()+i
+//		}
+//	}
+//	bw.Close()
+//	for bw.Next() { ... } // final batch, if any bytes formed a full window
+//	if err := bw.Err(); err != nil { ... }
+//
+// Before Close, Next returning false means not enough bytes have been
+// written yet to complete a window; write more and try again. After Close,
+// Next returning false means everything has been emitted.
+//
+// The hash must implement BatchRoll; NewBatchWriter panics otherwise.
+type BatchWriter interface {
+	io.Writer
+	io.Closer
+	Next() bool
+	Bytes() []byte
+	Sums() []uint64
+	Offset() int
+	WindowSize() int
+	Err() error
+
+	// Reset clears all buffered state for reuse with a new stream, keeping
+	// internal allocations.
+	Reset()
+}
+
+// ChunkWriter splits a pushed stream into content-defined chunks, like
+// Chunker, but is fed via Write instead of owning an io.Reader. Use it when
+// data arrives in caller-controlled pieces (network reads, a callback API)
+// rather than as something you can wrap in an io.Reader.
+//
+//	cw := NewChunkWriter(h, window, mask)
+//	for moreData() {
+//		cw.Write(next())
+//		for cw.Next() {
+//			chunk := cw.Bytes()
+//			// ContentDefined, Sum, Offset as on Chunker
+//		}
+//	}
+//	cw.Close()
+//	for cw.Next() {
+//		// final chunk(s), flushed now that the stream is known to be over
+//	}
+//	if err := cw.Err(); err != nil { ... }
+//
+// Before Close, Next returning false means no boundary is available yet in
+// the bytes written so far; call Write with more data and try again. After
+// Close, Next returning false means every chunk, including the final one,
+// has been emitted; Err reports any error.
+//
+// The hash must implement BatchBoundaries; NewChunkWriter panics otherwise.
+type ChunkWriter interface {
+	io.Writer
+	io.Closer
+	Next() bool
+	Bytes() []byte
+	ContentDefined() bool
+	Sum() uint64
+	Offset() int
+	WindowSize() int
+	Err() error
+
+	// Reset clears all buffered state for reuse with a new stream, keeping
+	// internal allocations.
+	Reset()
 }
 
 // hashBatchRoller is the interface a Hash must implement to be usable with

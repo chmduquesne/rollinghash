@@ -1,12 +1,49 @@
 # Changelog
 
-## Unreleased
+## v4.3.0 - 2026-08-30
+
+### Added
+
+- `ChunkWriter`: push-based counterpart to `Chunker`, satisfied by
+  `NewChunkWriter`. Fed via `Write`/`Close` (`io.WriteCloser`) instead of
+  owning an `io.Reader`, for callers whose data arrives in caller-controlled
+  pieces (e.g. content-addressable storage writers). Shares its
+  boundary-finding core with `Chunker`. `Write` coalesces bytes until
+  `WithBatchSize` (default 16 KiB, shared with `NewChunker`'s read-buffer
+  size) is reached, or `Close` is called, so `BatchBoundaries` is invoked on
+  reasonably large batches even when the caller writes in small pieces;
+  runs in O(n) regardless of Write call size or count, feeding directly from
+  the caller's slice rather than copying it, and keeps its internal
+  coalescing buffer bounded to roughly one batch regardless of how large
+  individual Write calls are. `Write` returns `ErrClosed` if called after
+  `Close`.
+- `BatchWriter`: push-based counterpart to `BatchRoller`, satisfied by
+  `NewBatchWriter`. Fed via `Write`/`Close` instead of owning an
+  `io.Reader`. Shares its batching core with `BatchRoller`. `Write`
+  coalesces the same way as `ChunkWriter`, reusing `WithBufferSize` (default
+  64 KiB) as the coalescing threshold; `Write` returns `ErrClosed` if called
+  after `Close`.
+- `WithBatchSize`: functional option (shared by `NewChunker` and
+  `NewChunkWriter`) setting the read-buffer size (`NewChunker`) or
+  write-coalescing threshold (`NewChunkWriter`). Default 16 KiB. Same role
+  as `WithBufferSize` for `NewBatchRoller`/`NewBatchWriter`; the two
+  options can't share one name (distinct option types, no function
+  overloading in Go), so both are documented as equivalents of each other.
+  For `ChunkWriter`/`BatchWriter`, the low end of this range is steep: the
+  technical minimum (`window`) gives up most of the throughput a batch size
+  of just a few KiB would already recover; see the doc comments.
+- `ErrClosed`: sentinel error returned by `ChunkWriter.Write`/
+  `BatchWriter.Write` after `Close`.
 
 ### Changed
 
 - `gearhash64.Roll`: throughput improvement via a precomputed
   shifted-leaving-byte table, computed once per `Write` instead of
   shifting by a variable count on every `Roll`.
+- `chunker.go`/`batchroller.go`: internal refactor extracting the
+  source-agnostic boundary-finding/batching logic into `chunkerCore`/
+  `batchRollerCore`, now shared with `ChunkWriter`/`BatchWriter`. No
+  behavior change for `Chunker`/`BatchRoller`.
 
 ## v4.2.0 - 2026-06-30
 

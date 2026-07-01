@@ -17,8 +17,8 @@ are drop-in replacements whenever a builtin counterpart exists.
 
 [`rollinghash.Hash`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Hash)
 is the simplest interface: call `Roll` once per incoming byte and read the
-updated hash immediately. It is the right choice when the data is already in
-memory or when throughput is not the bottleneck.
+updated hash immediately. It is ideal when the data is already in memory or when
+throughput is not the bottleneck.
 
 ```golang
 data := []byte("here is some data to roll on")
@@ -36,14 +36,19 @@ for _, c := range data[n:] {
 The hash maintains an internal copy of the rolling window. Use `WriteWindow` to
 read it back out.
 
-### BatchRoller
+### Pull interfaces
+
+`BatchRoller` and `Chunker` operate on an `io.Reader`: they own the stream
+and pull data from it themselves via `Next`. Use these when the data is
+already available behind an `io.Reader`.
+
+#### BatchRoller
 
 [`rollinghash.BatchRoller`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#BatchRoller)
-is designed for searching a block within a stream, rsync-style: the
-rolling checksum acts as a cheap filter, and a secondary check (e.g. byte
-comparison) confirms the match. It batches computations to exploit
-instruction-level parallelism, achieving about twice the throughput of
-`Roll`.
+is designed for searching a block within a stream, rsync-style: the rolling
+checksum acts as a cheap filter, and a secondary check confirms the match.
+Computations are batched to exploit instruction-level parallelism, achieving
+about twice the throughput of `Roll`.
 
 ```golang
 data := []byte("the quick brown fox jumps over the lazy dog")
@@ -70,17 +75,17 @@ if err := s.Err(); err != nil {
 ```
 
 Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`, at
-stream position `Offset()+i`. Use `WithBufferSize` to control the batch size
-and `Reset` to reuse the batch roller across multiple streams without extra
+stream position `Offset()+i`. Use `WithBufferSize` to control the batch size and
+`Reset` to reuse the batch roller across multiple streams without extra
 allocations.
 
-### Chunker
+#### Chunker
 
 [`rollinghash.Chunker`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Chunker)
-is designed for Content Defined Chunking (CDC). It also operates on a
-stream, uses the same batch optimization as the BatchRoller, and therefore
-performs about as well. The stream is split wherever the rolling checksum
-matches a mask. Use `WithBoundaries` to keep chunk sizes within a desired range.
+is designed for Content Defined Chunking (CDC). It uses the same batch
+optimization as the BatchRoller. The stream is split wherever the rolling
+checksum matches a mask. Use `WithBoundaries` to keep chunk sizes within a
+desired range.
 
 ```golang
 // Generate 4KiB of pseudo-random data
@@ -111,6 +116,101 @@ if err := c.Err(); err != nil {
 
 Use `Reset` to reuse the chunker across multiple streams without extra
 allocations.
+
+### Push interfaces
+
+Use these when you don't control how the data arrives: it's pushed to you
+piece by piece, e.g. through an `io.Writer` you have to implement, a
+callback API, or a network read loop, rather than something you can wrap
+in an `io.Reader`. `BatchWriter` and `ChunkWriter` are fed via
+`Write`/`Close` (`io.WriteCloser`) instead of pulling from a stream
+themselves.
+
+`Write` coalesces incoming bytes until a full batch is available (or
+`Close` is called), so the batched rolling-hash computation still runs on
+reasonably large batches even when the caller writes in small pieces; it
+runs in O(n) regardless of `Write` call size or count. `Write` returns
+`ErrClosed` if called after `Close`.
+
+#### BatchWriter
+
+[`rollinghash.BatchWriter`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#BatchWriter)
+does rsync-style block search (like `BatchRoller`) over data delivered via
+`Write`.
+
+```golang
+needle := []byte("brown")
+window := len(needle)
+
+h := buzhash64.New()
+h.Write(needle)
+target := h.Sum64()
+
+w := rollinghash.NewBatchWriter(buzhash64.New(), window)
+
+// Data can arrive in arbitrarily sized pieces; boundary-straddling
+// windows are still found across Write calls.
+for _, p := range [][]byte{[]byte("the quick brown fox "), []byte("jumps over the lazy dog")} {
+    w.Write(p)
+    for w.Next() {
+        sums, buf := w.Sums(), w.Bytes()
+        for i, sum := range sums {
+            if sum == target && bytes.Equal(buf[i:i+window], needle) {
+                fmt.Printf("found %q at offset %d\n", needle, w.Offset()+i)
+            }
+        }
+    }
+}
+w.Close()
+for w.Next() {
+    // drain any data buffered below one batch
+}
+if err := w.Err(); err != nil {
+    log.Fatal(err)
+}
+```
+
+Use `WithBufferSize` to control the coalescing threshold.
+
+#### ChunkWriter
+
+[`rollinghash.ChunkWriter`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#ChunkWriter)
+does Content Defined Chunking (like `Chunker`) over data delivered via `Write`.
+
+```golang
+// Generate 4KiB of pseudo-random data
+data := make([]byte, 4096)
+x := uint32(1)
+for i := range data {
+    x ^= x << 13; x ^= x >> 17; x ^= x << 5
+    data[i] = byte(x)
+}
+
+cw := rollinghash.NewChunkWriter(buzhash64.New(), 56, 0xff, rollinghash.WithBoundaries(64, 1024))
+
+// Data can arrive in arbitrarily sized pieces; here it's split into two
+// Writes to show that a chunk boundary straddling them is still found.
+for _, piece := range [][]byte{data[:2000], data[2000:]} {
+    cw.Write(piece)
+    for cw.Next() {
+        chunk := cw.Bytes()
+        if cw.ContentDefined() {
+            fmt.Printf("boundary at %d: sum=0x%x\n", cw.Offset()+len(chunk), cw.Sum())
+        } else {
+            fmt.Printf("max cut at %d\n", cw.Offset()+len(chunk))
+        }
+    }
+}
+cw.Close()
+for cw.Next() {
+    // final chunk(s), flushed now that the stream is known to be over
+}
+if err := cw.Err(); err != nil {
+    log.Fatal(err)
+}
+```
+
+Use `WithBatchSize` to control the coalescing threshold.
 
 ## Gotchas
 
@@ -156,27 +256,31 @@ This is inherent to the cyclic polynomial construction and cannot be fixed
 by changing the byte table. Any window length that is not a multiple of
 the word size avoids it (e.g. use 48 or 56 instead of 64).
 
-### BatchRoller and Chunker bypass the hash's rolling window
+### BatchRoller, Chunker, BatchWriter and ChunkWriter bypass the hash's rolling window
 
 `BatchRoll` and `BatchBoundaries` are bulk operations that do not update
-the hash's internal rolling window. After passing a hash to `NewBatchRoller`
-or `NewChunker`, calling `h.WriteWindow()` on that hash will not reflect the
-stream contents — its state is undefined. Use `WindowSize()` on the
-`BatchRoller` or `Chunker` instead.
+the hash's internal rolling window. After passing a hash to `NewBatchRoller`,
+`NewChunker`, `NewBatchWriter` or `NewChunkWriter`, calling `h.WriteWindow()`
+on that hash will not reflect the stream contents; its state is undefined.
+Use `WindowSize()` on the roller/chunker/writer instead.
 
 ## Which hash to use
 
-Benchmarked on 2026-06-30, linux/amd64, AMD Ryzen 7 PRO 7840U (`go test -bench='BenchmarkChunker/.*/fused|BenchmarkBatchRoller/.*/1024KiB|BenchmarkRolling64B' -benchtime=3s -count=6 ./...`):
+Benchmarked on 2026-08-30, linux/amd64, AMD Ryzen 7 PRO 7840U. The Roll,
+Chunker, and BatchRoller columns take each hash's best result from the
+full sweep in [benchmark.md](benchmark.md) (generated via `./benchmark.sh`);
+ChunkWriter and BatchWriter come from the same sweep and confirm the push
+interfaces perform the same as their pull counterparts:
 
-| Hash | Roll (MB/s) | Chunker (MB/s) | BatchRoller (MB/s) | Uniformly distributed | Parametrizable |
-|---|---|---|---|---|---|
-| `buzhash64` | 833 | 1491 | 1522 | yes¹ | yes |
-| `buzhash32` | 838 | 1453 | 1505 | yes¹ | yes |
-| `gearhash64` | 771 | 1476 | 1450 | yes | yes |
-| `bozo32` | 847 | 1139 | 1371 | yes² | yes (single multiplier) |
-| `bozo64` | 830 | 1131 | 1329 | yes² | yes (single multiplier) |
-| `rabinkarp64` | 508 | 780 | 847 | yes | yes |
-| `adler32` | 250 | 402 | 420 | **no**³ | no |
+| Hash | Roll (MiB/s) | Chunker (MiB/s) | ChunkWriter (MiB/s) | BatchRoller (MiB/s) | BatchWriter (MiB/s) | Uniformly distributed | Parametrizable |
+|---|---|---|---|---|---|---|---|
+| `buzhash64` | 815 | 1457 | 1453 | 1452 | 1443 | yes¹ | yes |
+| `buzhash32` | 790 | 1409 | 1424 | 1339 | 1331 | yes¹ | yes |
+| `gearhash64` | 811 | 1453 | 1448 | 1378 | 1430 | yes | yes |
+| `bozo32` | 831 | 1128 | 1128 | 1268 | 1294 | yes² | yes (single multiplier) |
+| `bozo64` | 817 | 1131 | 1126 | 1227 | 1293 | yes² | yes (single multiplier) |
+| `rabinkarp64` | 489 | 762 | 748 | 830 | 831 | yes | yes |
+| `adler32` | 242 | 376 | 384 | 406 | 400 | **no**³ | no |
 
 ¹ Provided the window size is not a multiple of the word size (32 for `buzhash32`,
 64 for `buzhash64`). See [Gotchas](#gotchas).
