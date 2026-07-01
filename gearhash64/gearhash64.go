@@ -38,6 +38,9 @@ type GearHash64 struct {
 	window []byte
 	oldest int
 	gear   [256]uint64
+	// shiftedGear caches gear[i] << len(window), eliminating the
+	// variable-count SHLQ CL instruction from the Roll hot path.
+	shiftedGear [256]uint64
 }
 
 // GenerateHashes generates a table of 256 random 64-bit values for use with
@@ -99,6 +102,15 @@ func (d *GearHash64) Write(data []byte) (int, error) {
 	for _, c := range d.window {
 		d.sum = (d.sum << 1) + d.gear[c]
 	}
+	// (h << w) is zero when w >= 64: the oldest byte's contribution has been
+	// fully shifted out of the 64-bit accumulator, same as in Roll.
+	if w := uint(len(d.window)); w < 64 {
+		for i, h := range d.gear {
+			d.shiftedGear[i] = h << w
+		}
+	} else {
+		d.shiftedGear = [256]uint64{}
+	}
 	return len(data), nil
 }
 
@@ -114,7 +126,7 @@ func (d *GearHash64) Sum(b []byte) []byte {
 // Roll updates the checksum as byte c enters the window and the oldest byte
 // leaves. You MUST call Write before Roll.
 func (d *GearHash64) Roll(c byte) {
-	h0 := d.gear[d.window[d.oldest]]
+	h0 := d.shiftedGear[d.window[d.oldest]]
 	hn := d.gear[c]
 
 	d.window[d.oldest] = c
@@ -124,9 +136,7 @@ func (d *GearHash64) Roll(c byte) {
 		d.oldest = 0
 	}
 
-	// (h0 << l) is zero when l >= 64, which is correct: the oldest byte's
-	// contribution has been fully shifted out of the 64-bit accumulator.
-	d.sum = (d.sum << 1) - (h0 << uint(l)) + hn
+	d.sum = (d.sum << 1) - h0 + hn
 }
 
 // BatchRoll computes the rolling checksum of every window-sized slice of data
