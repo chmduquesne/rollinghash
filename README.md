@@ -266,21 +266,18 @@ Use `WindowSize()` on the roller/chunker/writer instead.
 
 ## Which hash to use
 
-Benchmarked on 2026-08-30, linux/amd64, AMD Ryzen 7 PRO 7840U. The Roll,
-Chunker, and BatchRoller columns take each hash's best result from the
-full sweep in [benchmark.md](benchmark.md) (generated via `./benchmark.sh`);
-ChunkWriter and BatchWriter come from the same sweep and confirm the push
-interfaces perform the same as their pull counterparts:
+Benchmarked on 2026-08-31, linux/amd64, AMD Ryzen 7 PRO 7840U, CPU boost
+disabled:
 
 | Hash | Roll (MiB/s) | Chunker (MiB/s) | ChunkWriter (MiB/s) | BatchRoller (MiB/s) | BatchWriter (MiB/s) | Uniformly distributed | Parametrizable |
 |---|---|---|---|---|---|---|---|
-| `buzhash64` | 815 | 1457 | 1453 | 1452 | 1443 | yes¹ | yes |
-| `buzhash32` | 790 | 1409 | 1424 | 1339 | 1331 | yes¹ | yes |
-| `gearhash64` | 811 | 1453 | 1448 | 1378 | 1430 | yes | yes |
-| `bozo32` | 831 | 1128 | 1128 | 1268 | 1294 | yes² | yes (single multiplier) |
-| `bozo64` | 817 | 1131 | 1126 | 1227 | 1293 | yes² | yes (single multiplier) |
-| `rabinkarp64` | 489 | 762 | 748 | 830 | 831 | yes | yes |
-| `adler32` | 242 | 376 | 384 | 406 | 400 | **no**³ | no |
+| `buzhash64` | 587 | 1025 | 1025 | 1032 | 1028 | yes¹ | yes |
+| `buzhash32` | 585 | 1003 | 999 | 1004 | 996 | yes¹ | yes |
+| `gearhash64` | 587 | 1015 | 1019 | 1011 | 1043 | yes | yes |
+| `bozo32` | 586 | 796 | 798 | 910 | 926 | yes² | yes (single multiplier) |
+| `bozo64` | 577 | 785 | 788 | 911 | 929 | yes² | yes (single multiplier) |
+| `rabinkarp64` | 343 | 536 | 534 | 557 | 586 | yes | yes |
+| `adler32` | 164 | 273 | 273 | 274 | 274 | **no**³ | no |
 
 ¹ Provided the window size is not a multiple of the word size (32 for `buzhash32`,
 64 for `buzhash64`). See [Gotchas](#gotchas).
