@@ -17,7 +17,7 @@ for arg in "$@"; do
 done
 set -- "${args[@]+"${args[@]}"}"
 
-count="${1:-10}"
+count="${1:-6}"
 benchtime="${2:-2s}"
 pattern='BenchmarkRolling64B|BenchmarkChunker$|BenchmarkChunkWriter$|BenchmarkBatchRoller$|BenchmarkBatchWriter$'
 

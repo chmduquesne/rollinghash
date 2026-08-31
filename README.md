@@ -271,13 +271,13 @@ disabled:
 
 | Hash | Roll (MiB/s) | Chunker (MiB/s) | ChunkWriter (MiB/s) | BatchRoller (MiB/s) | BatchWriter (MiB/s) | Uniformly distributed | Parametrizable |
 |---|---|---|---|---|---|---|---|
-| `buzhash64` | 587 | 1025 | 1025 | 1032 | 1028 | yes¹ | yes |
-| `buzhash32` | 585 | 1003 | 999 | 1004 | 996 | yes¹ | yes |
-| `gearhash64` | 587 | 1015 | 1019 | 1011 | 1043 | yes | yes |
-| `bozo32` | 586 | 796 | 798 | 910 | 926 | yes² | yes (single multiplier) |
-| `bozo64` | 577 | 785 | 788 | 911 | 929 | yes² | yes (single multiplier) |
-| `rabinkarp64` | 343 | 536 | 534 | 557 | 586 | yes | yes |
-| `adler32` | 164 | 273 | 273 | 274 | 274 | **no**³ | no |
+| `buzhash64` | 585 | 1017 | 1019 | 996 | 1019 | yes¹ | yes |
+| `buzhash32` | 585 | 993 | 1003 | 995 | 999 | yes¹ | yes |
+| `gearhash64` | 585 | 1018 | 1019 | 1022 | 1028 | yes | yes |
+| `bozo32` | 587 | 788 | 794 | 894 | 910 | yes² | yes (single multiplier) |
+| `bozo64` | 576 | 780 | 789 | 907 | 922 | yes² | yes (single multiplier) |
+| `rabinkarp64` | 344 | 527 | 535 | 568 | 567 | yes | yes |
+| `adler32` | 164 | 270 | 272 | 274 | 273 | **no**³ | no |
 
 ¹ Provided the window size is not a multiple of the word size (32 for `buzhash32`,
 64 for `buzhash64`). See [Gotchas](#gotchas).
@@ -292,12 +292,12 @@ are bounded by `window × 255`, so the high bits of the output are always zero.
 **Do not use `adler32` for CDC.** It is only useful for rsync-style block matching
 where the peer already uses adler32 (e.g. the rsync protocol itself).
 
-**`buzhash64`** is the fastest overall and a solid default for both CDC and
-block search.
+**`buzhash64`** and **`gearhash64`** are essentially tied for fastest, and
+both solid defaults for CDC and block search.
 
-**`gearhash64`** is the popular choice from the CDC literature (see the FastCDC
-paper). It is essentially as fast as buzhash on the BatchRoller, has no window-size
-gotcha, and is uniformly distributed.
+**`gearhash64`** is also the popular choice from the CDC literature (see the
+FastCDC paper); unlike buzhash it has no window-size gotcha (see
+[Gotchas](#gotchas)) and is uniformly distributed.
 
 **`bozo32`/`bozo64`** are very fast and parametrizable via a single integer
 multiplier (`NewFromInt`), which is simpler than buzhash's 256-entry table but
