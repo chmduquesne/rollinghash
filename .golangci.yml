@@ -1,0 +1,11 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # ChunkWriter.Close and BatchWriter.Close are documented to always
+      # return nil (they only flush buffered bytes); example and test code
+      # calls them without checking.
+      exclude-functions:
+        - (github.com/chmduquesne/rollinghash/v4.ChunkWriter).Close
+        - (github.com/chmduquesne/rollinghash/v4.BatchWriter).Close
