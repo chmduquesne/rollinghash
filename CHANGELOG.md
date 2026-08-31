@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.3.1 - 2026-08-31
+
+### Changed
+
+- `Chunker`/`ChunkWriter`: `WithBoundaries`' `min` is no longer a pure
+  post-filter. The first `min-window` bytes of every chunk can't hold an
+  acceptable boundary, so they are skipped instead of being fed to
+  `BatchBoundaries`; a large `min` now speeds chunking roughly in proportion
+  to the fraction of the stream it covers (e.g. ~1.3–1.5× at `min` = 64 KiB
+  with an 8 KiB average spacing between mask hits, measured by
+  `BenchmarkChunker`'s new `/bigmin` variant). Boundary detection is now
+  lazy, driven by `Next`, replacing the previous carry/scratch
+  double-buffering in `feed`. No change to the chunk boundaries produced.
+
 ## v4.3.0 - 2026-08-31
 
 ### Added

@@ -3,6 +3,7 @@ package rollinghash_test
 import (
 	"bytes"
 	"errors"
+	"math"
 	"testing"
 	"testing/iotest"
 
@@ -131,6 +132,41 @@ func TestChunkerWindowSize(t *testing.T) {
 	c := rollinghash.NewChunker(bytes.NewReader(nil), allHashes[0].new(), window, 0xff)
 	if c.WindowSize() != window {
 		t.Fatalf("WindowSize() = %d, want %d", c.WindowSize(), window)
+	}
+}
+
+// TestChunkerSmallMin checks the Chunker against the reference when min is
+// below window, so that a boundary's rolling window straddles the previous
+// chunk's end. The lazy hasher must still supply those lead-in bytes.
+func TestChunkerSmallMin(t *testing.T) {
+	data := testData(200 * 1024)
+	const window = 64
+	configs := []struct {
+		mask     uint64
+		min, max int
+	}{
+		{0x3f, 0, math.MaxInt}, // default boundaries
+		{0x3f, 1, 4096},
+		{0x7f, 16, 2000},
+		{0x1ff, 40, 100000},
+	}
+
+	for _, h := range allHashes {
+		for _, cfg := range configs {
+			want, wantCD := refChunk(h.new(), data, window, cfg.mask, cfg.min, cfg.max)
+			c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, cfg.mask, rollinghash.WithBoundaries(cfg.min, cfg.max))
+			got, gotCD := collectChunks(t, c)
+
+			equalChunks(t, h.name, got, want)
+			for i := range wantCD {
+				if gotCD[i] != wantCD[i] {
+					t.Fatalf("[%s] cfg %+v chunk %d ContentDefined: got %v want %v", h.name, cfg, i, gotCD[i], wantCD[i])
+				}
+			}
+			if joined := bytes.Join(got, nil); !bytes.Equal(joined, data) {
+				t.Fatalf("[%s] cfg %+v reassembled %d bytes, want %d", h.name, cfg, len(joined), len(data))
+			}
+		}
 	}
 }
 
@@ -338,30 +374,43 @@ func TestChunkerError(t *testing.T) {
 }
 
 // BenchmarkChunker measures steady-state chunking throughput via BatchBoundaries
-// across every hash in allHashes.
+// across every hash in allHashes. The "/fused" variant uses a small min; the
+// "/bigmin" variant uses a min large relative to the average chunk size, where
+// the pre-min skip (see WithBoundaries) lets the hasher pass over most of the
+// stream.
 func BenchmarkChunker(b *testing.B) {
 	const window = 56
 	data := testData(1 << 20)
-	const mask, min, max = 0x1fff, 2 << 10, 64 << 10
+	const mask = 0x1fff // ~8 KiB average spacing between mask hits
+
+	variants := []struct {
+		name     string
+		min, max int
+	}{
+		{"fused", 2 << 10, 64 << 10},
+		{"bigmin", 64 << 10, 256 << 10},
+	}
 
 	for _, h := range allHashes {
-		b.Run(h.name+"/fused", func(b *testing.B) {
-			r := bytes.NewReader(data)
-			ck := rollinghash.NewChunker(r, h.new(), window, mask, rollinghash.WithBoundaries(min, max))
+		for _, v := range variants {
+			b.Run(h.name+"/"+v.name, func(b *testing.B) {
+				r := bytes.NewReader(data)
+				ck := rollinghash.NewChunker(r, h.new(), window, mask, rollinghash.WithBoundaries(v.min, v.max))
 
-			b.SetBytes(int64(len(data)))
-			b.ReportAllocs()
-			b.ResetTimer()
-			for range b.N {
-				r.Reset(data)
-				ck.Reset(r)
-				for ck.Next() {
-					_ = ck.Bytes()
+				b.SetBytes(int64(len(data)))
+				b.ReportAllocs()
+				b.ResetTimer()
+				for range b.N {
+					r.Reset(data)
+					ck.Reset(r)
+					for ck.Next() {
+						_ = ck.Bytes()
+					}
+					if ck.Err() != nil {
+						b.Fatal(ck.Err())
+					}
 				}
-				if ck.Err() != nil {
-					b.Fatal(ck.Err())
-				}
-			}
-		})
+			})
+		}
 	}
 }

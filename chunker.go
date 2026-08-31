@@ -44,18 +44,28 @@ type chunkerCore struct {
 	// WithBatchSize.
 	batchSize int
 
-	// chunk byte accumulator; cbuf[head] is the byte at global offset chunkStart
+	// chunk byte accumulator: cbuf holds the buffered bytes for global
+	// offsets [cbufBase, consumed); the byte at global offset g is
+	// cbuf[g-cbufBase]. cbufBase trails chunkStart by up to window-1 bytes
+	// so a rolling window straddling the previous chunk's end still has its
+	// lead-in bytes available to hashForward.
 	cbuf       []byte
-	head       int
+	cbufBase   int
 	chunkStart int
 	consumed   int // global offset of the next not-yet-buffered byte
 
 	bounds []int // ascending global boundary-byte positions, not yet consumed
 	bcur   int
 
-	carryBuf []byte // last window-1 raw bytes, prepended to the next feed
-	scratch  []byte // reused: carryBuf ++ newBytes, passed to BatchBoundaries
-	eof      bool   // finish() was called: no more data will ever arrive
+	// hashedTo is the global offset up to which BatchBoundaries has been
+	// run: every rolling window ending at a byte before hashedTo has been
+	// evaluated and any hit recorded in bounds. Hashing is lazy and driven
+	// by next(); the [chunkStart, chunkStart+min-1) region of each chunk is
+	// declared hashed without ever being fed to BatchBoundaries, since no
+	// window ending there can produce a boundary the chunk would accept.
+	hashedTo int
+
+	eof bool // finish() was called: no more data will ever arrive
 
 	done           bool
 	err            error
@@ -100,16 +110,15 @@ func newChunkerCore(h Hash, window int, mask uint64, min, max int) *chunkerCore 
 }
 
 // reset clears all buffered state for reuse with a new stream, keeping
-// internal allocations (la, lb, cbuf, bounds, carryBuf, scratch backing
-// arrays).
+// internal allocations (la, lb, cbuf, bounds backing arrays).
 func (c *chunkerCore) reset() {
 	c.cbuf = c.cbuf[:0]
-	c.head = 0
+	c.cbufBase = 0
 	c.chunkStart = 0
 	c.consumed = 0
 	c.bounds = c.bounds[:0]
 	c.bcur = 0
-	c.carryBuf = c.carryBuf[:0]
+	c.hashedTo = 0
 	c.eof = false
 	c.done = false
 	c.err = nil
@@ -123,16 +132,23 @@ func (c *chunkerCore) reset() {
 // the trailing chunk instead of returning needMore.
 func (c *chunkerCore) finish() { c.eof = true }
 
-// feed ingests newBytes (bytes not previously seen), finds any boundaries
-// within them via BatchBoundaries (using carryBuf to supply window-1 bytes
-// of context left over from the previous feed), and appends them to the
-// chunk accumulator. It also compacts the already-emitted prefix of cbuf
-// and bounds first, so both stay bounded across many chunks.
+// feed ingests newBytes (bytes not previously seen) into the chunk byte
+// accumulator and compacts the already-emitted prefix of cbuf and bounds
+// first, so both stay bounded across many chunks. Boundary detection itself
+// is deferred to hashForward, driven lazily by next().
 func (c *chunkerCore) feed(newBytes []byte) {
-	if c.head > 0 {
-		m := copy(c.cbuf, c.cbuf[c.head:])
+	c.skipPreMin()
+
+	// Keep bytes from cbufBase = min(chunkStart, hashedTo) - (window-1): the
+	// chunk accumulator needs [chunkStart, consumed) and hashForward needs
+	// window-1 bytes of lead-in before its next window (which starts no
+	// earlier than hashedTo, or chunkStart when a forced cut left hashedTo
+	// behind). Everything before that is done with.
+	keepFrom := max(min(c.chunkStart, c.hashedTo)-(c.window-1), 0)
+	if drop := keepFrom - c.cbufBase; drop > 0 {
+		m := copy(c.cbuf, c.cbuf[drop:])
 		c.cbuf = c.cbuf[:m]
-		c.head = 0
+		c.cbufBase = keepFrom
 	}
 	if c.bcur > 0 {
 		m := copy(c.bounds, c.bounds[c.bcur:])
@@ -140,37 +156,62 @@ func (c *chunkerCore) feed(newBytes []byte) {
 		c.bcur = 0
 	}
 
-	c.scratch = append(c.scratch[:0], c.carryBuf...)
-	c.scratch = append(c.scratch, newBytes...)
-	batchO := c.consumed - len(c.carryBuf)
-
 	c.cbuf = append(c.cbuf, newBytes...)
 	c.consumed += len(newBytes)
+}
 
+// skipPreMin fast-forwards hashedTo past the current chunk's pre-min region:
+// no window ending before chunkStart+min-1 can be a boundary this chunk
+// accepts, and minByte only grows as chunks are emitted, so those windows
+// never become relevant. This is what keeps min from being a mere
+// post-filter — the skipped bytes are never fed to BatchBoundaries.
+func (c *chunkerCore) skipPreMin() {
+	if skip := c.chunkStart + c.min - 1; skip > c.hashedTo {
+		c.hashedTo = skip
+	}
+}
+
+// hashForward runs BatchBoundaries over one batchSize-sized slice of the
+// buffered-but-not-yet-hashed bytes, recording any boundary hits in bounds
+// and advancing hashedTo. It first fast-forwards hashedTo past the current
+// chunk's pre-min region (no window ending there can yield a boundary the
+// chunk would accept, and minByte only grows as chunks are emitted, so those
+// windows never become relevant). It reports whether it made progress; false
+// means every buffered byte that can form a full window has been hashed.
+func (c *chunkerCore) hashForward() bool {
 	w := c.window
-	if len(c.scratch) >= w {
-		need := len(c.scratch) - w + 1
-		if cap(c.la) < need {
-			c.la = make([]int32, need)
-		} else {
-			c.la = c.la[:need]
-		}
-		if cap(c.lb) < need {
-			c.lb = make([]int32, need)
-		} else {
-			c.lb = c.lb[:need]
-		}
-		na, nb := c.brd.BatchBoundaries(c.la, c.lb, c.scratch, w, c.mask)
-		for _, g := range c.la[:na] {
-			c.bounds = append(c.bounds, batchO+int(g)+w-1)
-		}
-		for _, g := range c.lb[:nb] {
-			c.bounds = append(c.bounds, batchO+int(g)+w-1)
-		}
+
+	c.skipPreMin()
+	if c.hashedTo >= c.consumed {
+		return false
 	}
 
-	tailLen := min(w-1, len(c.scratch))
-	c.carryBuf = append(c.carryBuf[:0], c.scratch[len(c.scratch)-tailLen:]...)
+	// window-1 bytes of context precede the first not-yet-evaluated window,
+	// clamped to what's still buffered.
+	lead := min(w-1, c.hashedTo-c.cbufBase)
+	bufStart := c.hashedTo - lead
+	end := min(c.hashedTo+c.batchSize, c.consumed)
+	buf := c.cbuf[bufStart-c.cbufBase : end-c.cbufBase]
+	if len(buf) < w {
+		return false // not enough buffered to form another window
+	}
+
+	need := len(buf) - w + 1
+	if cap(c.la) < need {
+		c.la = make([]int32, need)
+		c.lb = make([]int32, need)
+	} else {
+		c.la, c.lb = c.la[:need], c.lb[:need]
+	}
+	na, nb := c.brd.BatchBoundaries(c.la, c.lb, buf, w, c.mask)
+	for _, g := range c.la[:na] {
+		c.bounds = append(c.bounds, bufStart+int(g)+w-1)
+	}
+	for _, g := range c.lb[:nb] {
+		c.bounds = append(c.bounds, bufStart+int(g)+w-1)
+	}
+	c.hashedTo = end
+	return true
 }
 
 // next attempts one non-blocking chunk selection from currently buffered
@@ -192,6 +233,22 @@ func (c *chunkerCore) next() coreState {
 		maxByte = math.MaxInt // no forced cut; avoid overflow
 	} else {
 		maxByte = c.chunkStart + c.max - 1 // forced-cut boundary byte (L == max)
+	}
+
+	// Hash forward until a boundary that could be in range is buffered, we've
+	// evaluated every window ending at or before maxByte (so a forced cut is
+	// provably correct), or the buffered input is exhausted.
+	hashLimit := maxByte
+	if hashLimit != math.MaxInt {
+		hashLimit++
+	}
+	for c.hashedTo < hashLimit {
+		if n := len(c.bounds); n > 0 && c.bounds[n-1] >= minByte {
+			break // already have a candidate the scan below can act on
+		}
+		if !c.hashForward() {
+			break
+		}
 	}
 
 	for c.bcur < len(c.bounds) {
@@ -219,7 +276,7 @@ func (c *chunkerCore) next() coreState {
 		// all (matches BatchRoller: "an input shorter than window yields
 		// no batches"), even though feed() unconditionally buffers
 		// whatever bytes it saw into cbuf.
-		if c.consumed >= c.window && c.head < len(c.cbuf) { // trailing bytes -> final chunk
+		if c.consumed >= c.window && c.chunkStart < c.consumed { // trailing bytes -> final chunk
 			c.done = true
 			c.emit(c.consumed-1, false)
 			return emitted
@@ -237,8 +294,8 @@ func (c *chunkerCore) next() coreState {
 
 // emit records the chunk ending at global byte e and advances past it.
 func (c *chunkerCore) emit(e int, contentDefined bool) {
-	l := e - c.chunkStart + 1
-	c.chunk = c.cbuf[c.head : c.head+l]
+	lo := c.chunkStart - c.cbufBase
+	c.chunk = c.cbuf[lo : lo+(e-c.chunkStart+1)]
 	c.offset = c.chunkStart
 	if contentDefined {
 		c.sumv = c.windowSum(e)
@@ -246,8 +303,7 @@ func (c *chunkerCore) emit(e int, contentDefined bool) {
 		c.sumv = 0
 	}
 	c.contentDefined = contentDefined
-	c.head += l
-	c.chunkStart += l
+	c.chunkStart = e + 1
 }
 
 // windowSum recomputes the rolling checksum of the window ending at global byte
@@ -258,7 +314,7 @@ func (c *chunkerCore) windowSum(e int) uint64 {
 	if start < c.chunkStart {
 		return 0
 	}
-	off := c.head + (start - c.chunkStart)
+	off := start - c.cbufBase
 	c.h.Reset()
 	c.h.Write(c.cbuf[off : off+c.window])
 	return c.sum()
@@ -316,6 +372,15 @@ type chunkerOption func(*chunkerCore)
 // min bytes are extended to the next boundary; chunks that reach max bytes
 // without a mask hit are cut there unconditionally. Defaults are 0 and
 // math.MaxInt.
+//
+// min is not just a post-filter: the first min-window bytes of every chunk
+// cannot contain an acceptable boundary, so they are skipped by the hasher
+// rather than fed to BatchBoundaries. A large min therefore speeds chunking
+// roughly in proportion to the fraction of the stream it covers. The skip is
+// only approximate at the granularity of one hash batch (see WithBatchSize):
+// the hasher may run a batch's worth of bytes past a boundary before the next
+// chunk's min region is known, so gains shrink as min approaches the batch
+// size.
 func WithBoundaries(min, max int) chunkerOption {
 	return func(c *chunkerCore) { c.min = min; c.max = max }
 }
