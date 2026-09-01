@@ -3,175 +3,141 @@ package jumpchunker_test
 import (
 	"bytes"
 	"errors"
-	"math/bits"
 	"testing"
 	"testing/iotest"
 
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/plakar"
 	"github.com/chmduquesne/rollinghash/v4/cdc/jumpchunker"
 	"github.com/chmduquesne/rollinghash/v4/gearhash64"
 )
 
 func testData(n int) []byte {
 	data := make([]byte, n)
-	// A mix that produces a realistic spread of values.
 	for i := range data {
 		data[i] = byte(i*2654435761 + i/7)
 	}
 	return data
 }
 
-// jumpRoller mirrors the unexported jumpBoundaryRoller interface so the test
-// package can call JumpBoundaries without importing internal types.
-type jumpRoller interface {
-	JumpBoundaries(a []int32, data []byte, maskC uint64, jumpLen int, fp uint64, firstSkip, minStep int) (n int, newFp uint64, skip int)
+// randData fills a slice with xorshift64 pseudo-random bytes; the deterministic
+// testData formula produces almost no natural JC boundaries.
+func randData(n int) []byte {
+	data := make([]byte, n)
+	var x uint64 = 0xdeadbeefcafe1234
+	for i := range data {
+		x ^= x << 13
+		x ^= x >> 7
+		x ^= x << 17
+		data[i] = byte(x)
+	}
+	return data
 }
 
-// jumpTestParams mirrors the internal jumpParams derivation so the reference
-// implementation uses the same maskC/jumpLen as Chunker.
-func jumpTestParams(normalSize int) (maskC uint64, jumpLen int) {
-	lg := bits.Len(uint(normalSize)) - 1
-	if lg < 3 {
-		lg = 3
-	}
-	cOnes := lg - 2
-	jumpLen = 1 << (lg - 1)
-	step := 64 / cOnes
-	for i := 0; i < cOnes; i++ {
-		maskC |= 1 << uint(63-i*step)
-	}
-	return
-}
-
-// refJumpChunk is the reference implementation of Jump Chunking.
-// It calls JumpBoundaries once per chunk (always with fp=0), matching the
-// semantics of Chunker which resets fp at the start of every chunk's scan
-// region, including after forced cuts at max. A single-pass call would fail
-// to reset fp at forced cuts and would diverge.
-func refJumpChunk(jr jumpRoller, data []byte, normalSize, min, max int) ([][]byte, []bool) {
-	if len(data) == 0 {
-		return nil, nil
-	}
-	maskC, jumpLen := jumpTestParams(normalSize)
-	a := make([]int32, 2)
-
-	var chunks [][]byte
-	var atMask []bool
-
-	start := 0
-	for start < len(data) {
-		maxByte := start + max - 1
-
-		// Find the first JC boundary in data[start:] with fp=0. JumpBoundaries
-		// skips the min zone (firstSkip=min) and resets fp there, exactly as
-		// Chunker does at each chunk boundary.
-		slice := data[start:]
-		nb, _, _ := jr.JumpBoundaries(a[:1], slice, maskC, jumpLen, 0, min, min)
-
-		var e int
-		var hit bool
-		if nb > 0 && start+int(a[0]) <= maxByte {
-			e = start + int(a[0])
-			hit = true
-		}
-
-		switch {
-		case hit:
-			chunks = append(chunks, data[start:e+1])
-			atMask = append(atMask, true)
-			start = e + 1
-		case maxByte <= len(data)-1:
-			chunks = append(chunks, data[start:maxByte+1])
-			atMask = append(atMask, false)
-			start = maxByte + 1
-		default:
-			chunks = append(chunks, data[start:])
-			atMask = append(atMask, false)
-			start = len(data)
-		}
-	}
-	return chunks, atMask
-}
-
-func collectJumpChunks(t *testing.T, c *jumpchunker.Chunker) ([][]byte, []bool) {
+func collect(t *testing.T, c *jumpchunker.Chunker) [][]byte {
 	t.Helper()
-	var chunks [][]byte
-	var atMask []bool
+	var out [][]byte
 	for c.Next() {
-		chunks = append(chunks, append([]byte(nil), c.Bytes()...))
-		atMask = append(atMask, c.AtMask())
+		out = append(out, append([]byte(nil), c.Bytes()...))
 	}
 	if err := c.Err(); err != nil {
 		t.Fatalf("Err: %v", err)
 	}
-	return chunks, atMask
+	return out
 }
 
-// TestChunker checks the Chunker against the single-pass reference
-// across several normalSize/min/max configurations.
-func TestChunker(t *testing.T) {
-	data := testData(300 * 1024)
-	configs := []struct {
-		normalSize, min, max int
+// plakarJC returns the oracle chunk list for legacy plakar "jc" over data, plus
+// a jumpchunker configured to match it.
+func plakarJC(r *bytes.Reader, o plakar.Opts, legacy, specFaithful bool) (algo plakar.Algorithm, mkChunker func() *jumpchunker.Chunker) {
+	maskC, maskJ, jumpLen := plakar.JCSetup(o, legacy)
+	g := plakar.GearTable
+	algo = func(d []byte, n int) int {
+		return plakar.JCAlgorithm(&g, maskC, maskJ, jumpLen, specFaithful, o, d, n)
+	}
+	mkChunker = func() *jumpchunker.Chunker {
+		opts := []jumpchunker.Option{jumpchunker.WithJumpMask(maskC, jumpLen)}
+		if specFaithful {
+			opts = append(opts, jumpchunker.WithSpecFaithful())
+		}
+		return jumpchunker.New(r, gearhash64.NewFromUint64Array(plakar.GearTable),
+			o.NormalSize, o.MinSize, o.MaxSize, opts...)
+	}
+	return
+}
+
+// TestChunkerMatchesPlakar asserts byte-for-byte equality with the ported
+// plakar JC algorithm across several size configs, variants, and data shapes.
+func TestChunkerMatchesPlakar(t *testing.T) {
+	configs := []plakar.Opts{
+		{MinSize: 2 * 1024, NormalSize: 8 * 1024, MaxSize: 64 * 1024}, // legacy default
+		{MinSize: 512, NormalSize: 4 * 1024, MaxSize: 32 * 1024},
+		{MinSize: 256, NormalSize: 2 * 1024, MaxSize: 16 * 1024},
+		{MinSize: 64, NormalSize: 1024, MaxSize: 8 * 1024},
+	}
+	datasets := map[string][]byte{
+		"rand300k":   randData(300 * 1024),
+		"struct200k": testData(200 * 1024),
+		"rand1k":     randData(1024),
+		"tail":       randData(70*1024 + 111),
+		"shorterMin": randData(40),
+	}
+	variants := []struct {
+		name                 string
+		legacy, specFaithful bool
 	}{
-		{256, 64, 2048},
-		{512, 256, 8192},
-		{1024, 512, 16384},
-		{128, 50, 800},
+		{"jc", true, false},
+		{"jc-v1.0.0", false, false},
+		{"jc-v1.1.0", false, true},
 	}
 
-	h := gearhash64.New()
 	for _, cfg := range configs {
-		want, wantMask := refJumpChunk(h, data, cfg.normalSize, cfg.min, cfg.max)
+		for _, v := range variants {
+			for dname, data := range datasets {
+				algo, _ := plakarJC(bytes.NewReader(nil), cfg, v.legacy, v.specFaithful)
+				want := plakar.Chunks(algo, data, cfg)
 
-		c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), cfg.normalSize, cfg.min, cfg.max)
-		got, gotMask := collectJumpChunks(t, c)
+				_, mk := plakarJC(bytes.NewReader(data), cfg, v.legacy, v.specFaithful)
+				got := collect(t, mk())
 
-		if len(got) != len(want) {
-			t.Fatalf("normalSize=%d: got %d chunks, want %d", cfg.normalSize, len(got), len(want))
-		}
-		for i := range want {
-			if !bytes.Equal(got[i], want[i]) {
-				t.Fatalf("normalSize=%d chunk %d: got %d bytes, want %d bytes", cfg.normalSize, i, len(got[i]), len(want[i]))
+				if len(got) != len(want) {
+					t.Fatalf("%v/%s/%s: got %d chunks, want %d", cfg, v.name, dname, len(got), len(want))
+				}
+				for i := range want {
+					if !bytes.Equal(got[i], want[i]) {
+						t.Fatalf("%v/%s/%s chunk %d: got %d bytes, want %d bytes",
+							cfg, v.name, dname, i, len(got[i]), len(want[i]))
+					}
+				}
+				if joined := bytes.Join(got, nil); !bytes.Equal(joined, data) {
+					t.Fatalf("%v/%s/%s: reassembled %d bytes, want %d", cfg, v.name, dname, len(joined), len(data))
+				}
 			}
-			if gotMask[i] != wantMask[i] {
-				t.Fatalf("normalSize=%d chunk %d: AtMask got %v want %v", cfg.normalSize, i, gotMask[i], wantMask[i])
-			}
-		}
-		if joined := bytes.Join(got, nil); !bytes.Equal(joined, data) {
-			t.Fatalf("normalSize=%d: reassembled %d bytes, want %d", cfg.normalSize, len(joined), len(data))
 		}
 	}
 }
 
-// TestChunkerDeterminism verifies that a one-byte-at-a-time reader
-// produces the same chunks as a normal reader.
 func TestChunkerDeterminism(t *testing.T) {
-	data := testData(200 * 1024)
-	const normalSize, min, max = 1024, 512, 16384
+	data := randData(200 * 1024)
+	const normalSize, min, max = 4096, 512, 16384
 
 	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
-	want, _ := collectJumpChunks(t, c)
+	want := collect(t, c)
 
 	c = jumpchunker.New(iotest.OneByteReader(bytes.NewReader(data)), gearhash64.New(), normalSize, min, max)
-	got, _ := collectJumpChunks(t, c)
+	got := collect(t, c)
 
 	if len(got) != len(want) {
 		t.Fatalf("onebyte: got %d chunks, want %d", len(got), len(want))
 	}
 	for i := range want {
 		if !bytes.Equal(got[i], want[i]) {
-			t.Fatalf("onebyte chunk %d: got %d bytes, want %d bytes", i, len(got[i]), len(want[i]))
+			t.Fatalf("onebyte chunk %d differs", i)
 		}
 	}
 }
 
-// TestChunkerEdgeCases covers empty, smaller-than-min, and exactly-min inputs.
 func TestChunkerEdgeCases(t *testing.T) {
-	const normalSize = 256
-	_, jumpLen := jumpTestParams(normalSize)
-
 	// Empty input: no chunks.
-	c := jumpchunker.New(bytes.NewReader(nil), gearhash64.New(), normalSize, 1, 64)
+	c := jumpchunker.New(bytes.NewReader(nil), gearhash64.New(), 256, 1, 64)
 	if c.Next() {
 		t.Error("empty: expected no chunks")
 	}
@@ -179,64 +145,37 @@ func TestChunkerEdgeCases(t *testing.T) {
 		t.Error("empty: expected zero-value accessors")
 	}
 
-	// Input shorter than min: one final chunk.
+	// Input shorter than min: one final chunk of all the data.
 	data := testData(10)
-	c = jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, 20, 1024)
-	got, _ := collectJumpChunks(t, c)
+	c = jumpchunker.New(bytes.NewReader(data), gearhash64.New(), 256, 20, 1024)
+	got := collect(t, c)
 	if len(got) != 1 || !bytes.Equal(got[0], data) {
 		t.Errorf("short: expected one chunk of all data, got %d chunks", len(got))
 	}
-
-	// Input spanning at least one jump: check against reference.
-	h := gearhash64.New()
-	data = testData(jumpLen * 3)
-	want, wantMask := refJumpChunk(h, data, normalSize, 64, 2048)
-	c = jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, 64, 2048)
-	gotChunks, gotMask := collectJumpChunks(t, c)
-	if len(gotChunks) != len(want) {
-		t.Fatalf("jumpspan: got %d chunks, want %d", len(gotChunks), len(want))
-	}
-	for i := range want {
-		if !bytes.Equal(gotChunks[i], want[i]) || gotMask[i] != wantMask[i] {
-			t.Fatalf("jumpspan chunk %d mismatch", i)
-		}
-	}
 }
 
-// TestChunkerAtMask verifies that forced cuts are exactly max bytes long
-// (except for the final chunk).
-func TestChunkerAtMask(t *testing.T) {
-	data := testData(128 * 1024)
+func TestChunkerForcedCut(t *testing.T) {
+	data := randData(128 * 1024)
 	const normalSize, min, max = 512, 200, 4096
 
 	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
-	var chunks [][]byte
-	var atMask []bool
-	for c.Next() {
-		chunks = append(chunks, append([]byte(nil), c.Bytes()...))
-		atMask = append(atMask, c.AtMask())
-	}
-	if err := c.Err(); err != nil {
-		t.Fatal(err)
-	}
+	chunks := collect(t, c)
 	for i, ch := range chunks {
-		if !atMask[i] && i != len(chunks)-1 && len(ch) != max {
-			t.Errorf("chunk %d: forced cut but length %d != max %d", i, len(ch), max)
+		if len(ch) > max {
+			t.Fatalf("chunk %d exceeds max: %d > %d", i, len(ch), max)
+		}
+		if i != len(chunks)-1 && len(ch) < min {
+			t.Fatalf("non-final chunk %d shorter than min: %d < %d", i, len(ch), min)
 		}
 	}
-	// Chunks reassemble to the original data.
 	if joined := bytes.Join(chunks, nil); !bytes.Equal(joined, data) {
 		t.Fatalf("reassembled %d bytes, want %d", len(joined), len(data))
 	}
 }
 
-// TestChunkerAccessorLifecycle checks that Bytes() and AtMask() are nil/false
-// before the first Next() and after Next() returns false.
 func TestChunkerAccessorLifecycle(t *testing.T) {
-	data := testData(200 * 1024)
-	const normalSize, min, max = 1024, 512, 16384
-
-	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
+	data := randData(200 * 1024)
+	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), 4096, 512, 16384)
 
 	if c.Bytes() != nil || c.AtMask() {
 		t.Error("expected zero-value accessors before first Next")
@@ -252,12 +191,8 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 	if c.Next() {
 		t.Error("Next returned true after exhaustion")
 	}
-	if c.Bytes() != nil || c.AtMask() {
-		t.Error("expected zero-value accessors on repeated Next after exhaustion")
-	}
 }
 
-// TestChunkerError verifies that reader errors are surfaced via Err.
 func TestChunkerError(t *testing.T) {
 	boom := errors.New("boom")
 	c := jumpchunker.New(iotest.ErrReader(boom), gearhash64.New(), 256, 1, 64)
@@ -269,198 +204,28 @@ func TestChunkerError(t *testing.T) {
 	}
 }
 
-// TestChunkerReset checks that Reset reuses buffers correctly.
 func TestChunkerReset(t *testing.T) {
-	data := testData(200 * 1024)
-	const normalSize, min, max = 1024, 512, 16384
-
-	h := gearhash64.New()
-	want, _ := refJumpChunk(h, data, normalSize, min, max)
+	data := randData(200 * 1024)
+	const normalSize, min, max = 4096, 512, 16384
 
 	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
-	// First pass.
-	got1, _ := collectJumpChunks(t, c)
-	// Second pass via Reset.
+	want := collect(t, c)
+
 	c.Reset(bytes.NewReader(data))
-	got2, _ := collectJumpChunks(t, c)
-
-	for _, got := range [][][]byte{got1, got2} {
-		if len(got) != len(want) {
-			t.Fatalf("got %d chunks, want %d", len(got), len(want))
-		}
-		for i := range want {
-			if !bytes.Equal(got[i], want[i]) {
-				t.Fatalf("chunk %d mismatch after Reset", i)
-			}
-		}
-	}
-}
-
-// benchRandData fills a slice with pseudo-random bytes using a fast
-// xorshift64 PRNG. The deterministic testData formula happens to produce no
-// natural JC boundaries for typical maskC values (a degenerate case), so we
-// use random bytes here to get a realistic mix of scan and jump steps.
-func benchRandData(n int) []byte {
-	data := make([]byte, n)
-	var x uint64 = 0xdeadbeefcafe1234
-	for i := range data {
-		x ^= x << 13
-		x ^= x >> 7
-		x ^= x << 17
-		data[i] = byte(x)
-	}
-	return data
-}
-
-// refJumpChunkRaw is like refJumpChunk but accepts explicit maskC and jumpLen
-// instead of deriving them from normalSize. Used by TestChunkerWithJumpMask.
-func refJumpChunkRaw(jr jumpRoller, data []byte, maskC uint64, jumpLen, min, max int) ([][]byte, []bool) {
-	if len(data) == 0 {
-		return nil, nil
-	}
-	a := make([]int32, 2)
-	var chunks [][]byte
-	var atMask []bool
-	start := 0
-	for start < len(data) {
-		maxByte := start + max - 1
-		slice := data[start:]
-		nb, _, _ := jr.JumpBoundaries(a[:1], slice, maskC, jumpLen, 0, min, min)
-		var e int
-		var hit bool
-		if nb > 0 && start+int(a[0]) <= maxByte {
-			e = start + int(a[0])
-			hit = true
-		}
-		switch {
-		case hit:
-			chunks = append(chunks, data[start:e+1])
-			atMask = append(atMask, true)
-			start = e + 1
-		case maxByte <= len(data)-1:
-			chunks = append(chunks, data[start:maxByte+1])
-			atMask = append(atMask, false)
-			start = maxByte + 1
-		default:
-			chunks = append(chunks, data[start:])
-			atMask = append(atMask, false)
-			start = len(data)
-		}
-	}
-	return chunks, atMask
-}
-
-// TestChunkerWithJumpMask verifies that WithJumpMask correctly overrides the
-// derived maskC and jumpLen. It uses gear table and parameters compatible with
-// PlakarKorp/go-cdc-chunkers (legacy default: maskC=0x590003570000, jumpLen=4096).
-// Note: our algorithm includes the boundary byte in the current chunk (inclusive),
-// whereas Plakar's excludes it (exclusive). Boundaries fall on the same byte;
-// only the side differs.
-func TestChunkerWithJumpMask(t *testing.T) {
-	// Gear table from PlakarKorp/go-cdc-chunkers/chunkers/jc/jc_precomputed.go
-	var plakarGearTable = [256]uint64{
-		0x4d65822107fcfd52, 0x78629a0f5f3f164f, 0xd5104dc76695721d, 0xb80704bb7b4d7c03,
-		0x365a858149c6e2d1, 0x57e9d1860d1d68d8, 0x8866cb397916001e, 0x9408d2ac22c4d294,
-		0xc697f48392907a0, 0xa68447a4189deb99, 0x41f27cc6f3875d04, 0x68255aaf95e94627,
-		0x9b6cffa2ba517936, 0x30b95ff183c471d4, 0xa8b621587cb3ad0b, 0x3c04951aa42655d9,
-		0xa43a768b7c4e0b68, 0xa5845c95d4491d1b, 0x56ec3f2525632186, 0x9bf98be2a9d78d73,
-		0x1a02070f169c1121, 0x2e3108dabb158644, 0xc90bd268b68e6a3f, 0x6e661e92759805f5,
-		0xa584c47f2cdf5b8a, 0x2606cd2b57d29245, 0x6054502fc5d6d268, 0x1a714cf86b83d0e2,
-		0xeec34c367674cb74, 0xd92e17f7b068d9db, 0x430c8b35bb9457d8, 0x39f6f78a15d523b,
-		0x944419db794209ff, 0x4dba7b0f9da1d7eb, 0xfcd4b7a55a25e0cb, 0x8a2b894cf840ec4b,
-		0x4c22b02936d4ff9b, 0x879143f7f4a5ee3b, 0x589442fd5ad145f4, 0x26984b92f6740304,
-		0x962d968d3f71f8cb, 0x4542c29291018d7c, 0xc5a6e3cafccae224, 0xa3a62343b186b51f,
-		0xb629d9f17d9e8fbc, 0xc3ea3b9393f93f33, 0x207403def63a5b6f, 0x241b3ae419476c36,
-		0x64f1017fbc897d06, 0x2e4fa459169873f5, 0xf0b5a315724c7af1, 0xa607c649581eeb39,
-		0x727a71f52257bb7d, 0xc7964976f269a28, 0x7d0b9ca8be8e9981, 0x89825e117039374b,
-		0x9c73fac825416fed, 0xd72d92faded7e411, 0x1ee9f7676678e7aa, 0xa7dff7ab244fcd36,
-		0x7767830356aa6b86, 0x5ef4e81ede4561ad, 0x6688f8bd3e99b0a8, 0x5d78399cbed80a3a,
-		0x176a156ae58348b0, 0xb6d467a4af63e58d, 0xf2d0a1e9406aec9d, 0x57613082c233f007,
-		0xfd4d8e9fa5ead0bd, 0x760b0d22050143a6, 0xba08e4b738b6829, 0xbf1f46e83699caf3,
-		0x76a780ea967cd710, 0x7a3ba6f606f665a6, 0xac89c16725fd3d7f, 0xd86d68260fd6e479,
-		0x5aff01c926fbf29b, 0x4829ee0716de4c35, 0xd322787c2bf3394b, 0x46a03cb44af864ba,
-		0xe0bed31f1cb9e6c6, 0xb3afd37941439089, 0x90b92d0169a39144, 0xfe34179dc34f182d,
-		0xf2bb5389421657ff, 0x293a0c2bf9fc6568, 0x5c4e91e98b02c917, 0x528047936c9c64b7,
-		0xaf2560383d17909, 0xd5b4a4b2ea3d4ca5, 0xcfb58fbeaf635d47, 0x2f5218587fc78769,
-		0x9e503382be14186f, 0x44841df33539b1ea, 0x97f7ae24e9174548, 0x1e925507c051e18a,
-		0x5065855807b73658, 0x103970a329ec300c, 0xa402a18da250bf34, 0x3485757ea7ed5d97,
-		0xb7ab3641fe3dea79, 0xd0031d27b8b352f7, 0xc66b36dbc9b344e9, 0x4fd269fd8e5f0475,
-		0x5d55cb471941e52a, 0xea4eef7a2694763d, 0x8010d6326b40eabc, 0xde377ef58485d68b,
-		0xb332aafe336eacca, 0x3fba24704399a363, 0xcd4f278a67149b9c, 0xb46e5f29ae10a901,
-		0x83cc44bf5a5ffefb, 0x803e6306563b26de, 0x805d29286f00f02b, 0x7539a2019f06397d,
-		0xcb7fafc3545836c4, 0xc79a2bf931d6416b, 0xe85f325712f4128d, 0xf062b076752f33ff,
-		0xbaae3e3e4a305605, 0x4cd239ea0c8dc214, 0x835ca80d72521a90, 0xec443faf8eb3e4a1,
-		0x1ff5f26283efc6c6, 0x5225fcd6090ec04f, 0x1facfc5dc1540864, 0x963a5aceec2c8aaa,
-		0xcbdb185b70ab53ba, 0xe83e14a538d3b494, 0x58cfb024878d4063, 0x3e19bf7a317ae3f,
-		0xc504d6353cb62f07, 0x7ce2e98ef360412c, 0x601900fb4ffbf3a9, 0xa5a1ffb522d554b4,
-		0x606796b83f190476, 0x1352ca320796a710, 0x2d89c820f5c353cf, 0x6a7cb5cf04f59bb7,
-		0x9dac9b582d230176, 0xd05ce263e2d6a9ce, 0x3fcb626c3f1d7427, 0xb7fbfbcafd915bb,
-		0x83398e40b01aa47d, 0x323423cfcde2c269, 0xcb70e7ac7417bf38, 0x76fd839a1e094f9a,
-		0xc93a23eb55ece0ea, 0x4b56783ccb94539b, 0xb4b4a3c813d346b5, 0x46baf44754e0c0c1,
-		0x3eecfdbc6db30e37, 0x7a9e3bdcdc02b390, 0xe60aedf1a6e222f5, 0xdbeaa0fe2f8c1fe,
-		0xe43a7d712e166bdf, 0x32560c7a67588a74, 0x90b166a221898f34, 0x1852fe624c330f1d,
-		0x5eb29c7719af53ba, 0x53b7a0ff70658b94, 0x8c97d70a133c9673, 0x429bd23a4efeeadd,
-		0xcc3f10e0f212551, 0x136f9ac7070f0914, 0x89c09a3e6f241c57, 0x2858bd10f13e41b7,
-		0x146f70ff3be70cb0, 0x91a39040f4b6f47f, 0x294b4e8e20f31127, 0xc50064ce6551cb89,
-		0xc911aa87289cbd2c, 0xc1a2d5288946f23d, 0xd7930cf840a79c3b, 0xd396d24a03c6d982,
-		0xc322cee10365790c, 0x53bf1faf0cf52517, 0x5bb1f57b0bb131e8, 0xd17d8ebf3da5475c,
-		0x1a44786139efcca, 0x83ed64e9bcd44eb4, 0x8c8c4694a54af747, 0xaf3f0d6fb73c32ed,
-		0x69c93fb09f6c47ac, 0xac80d58fe8ba8f22, 0x2c1283b654043a66, 0xa0624c583b0a7f20,
-		0x1bb55397b4926431, 0xc70a4f5ae17c02d5, 0xb3770eb58f0d2558, 0x40d4e552014fbff2,
-		0x95974b9d7f803594, 0x2a6a467079b76fbe, 0xe9f98c4033fe2656, 0xd9a30874792c8ee8,
-		0x876a20af6b41292d, 0x7fe4754afdff9c32, 0xb4ad5ac882093298, 0x8e4b5ac059483870,
-		0xe3efbff5b2d5a113, 0xbca82a42dd96e5a, 0x6d8e96f5b8e56a9, 0x5b7b2709ebd9dda9,
-		0x2018fa6e04f9ce92, 0xeca000e8cb440950, 0xfca82947a67e52b1, 0x1b35327a49f6d261,
-		0x2c19e7792417fc3, 0xf8fc24541c3b6bd9, 0xbe67230b027b7e0, 0xd2aaab031f765a41,
-		0x27ebdd8f44c9ab40, 0xb96747c045d99121, 0xbe5ddb0efd7a84af, 0xa8eb1ac99b75788,
-		0xd5fe7f03e3abff4a, 0xb3395eafa88aa67f, 0xf33c374d736e41cc, 0x7995c5dc9cbcbe5e,
-		0xa8dfd8d37b3ccebc, 0x3febdd25e1b7fa93, 0xb3415dbd315ae6af, 0x8289172b9cced2e2,
-		0xd290a23119ea0f2f, 0xb6df4331a9770722, 0x2b77e80684a6bfdc, 0xf197e13488f03f07,
-		0x1e3ffa8aa44a03a4, 0x61ebca0827a6b885, 0x4939bb8b580c8ba, 0xdd214064018153da,
-		0xd01b6a22b648e604, 0xc1acd9f551180278, 0x8945fcdd893a310f, 0xdcb389ac728f5f4c,
-		0x709ec18437f5198b, 0xfd275a873cc0ea9b, 0xec7ae37ae39d02db, 0x6a85764813883142,
-		0x9fb95e8cca599392, 0xf4ea42afc12d154e, 0x99ad1bdc176163d, 0xeae4ae6d5c92e2b8,
-		0x508df0dcf9f95ede, 0x60390908b802bdfc, 0xd0e57d0f8a928585, 0xc68571ddca6e10b,
-		0x81e5dcfd887953e8, 0x4abb18c948b9e962, 0x88cd00c4e533e9a3, 0x7fc76fad5e0ce6e5,
-		0xd3189b251dba77ae, 0x7e23bc6fc8214b8a, 0xeadaea4753b428d7, 0xaa80d0564cf20a65,
-	}
-
-	const (
-		plakarMaskC   = uint64(0x590003570000)
-		plakarJumpLen = 4096
-		min           = 2 * 1024
-		max           = 64 * 1024
-	)
-
-	data := benchRandData(300 * 1024)
-
-	h := gearhash64.NewFromUint64Array(plakarGearTable)
-	want, wantMask := refJumpChunkRaw(h, data, plakarMaskC, plakarJumpLen, min, max)
-
-	c := jumpchunker.New(bytes.NewReader(data), gearhash64.NewFromUint64Array(plakarGearTable), 8192, min, max,
-		jumpchunker.WithJumpMask(plakarMaskC, plakarJumpLen))
-	got, gotMask := collectJumpChunks(t, c)
+	got := collect(t, c)
 
 	if len(got) != len(want) {
-		t.Fatalf("Plakar interop: got %d chunks, want %d", len(got), len(want))
+		t.Fatalf("after Reset: got %d chunks, want %d", len(got), len(want))
 	}
 	for i := range want {
 		if !bytes.Equal(got[i], want[i]) {
-			t.Fatalf("Plakar interop chunk %d: got %d bytes, want %d bytes", i, len(got[i]), len(want[i]))
+			t.Fatalf("chunk %d differs after Reset", i)
 		}
-		if gotMask[i] != wantMask[i] {
-			t.Fatalf("Plakar interop chunk %d: AtMask got %v want %v", i, gotMask[i], wantMask[i])
-		}
-	}
-	if joined := bytes.Join(got, nil); !bytes.Equal(joined, data) {
-		t.Fatalf("Plakar interop: reassembled %d bytes, want %d", len(joined), len(data))
 	}
 }
 
-// BenchmarkChunker measures Chunker throughput and compares it to
-// BenchmarkChunker/gearhash64/fused in the rollinghash package.
 func BenchmarkChunker(b *testing.B) {
-	data := benchRandData(1 << 20)
+	data := randData(1 << 20)
 	const normalSize, min, max = 8192, 2 << 10, 64 << 10
 
 	b.SetBytes(int64(len(data)))

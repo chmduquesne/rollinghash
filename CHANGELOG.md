@@ -1,5 +1,59 @@
 # Changelog
 
+## v4.4.0 - unreleased
+
+### Added
+
+- `cdc`: new umbrella tree of content-defined-chunking algorithms, each in its
+  own subpackage and sharing one `Next`/`Bytes`/`AtMask`/`Err` iterator shape.
+  Boundaries are byte-for-byte compatible with the matching algorithm in
+  `PlakarKorp/go-cdc-chunkers`.
+- `cdc/jumpchunker`: Jump Chunking (JC). Windowless accumulating Gear
+  fingerprint with a dual-mask jump that skips regions provably free of
+  boundaries. `jumpchunker.New` takes any hash exposing `Table()` (`gearhash64`
+  does) and panics otherwise. `WithJumpMask` pins the boundary mask and jump
+  stride for interop; `WithSpecFaithful` selects the paper's Algorithm 1
+  (scan a sub-normalSize tail instead of emitting it whole).
+- `cdc/fastcdc`: FastCDC (Xia et al. 2016). Normalized chunking — a stricter
+  mask below the target size, a looser one above — over a windowless Gear
+  fingerprint, with the first `minSize` bytes of every chunk skipped. Masks are
+  derived from `normalSize` by default; `WithMasks` pins them, and
+  `LegacyMaskS`/`LegacyMaskL` reproduce the reference 8 KiB tuning.
+- `cdc/ultracdc`: UltraCDC. Slides an 8-byte window, tracks its Hamming
+  distance to `0xAA…AA`, cuts when that distance clears a small mask or on a
+  long run of identical windows. Uses no rolling hash. `WithSpecFaithful`
+  rounds boundaries up to the 8-byte window.
+- `cdc/gocdc`: drop-in for `PlakarKorp/go-cdc-chunkers`' consumer API. Its
+  `NewChunker`/`NewChunkerBuffer`, `*Chunker`, `ChunkerOpts`, `ErrMinSize` /
+  `ErrMaxSize` / `ErrNormalSize`, and the `Next`/`Split`/`Copy` method
+  signatures match that package's, so migrating is `import chunkers
+  "…/cdc/gocdc"` and nothing else. Produces byte-identical chunks for the
+  `fastcdc`, `ultracdc`, and `jc` families (including the `-v1.0.0` /
+  `-v1.1.0` variants). Keyed FastCDC is not supported (those names return an
+  error).
+- `cdc/{fastcdc,ultracdc,jumpchunker}.WithBuffer([]byte)`: supply the working
+  buffer, adopted when its capacity is large enough, for reuse across streams.
+- `gearhash64.Table()`: returns a copy of the hash's 256-entry Gear table, the
+  inverse of `NewFromUint64Array`.
+
+### Changed
+
+- `cdc/jumpchunker` (unreleased): rewritten on the new shared `cdc` streaming
+  engine and realigned to plakar's cut semantics — the boundary byte is now the
+  first byte of the next chunk, not the last byte of the current one, and a
+  sub-normalSize final segment is emitted whole by default. `New` now takes a
+  hash exposing `Table()` instead of `JumpBoundaries`. `BenchmarkChunker` on
+  1 MiB of random data: ~5.7 GB/s → ~5.5 GB/s, still allocation-free — the
+  stateless per-chunk scan costs a few percent against the old
+  batch-incremental design, mostly the serial Gear recurrence no longer
+  amortized over long runs.
+
+### Removed
+
+- `gearhash64.JumpBoundaries` (unreleased): its JC-specific logic
+  (maskC/maskJ/jumpLen/minStep) does not belong in a hash package. The JC scan
+  now lives in `cdc/jumpchunker`, reading the table via `Table()`.
+
 ## v4.3.3 - 2026-09-02
 
 ### Fixed
@@ -109,14 +163,6 @@
 - `WithBoundaries`: functional option to set the minimum
   and maximum chunk size (defaults: 0 and `math.MaxInt`).
 - `gearhash64`: new rolling hash.
-- `cdc/jumpchunker`: new subpackage providing Content Defined Chunking via the
-  Jump Chunking (JC) algorithm. `jumpchunker.New` returns a `*jumpchunker.Chunker`
-  whose windowless accumulating fingerprint with a dual-mask trick skips large
-  regions provably free of boundaries, yielding ~55% higher throughput than
-  `Chunker` at the cost of different boundary positions. `gearhash64` is the only
-  built-in hash that supports it. Panics at construction if the hash lacks
-  `JumpBoundaries`. `jumpchunker.WithJumpMask` overrides the derived boundary
-  mask and jump stride for interoperability with other implementations.
 - Fuzz tests covering all hashes and all interfaces.
 - `bozo32.NewFromInt`, `bozo64.NewFromInt`: godoc now documents the odd->1
   constraint and the reason (even multipliers accumulate factors of 2 in

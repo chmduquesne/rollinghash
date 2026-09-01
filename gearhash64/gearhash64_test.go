@@ -101,6 +101,22 @@ func TestGolden(t *testing.T) {
 	}
 }
 
+func TestTableRoundTrip(t *testing.T) {
+	want := rollsum.GenerateHashes(42)
+	got := rollsum.NewFromUint64Array(want).Table()
+	if got != want {
+		t.Fatalf("Table() did not round-trip NewFromUint64Array")
+	}
+	// The returned array is a copy: mutating it must not affect the hash.
+	got[0] ^= 1
+	if rollsum.NewFromUint64Array(want).Table()[0] != want[0] {
+		t.Fatalf("Table() returned an aliased array")
+	}
+	if rollsum.New().Table() == rollsum.NewFromUint64Array(want).Table() {
+		t.Fatalf("default table unexpectedly equals seed-42 table")
+	}
+}
+
 func BenchmarkRolling64B(b *testing.B) {
 	b.SetBytes(1)
 	b.ReportAllocs()
