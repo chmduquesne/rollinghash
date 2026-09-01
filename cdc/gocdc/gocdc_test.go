@@ -32,7 +32,7 @@ func oracle(t *testing.T, algorithm string, data []byte, o plakar.Opts) [][]byte
 		maskS, maskL := plakar.FastCDCSetupMasks(o, algorithm == "fastcdc")
 		algo = func(d []byte, n int) int { return plakar.FastCDCAlgorithm(&g, maskS, maskL, o, d, n) }
 	case "jc", "jc-v1.0.0", "jc-v1.1.0":
-		maskC, maskJ, jumpLen := plakar.JCSetup(o, algorithm == "jc")
+		maskC, maskJ, jumpLen := plakar.JCSetup(o, algorithm == "jc" || algorithm == "jc-v1.1.0")
 		spec := algorithm == "jc-v1.1.0"
 		algo = func(d []byte, n int) int {
 			return plakar.JCAlgorithm(&g, maskC, maskJ, jumpLen, spec, o, d, n)

@@ -7,7 +7,11 @@
 - `cdc`: new umbrella tree of content-defined-chunking algorithms, each in its
   own subpackage and sharing one `Next`/`Bytes`/`AtMask`/`Err` iterator shape.
   Boundaries are byte-for-byte compatible with the matching algorithm in
-  `PlakarKorp/go-cdc-chunkers`.
+  `PlakarKorp/go-cdc-chunkers` — verified against the real package by the
+  `cdc/bench` nested module (kept separate so its blake3/cpuid deps never enter
+  the dependency-free main module). Head-to-head throughput on 1 MiB of random
+  data, go-cdc-chunkers v1.1.0: FastCDC ~2.9 GB/s vs ~2.5 (+20%), JC ~5.1 vs
+  ~5.0, UltraCDC ~1.05 vs ~1.08; all allocation-free.
 - `cdc/jumpchunker`: Jump Chunking (JC). Windowless accumulating Gear
   fingerprint with a dual-mask jump that skips regions provably free of
   boundaries. `jumpchunker.New` takes any hash exposing `Table()` (`gearhash64`
@@ -45,8 +49,7 @@
   hash exposing `Table()` instead of `JumpBoundaries`. `BenchmarkChunker` on
   1 MiB of random data: ~5.7 GB/s → ~5.5 GB/s, still allocation-free — the
   stateless per-chunk scan costs a few percent against the old
-  batch-incremental design, mostly the serial Gear recurrence no longer
-  amortized over long runs.
+  batch-incremental design (still slightly ahead of go-cdc-chunkers' own JC).
 
 ### Removed
 

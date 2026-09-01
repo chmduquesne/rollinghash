@@ -24,3 +24,8 @@ jobs:
         with:
           version: v2.13
           working-directory: rollstat
+      - name: golangci-lint (cdc/bench)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13
+          working-directory: cdc/bench

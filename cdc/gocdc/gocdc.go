@@ -43,8 +43,8 @@ type ChunkerOpts struct {
 
 // Chunker mirrors *chunkers.Chunker: an iterator over content-defined chunks.
 type Chunker struct {
-	it      cutIter
-	minSize int
+	it                        cutIter
+	minSize, maxSize, normalS int
 }
 
 type cutIter interface {
@@ -52,6 +52,7 @@ type cutIter interface {
 	Bytes() []byte
 	Offset() int
 	Err() error
+	Reset(io.Reader)
 }
 
 // NewChunker returns a Chunker that reads from reader and cuts with the named
@@ -86,14 +87,16 @@ func newChunker(algorithm string, reader io.Reader, opts *ChunkerOpts, buf []byt
 		c := fastcdc.New(reader, gearhash64.NewFromUint64Array(plakar.GearTable),
 			o.MinSize, o.NormalSize, o.MaxSize,
 			fastcdc.WithMasks(maskS, maskL), fastcdc.WithBuffer(buf))
-		return &Chunker{it: c, minSize: o.MinSize}, nil
+		return &Chunker{it: c, minSize: o.MinSize, maxSize: o.MaxSize, normalS: o.NormalSize}, nil
 
 	case "jc", "jc-v1.0.0", "jc-v1.1.0":
 		o := withDefaults(o, 2*1024, 8*1024, 64*1024)
 		if err := validate(o, false); err != nil {
 			return nil, err
 		}
-		maskC, _, jumpLen := plakar.JCSetup(toPlakar(o), algorithm == "jc")
+		// jc-v1.1.0 (newSpecJC) sets legacy=true too: it keeps the hardcoded
+		// masks and only drops the sub-NormalSize early return.
+		maskC, _, jumpLen := plakar.JCSetup(toPlakar(o), algorithm == "jc" || algorithm == "jc-v1.1.0")
 		jopts := []jumpchunker.Option{
 			jumpchunker.WithJumpMask(maskC, jumpLen),
 			jumpchunker.WithBuffer(buf),
@@ -103,7 +106,7 @@ func newChunker(algorithm string, reader io.Reader, opts *ChunkerOpts, buf []byt
 		}
 		c := jumpchunker.New(reader, gearhash64.NewFromUint64Array(plakar.GearTable),
 			o.NormalSize, o.MinSize, o.MaxSize, jopts...)
-		return &Chunker{it: c, minSize: o.MinSize}, nil
+		return &Chunker{it: c, minSize: o.MinSize, maxSize: o.MaxSize, normalS: o.NormalSize}, nil
 
 	case "ultracdc", "ultracdc-v1.0.0":
 		o := withDefaults(o, 2*1024, 10*1024, 64*1024)
@@ -115,7 +118,7 @@ func newChunker(algorithm string, reader io.Reader, opts *ChunkerOpts, buf []byt
 			uopts = append(uopts, ultracdc.WithSpecFaithful())
 		}
 		c := ultracdc.New(reader, o.MinSize, o.NormalSize, o.MaxSize, uopts...)
-		return &Chunker{it: c, minSize: o.MinSize}, nil
+		return &Chunker{it: c, minSize: o.MinSize, maxSize: o.MaxSize, normalS: o.NormalSize}, nil
 
 	case "kfastcdc", "kfastcdc-v1.0.0":
 		return nil, fmt.Errorf("gocdc: %q: keyed FastCDC is not supported", algorithm)
@@ -182,6 +185,15 @@ func (c *Chunker) Split(callback func(offset, length uint, chunk []byte) error) 
 	}
 	return c.it.Err()
 }
+
+// Reset rewinds the Chunker to consume reader from the start, keeping its
+// buffer and configuration.
+func (c *Chunker) Reset(reader io.Reader) { c.it.Reset(reader) }
+
+// MinSize, MaxSize and NormalSize report the effective bounds (after defaults).
+func (c *Chunker) MinSize() int    { return c.minSize }
+func (c *Chunker) MaxSize() int    { return c.maxSize }
+func (c *Chunker) NormalSize() int { return c.normalS }
 
 // Copy writes every chunk to dst in order and returns the total byte count.
 func (c *Chunker) Copy(dst io.Writer) (int64, error) {
