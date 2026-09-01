@@ -1,17 +1,38 @@
-package rollinghash
+// Package jumpchunker splits a stream into content-defined chunks using the
+// Jump Chunking (JC) algorithm.
+package jumpchunker
 
 import (
 	"io"
 	"math/bits"
+
+	rollinghash "github.com/chmduquesne/rollinghash/v4"
 )
 
-// A JumpChunker splits an io.Reader into content-defined chunks using the
-// Jump Chunking (JC) algorithm. Unlike Chunker, JC uses a windowless
-// accumulating fingerprint (fp = (fp<<1) + G[b]) with a dual-mask trick that
-// skips regions provably free of boundaries, achieving higher throughput than
-// Chunker at the cost of producing different boundaries.
+// batchSize is the read/hash batch size, matching rollinghash's chunker
+// package default.
+const batchSize = 16 << 10
+
+// jumpBoundaryRoller is a windowless CDC fast path using the Jump Chunking
+// algorithm. JumpBoundaries scans data starting at firstSkip (the remaining
+// min-zone bytes for the current chunk; fp is 0 in that zone). After each
+// boundary it advances minStep bytes before resuming (the next chunk's min
+// zone); after a false maskJ hit it advances jumpLen bytes. It returns boundary
+// positions in a[:n], the updated fingerprint newFp, and skip: bytes to skip at
+// the start of the next data slice when a jump or min-step crossed the batch
+// boundary (fp is 0 in that case).
+type jumpBoundaryRoller interface {
+	JumpBoundaries(a []int32, data []byte, maskC uint64, jumpLen int, fp uint64, firstSkip, minStep int) (n int, newFp uint64, skip int)
+}
+
+// A Chunker splits an io.Reader into content-defined chunks using the
+// Jump Chunking (JC) algorithm. Unlike rollinghash.Chunker, JC uses a
+// windowless accumulating fingerprint (fp = (fp<<1) + G[b]) with a dual-mask
+// trick that skips regions provably free of boundaries, achieving higher
+// throughput than rollinghash.Chunker at the cost of producing different
+// boundaries.
 //
-//	c := NewJumpChunker(r, gearhash64.New(), normalSize, min, max)
+//	c := jumpchunker.New(r, gearhash64.New(), normalSize, min, max)
 //	for c.Next() {
 //		chunk := c.Bytes()
 //		if c.AtMask() {
@@ -22,9 +43,9 @@ import (
 //	}
 //	if err := c.Err(); err != nil { ... }
 //
-// The hash must implement JumpBoundaries; NewJumpChunker panics otherwise.
-// Use Reset to reuse the JumpChunker across streams without extra allocations.
-type JumpChunker struct {
+// The hash must implement JumpBoundaries; New panics otherwise. Use Reset to
+// reuse the Chunker across streams without extra allocations.
+type Chunker struct {
 	jbrd    jumpBoundaryRoller
 	r       io.Reader
 	maskC   uint64
@@ -53,39 +74,39 @@ type JumpChunker struct {
 	atMask bool
 }
 
-// JumpChunkerOption is a functional option for NewJumpChunker.
-type JumpChunkerOption func(*JumpChunker)
+// Option is a functional option for New.
+type Option func(*Chunker)
 
 // WithJumpMask overrides the maskC and jumpLen that would otherwise be derived
 // from normalSize. Use this to interoperate with another implementation that
 // fixes its own boundary mask and jump stride.
-func WithJumpMask(maskC uint64, jumpLen int) JumpChunkerOption {
-	return func(c *JumpChunker) {
+func WithJumpMask(maskC uint64, jumpLen int) Option {
+	return func(c *Chunker) {
 		c.maskC = maskC
 		c.jumpLen = jumpLen
 	}
 }
 
-// NewJumpChunker returns a JumpChunker over r. normalSize is the target average
-// chunk length; the JC algorithm internally derives the boundary mask and jump
-// length from it to maximize throughput at that target. Chunk lengths are kept
-// in [min, max]. h must implement JumpBoundaries; NewJumpChunker panics
-// otherwise. Options (e.g. WithJumpMask) can override derived parameters.
-func NewJumpChunker(r io.Reader, h Hash, normalSize, min, max int, opts ...JumpChunkerOption) *JumpChunker {
+// New returns a Chunker over r. normalSize is the target average chunk
+// length; the JC algorithm internally derives the boundary mask and jump
+// length from it to maximize throughput at that target. Chunk lengths are
+// kept in [min, max]. h must implement JumpBoundaries; New panics otherwise.
+// Options (e.g. WithJumpMask) can override derived parameters.
+func New(r io.Reader, h rollinghash.Hash, normalSize, min, max int, opts ...Option) *Chunker {
 	jbrd, ok := h.(jumpBoundaryRoller)
 	if !ok {
-		panic("rollinghash: JumpChunker requires JumpBoundaries")
+		panic("jumpchunker: Chunker requires JumpBoundaries")
 	}
 	maskC, jumpLen := jumpParams(normalSize)
-	c := &JumpChunker{
+	c := &Chunker{
 		jbrd:    jbrd,
 		r:       r,
 		maskC:   maskC,
 		jumpLen: jumpLen,
 		min:     min,
 		max:     max,
-		cbuf:    make([]byte, 0, max+chunkerBatchSize),
-		la:      make([]int32, chunkerBatchSize),
+		cbuf:    make([]byte, 0, max+batchSize),
+		la:      make([]int32, batchSize),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -122,8 +143,8 @@ func jumpMask(cOnes int) uint64 {
 	return mask
 }
 
-// Reset prepares the JumpChunker to split r from the start, reusing its buffers.
-func (c *JumpChunker) Reset(r io.Reader) {
+// Reset prepares the Chunker to split r from the start, reusing its buffers.
+func (c *Chunker) Reset(r io.Reader) {
 	c.r = r
 	c.jfp = 0
 	c.jskip = 0
@@ -142,7 +163,7 @@ func (c *JumpChunker) Reset(r io.Reader) {
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error. After it returns false, Err reports any error other than EOF.
-func (c *JumpChunker) Next() bool {
+func (c *Chunker) Next() bool {
 	if c.err != nil || c.done {
 		c.chunk = nil
 		c.atMask = false
@@ -183,7 +204,7 @@ func (c *JumpChunker) Next() bool {
 }
 
 // emit records the chunk ending at global byte e.
-func (c *JumpChunker) emit(e int, atMask bool) bool {
+func (c *Chunker) emit(e int, atMask bool) bool {
 	l := e - c.chunkStart + 1
 	c.chunk = c.cbuf[c.head : c.head+l]
 	c.atMask = atMask
@@ -194,7 +215,7 @@ func (c *JumpChunker) emit(e int, atMask bool) bool {
 
 // readBatch reads the next block directly into cbuf's spare capacity,
 // finds jump-chunk boundaries within it, and records them in c.bounds.
-func (c *JumpChunker) readBatch() bool {
+func (c *Chunker) readBatch() bool {
 	// Compact delivered bytes to reclaim the front of cbuf.
 	if c.head > 0 {
 		m := copy(c.cbuf, c.cbuf[c.head:])
@@ -212,18 +233,18 @@ func (c *JumpChunker) readBatch() bool {
 	}
 
 	// Grow cbuf if needed (does not happen when cap was pre-allocated correctly).
-	if cap(c.cbuf)-len(c.cbuf) < chunkerBatchSize {
-		newbuf := make([]byte, len(c.cbuf), len(c.cbuf)+chunkerBatchSize)
+	if cap(c.cbuf)-len(c.cbuf) < batchSize {
+		newbuf := make([]byte, len(c.cbuf), len(c.cbuf)+batchSize)
 		copy(newbuf, c.cbuf)
 		c.cbuf = newbuf
 	}
 
 	// Read directly into cbuf's spare capacity, skipping the rbuf→cbuf copy.
 	readBase := len(c.cbuf)
-	c.cbuf = c.cbuf[:readBase+chunkerBatchSize]
+	c.cbuf = c.cbuf[:readBase+batchSize]
 	n := 0
-	for n < chunkerBatchSize && !c.eof {
-		m, err := c.r.Read(c.cbuf[readBase+n : readBase+chunkerBatchSize])
+	for n < batchSize && !c.eof {
+		m, err := c.r.Read(c.cbuf[readBase+n : readBase+batchSize])
 		n += m
 		if err == io.EOF {
 			c.eof = true
@@ -269,7 +290,7 @@ func (c *JumpChunker) readBatch() bool {
 }
 
 // jFail clears state and signals no further chunks.
-func (c *JumpChunker) jFail() bool {
+func (c *Chunker) jFail() bool {
 	c.done = true
 	c.chunk = nil
 	c.atMask = false
@@ -278,12 +299,12 @@ func (c *JumpChunker) jFail() bool {
 
 // Bytes returns the current chunk, valid until the next call to Next. Before
 // the first call to Next, and after Next returns false, Bytes returns nil.
-func (c *JumpChunker) Bytes() []byte { return c.chunk }
+func (c *Chunker) Bytes() []byte { return c.chunk }
 
 // AtMask reports whether the current chunk was cut by the mask (true) or
 // forced at max / end of stream (false). Before the first call to Next, and
 // after Next returns false, AtMask returns false.
-func (c *JumpChunker) AtMask() bool { return c.atMask }
+func (c *Chunker) AtMask() bool { return c.atMask }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *JumpChunker) Err() error { return c.err }
+func (c *Chunker) Err() error { return c.err }
