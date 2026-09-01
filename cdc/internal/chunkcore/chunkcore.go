@@ -24,19 +24,25 @@ const readBlock = 16 << 10
 // CutFinder is a stateless port of a plakar Algorithm function. It is called
 // once per chunk with the bytes available from the current chunk start.
 type CutFinder interface {
-	// Cut returns the length of the next chunk and whether it ends at a
+	// Cut returns the length of the next chunk, whether it ends at a
 	// content-defined boundary (as opposed to a forced max cut or the final
-	// bytes of the stream). When eof is false, avail holds at least MaxSize
-	// bytes. The returned length is clamped to [1, len(avail)] by the caller.
-	Cut(avail []byte, eof bool) (n int, atMask bool)
+	// bytes of the stream), and the algorithm's rolling value at that boundary
+	// (0 when contentDefined is false). When eof is false, avail holds at
+	// least MaxSize bytes. The returned length is clamped to [1, len(avail)]
+	// by the caller.
+	Cut(avail []byte, eof bool) (n int, contentDefined bool, sum uint64)
 	MaxSize() int
+	// Window is the number of trailing bytes the boundary test depends on,
+	// reported by Chunker.WindowSize.
+	Window() int
 }
 
 // Core is the streaming buffer + iterator shared by the cdc chunkers.
 type Core struct {
-	r   io.Reader
-	f   CutFinder
-	max int
+	r      io.Reader
+	f      CutFinder
+	max    int
+	window int
 
 	buf    []byte
 	start  int // index in buf of the current (not yet emitted) chunk's first byte
@@ -45,9 +51,10 @@ type Core struct {
 	done   bool
 	err    error
 
-	chunk  []byte
-	atMask bool
-	curOff int
+	chunk          []byte
+	contentDefined bool
+	sum            uint64
+	curOff         int
 }
 
 // New returns a Core reading from r and cutting with f. If buf is non-nil and
@@ -60,10 +67,11 @@ func New(r io.Reader, f CutFinder, buf []byte) *Core {
 		buf = make([]byte, 0, want)
 	}
 	return &Core{
-		r:   r,
-		f:   f,
-		max: max,
-		buf: buf[:0],
+		r:      r,
+		f:      f,
+		max:    max,
+		window: f.Window(),
+		buf:    buf[:0],
 	}
 }
 
@@ -77,7 +85,8 @@ func (c *Core) Reset(r io.Reader) {
 	c.done = false
 	c.err = nil
 	c.chunk = nil
-	c.atMask = false
+	c.contentDefined = false
+	c.sum = 0
 	c.curOff = 0
 }
 
@@ -85,8 +94,7 @@ func (c *Core) Reset(r io.Reader) {
 // first reader error (reported by Err).
 func (c *Core) Next() bool {
 	if c.err != nil || c.done {
-		c.chunk = nil
-		c.atMask = false
+		c.clearChunk()
 		return false
 	}
 
@@ -100,12 +108,11 @@ func (c *Core) Next() bool {
 	avail := c.buf[c.start:]
 	if len(avail) == 0 {
 		c.done = true
-		c.chunk = nil
-		c.atMask = false
+		c.clearChunk()
 		return false
 	}
 
-	n, atMask := c.f.Cut(avail, c.eof)
+	n, cd, sum := c.f.Cut(avail, c.eof)
 	switch {
 	case n <= 0:
 		n = 1 // never stall
@@ -113,13 +120,20 @@ func (c *Core) Next() bool {
 		n = len(avail)
 	}
 	c.chunk = avail[:n]
-	c.atMask = atMask
+	c.contentDefined = cd
+	c.sum = sum
 	c.curOff = c.offset + c.start
 	c.start += n
 	if c.eof && c.start >= len(c.buf) {
 		c.done = true
 	}
 	return true
+}
+
+func (c *Core) clearChunk() {
+	c.chunk = nil
+	c.contentDefined = false
+	c.sum = 0
 }
 
 // fill drops the consumed prefix if buf has no tail room, then reads one
@@ -160,8 +174,7 @@ func (c *Core) fill() bool {
 
 func (c *Core) fail() bool {
 	c.done = true
-	c.chunk = nil
-	c.atMask = false
+	c.clearChunk()
 	return false
 }
 
@@ -170,11 +183,19 @@ func (c *Core) fail() bool {
 // Next returns false.
 func (c *Core) Bytes() []byte { return c.chunk }
 
-// AtMask reports whether the current chunk ended at a content-defined boundary.
-func (c *Core) AtMask() bool { return c.atMask }
+// ContentDefined reports whether the current chunk ended at a content-defined
+// boundary (as opposed to a forced max cut or the final bytes of the stream).
+func (c *Core) ContentDefined() bool { return c.contentDefined }
+
+// Sum returns the algorithm's rolling value at the current chunk's boundary, or
+// 0 when the chunk was not cut at a content-defined boundary.
+func (c *Core) Sum() uint64 { return c.sum }
 
 // Offset is the stream offset of the current chunk's first byte.
 func (c *Core) Offset() int { return c.curOff }
+
+// WindowSize is the number of trailing bytes the boundary test depends on.
+func (c *Core) WindowSize() int { return c.window }
 
 // Err returns the first non-EOF reader error, if any.
 func (c *Core) Err() error { return c.err }

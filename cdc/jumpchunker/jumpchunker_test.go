@@ -6,6 +6,7 @@ import (
 	"testing"
 	"testing/iotest"
 
+	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/plakar"
 	"github.com/chmduquesne/rollinghash/v4/cdc/jumpchunker"
 	"github.com/chmduquesne/rollinghash/v4/gearhash64"
@@ -115,6 +116,37 @@ func TestChunkerMatchesPlakar(t *testing.T) {
 	}
 }
 
+// TestChunkerImplementsRollinghashChunker exercises the type through the
+// rollinghash.Chunker interface and checks Sum/WindowSize semantics.
+func TestChunkerImplementsRollinghashChunker(t *testing.T) {
+	data := randData(200 * 1024)
+	var c rollinghash.Chunker = jumpchunker.New(bytes.NewReader(data), gearhash64.New(), 4096, 512, 16384)
+
+	if c.WindowSize() != 64 {
+		t.Fatalf("WindowSize = %d, want 64", c.WindowSize())
+	}
+	sawCD, sawForced := false, false
+	for c.Next() {
+		if c.ContentDefined() {
+			sawCD = true
+			if c.Sum() == 0 {
+				t.Fatal("content-defined chunk has Sum() == 0")
+			}
+		} else {
+			sawForced = true
+			if c.Sum() != 0 {
+				t.Fatalf("forced/final chunk has Sum() = %#x, want 0", c.Sum())
+			}
+		}
+	}
+	if err := c.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !sawCD || !sawForced {
+		t.Fatalf("test data did not exercise both cut kinds (cd=%v forced=%v)", sawCD, sawForced)
+	}
+}
+
 func TestChunkerDeterminism(t *testing.T) {
 	data := randData(200 * 1024)
 	const normalSize, min, max = 4096, 512, 16384
@@ -141,7 +173,7 @@ func TestChunkerEdgeCases(t *testing.T) {
 	if c.Next() {
 		t.Error("empty: expected no chunks")
 	}
-	if c.Bytes() != nil || c.AtMask() {
+	if c.Bytes() != nil || c.ContentDefined() {
 		t.Error("empty: expected zero-value accessors")
 	}
 
@@ -177,7 +209,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 	data := randData(200 * 1024)
 	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), 4096, 512, 16384)
 
-	if c.Bytes() != nil || c.AtMask() {
+	if c.Bytes() != nil || c.ContentDefined() {
 		t.Error("expected zero-value accessors before first Next")
 	}
 	for c.Next() {
@@ -185,7 +217,7 @@ func TestChunkerAccessorLifecycle(t *testing.T) {
 	if err := c.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if c.Bytes() != nil || c.AtMask() {
+	if c.Bytes() != nil || c.ContentDefined() {
 		t.Error("expected zero-value accessors after Next returns false")
 	}
 	if c.Next() {

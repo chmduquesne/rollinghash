@@ -14,11 +14,12 @@ import (
 type fixedCut struct{ size, max int }
 
 func (f fixedCut) MaxSize() int { return f.max }
-func (f fixedCut) Cut(avail []byte, eof bool) (int, bool) {
+func (f fixedCut) Window() int  { return 8 }
+func (f fixedCut) Cut(avail []byte, eof bool) (int, bool, uint64) {
 	if len(avail) <= f.size {
-		return len(avail), false
+		return len(avail), false, 0
 	}
-	return f.size, true
+	return f.size, true, 42
 }
 
 func drain(t *testing.T, c *chunkcore.Core) ([][]byte, []int) {
