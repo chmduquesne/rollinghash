@@ -1,5 +1,14 @@
 // Package jumpchunker splits a stream into content-defined chunks using the
 // Jump Chunking (JC) algorithm.
+//
+// JC uses a windowless accumulating Gear fingerprint (fp = (fp<<1) + G[b]) with
+// a dual-mask trick: a wider mask maskJ is tested first and, on a miss, the scan
+// jumps jumpLen bytes ahead instead of stepping one byte, skipping regions that
+// provably cannot hold a boundary. This trades different boundary positions for
+// higher throughput than the parent package's rolling-window Chunker.
+//
+// Boundaries match PlakarKorp/go-cdc-chunkers: the boundary byte is the first
+// byte of the next chunk, not the last byte of the current one.
 package jumpchunker
 
 import (
@@ -7,30 +16,17 @@ import (
 	"math/bits"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
 )
 
-// batchSize is the read/hash batch size, matching rollinghash's chunker
-// package default.
-const batchSize = 16 << 10
-
-// jumpBoundaryRoller is a windowless CDC fast path using the Jump Chunking
-// algorithm. JumpBoundaries scans data starting at firstSkip (the remaining
-// min-zone bytes for the current chunk; fp is 0 in that zone). After each
-// boundary it advances minStep bytes before resuming (the next chunk's min
-// zone); after a false maskJ hit it advances jumpLen bytes. It returns boundary
-// positions in a[:n], the updated fingerprint newFp, and skip: bytes to skip at
-// the start of the next data slice when a jump or min-step crossed the batch
-// boundary (fp is 0 in that case).
-type jumpBoundaryRoller interface {
-	JumpBoundaries(a []int32, data []byte, maskC uint64, jumpLen int, fp uint64, firstSkip, minStep int) (n int, newFp uint64, skip int)
+// gearTabler is the capability jumpchunker needs from its hash: read access to
+// the 256-entry Gear table so the JC fingerprint loop can run. gearhash64
+// satisfies it.
+type gearTabler interface {
+	Table() [256]uint64
 }
 
-// A Chunker splits an io.Reader into content-defined chunks using the
-// Jump Chunking (JC) algorithm. Unlike rollinghash.Chunker, JC uses a
-// windowless accumulating fingerprint (fp = (fp<<1) + G[b]) with a dual-mask
-// trick that skips regions provably free of boundaries, achieving higher
-// throughput than rollinghash.Chunker at the cost of producing different
-// boundaries.
+// A Chunker splits an io.Reader into content-defined chunks using Jump Chunking.
 //
 //	c := jumpchunker.New(r, gearhash64.New(), normalSize, min, max)
 //	for c.Next() {
@@ -43,86 +39,71 @@ type jumpBoundaryRoller interface {
 //	}
 //	if err := c.Err(); err != nil { ... }
 //
-// The hash must implement JumpBoundaries; New panics otherwise. Use Reset to
-// reuse the Chunker across streams without extra allocations.
+// The hash must expose Table(); New panics otherwise. Use Reset to reuse the
+// Chunker across streams without extra allocations.
 type Chunker struct {
-	jbrd    jumpBoundaryRoller
-	r       io.Reader
-	maskC   uint64
-	jumpLen int
-	min     int
-	max     int
-
-	// cbuf accumulates raw bytes. Its spare capacity is used as the read
-	// target to avoid a separate rbuf→cbuf copy each batch.
-	cbuf       []byte
-	head       int
-	chunkStart int
-	consumed   int
-
-	jfp   uint64 // accumulated fingerprint across batch boundaries
-	jskip int    // bytes to skip at start of next batch (pending jump or min-step)
-
-	bounds []int
-	bcur   int
-	la     []int32
-
-	eof    bool
-	done   bool
-	err    error
-	chunk  []byte
-	atMask bool
+	core *chunkcore.Core
 }
 
-// Option is a functional option for New.
-type Option func(*Chunker)
+// Option configures New.
+type Option func(*jcCut)
 
-// WithJumpMask overrides the maskC and jumpLen that would otherwise be derived
-// from normalSize. Use this to interoperate with another implementation that
-// fixes its own boundary mask and jump stride.
+// WithJumpMask overrides the maskC and jumpLen that New would otherwise derive
+// from normalSize. maskJ is recomputed as maskC & (maskC-1). Use this to match
+// another implementation that fixes its own boundary mask and jump stride (for
+// example plakar's legacy "jc": maskC 0x590003570000, jumpLen 4096).
 func WithJumpMask(maskC uint64, jumpLen int) Option {
-	return func(c *Chunker) {
-		c.maskC = maskC
-		c.jumpLen = jumpLen
+	return func(f *jcCut) {
+		f.maskC = maskC
+		f.maskJ = maskC & (maskC - 1)
+		f.jumpLen = jumpLen
 	}
 }
 
-// New returns a Chunker over r. normalSize is the target average chunk
-// length; the JC algorithm internally derives the boundary mask and jump
-// length from it to maximize throughput at that target. Chunk lengths are
-// kept in [min, max]. h must implement JumpBoundaries; New panics otherwise.
-// Options (e.g. WithJumpMask) can override derived parameters.
+// WithSpecFaithful selects the paper's Algorithm 1 behaviour: a final segment
+// shorter than normalSize is still scanned for a boundary. Without it (the
+// default, matching plakar's "jc"/"jc-v1.0.0"), such a tail is emitted whole.
+func WithSpecFaithful() Option {
+	return func(f *jcCut) { f.specFaithful = true }
+}
+
+// WithBuffer supplies the working buffer, adopted when its capacity is large
+// enough (roughly 2*max). Use it to reuse one allocation across many streams.
+func WithBuffer(buf []byte) Option {
+	return func(f *jcCut) { f.buf = buf }
+}
+
+// New returns a Chunker over r. normalSize is the target average chunk length;
+// maskC and jumpLen are derived from it. Chunk lengths are kept in [min, max].
+// h must expose Table() (gearhash64 does); New panics otherwise.
 func New(r io.Reader, h rollinghash.Hash, normalSize, min, max int, opts ...Option) *Chunker {
-	jbrd, ok := h.(jumpBoundaryRoller)
+	ht, ok := h.(gearTabler)
 	if !ok {
-		panic("jumpchunker: Chunker requires JumpBoundaries")
+		panic("jumpchunker: Chunker requires a Gear hash exposing Table()")
 	}
 	maskC, jumpLen := jumpParams(normalSize)
-	c := &Chunker{
-		jbrd:    jbrd,
-		r:       r,
+	f := &jcCut{
+		g:       ht.Table(),
 		maskC:   maskC,
+		maskJ:   maskC & (maskC - 1),
 		jumpLen: jumpLen,
 		min:     min,
+		normal:  normalSize,
 		max:     max,
-		cbuf:    make([]byte, 0, max+batchSize),
-		la:      make([]int32, batchSize),
 	}
 	for _, opt := range opts {
-		opt(c)
+		opt(f)
 	}
-	return c
+	return &Chunker{core: chunkcore.New(r, f, f.buf)}
 }
 
-// jumpParams derives the maskC and jumpLen for a given target normalSize.
+// jumpParams derives maskC and jumpLen for a target normalSize (this package's
+// own tuning, independent of plakar; use WithJumpMask for interop).
 //
 // bits = floor(log2(normalSize)); cOnes = bits-2 set bits in maskC;
-// jumpLen = 2^(bits-1). This gives a 1/5 byte-examination rate: maskJ (one
-// fewer bit than maskC) fires every 2^(cOnes-1) examined bytes, and each fire
-// skips jumpLen bytes, so the fraction examined = 2^(cOnes-1) /
-// (2^(cOnes-1)+jumpLen) = 2^(bits-3)/(2^(bits-3)+2^(bits-1)) = 1/5.
+// jumpLen = 2^(bits-1). This gives a 1/5 byte-examination rate.
 func jumpParams(normalSize int) (maskC uint64, jumpLen int) {
-	lg := bits.Len(uint(normalSize)) - 1 // floor(log2(normalSize))
+	lg := bits.Len(uint(normalSize)) - 1
 	if lg < 3 {
 		lg = 3
 	}
@@ -132,8 +113,8 @@ func jumpParams(normalSize int) (maskC uint64, jumpLen int) {
 	return
 }
 
-// jumpMask builds a uint64 with exactly cOnes set bits, evenly spaced from
-// bit 63 downward with step = 64/cOnes.
+// jumpMask builds a uint64 with exactly cOnes set bits, evenly spaced from bit
+// 63 downward with step = 64/cOnes.
 func jumpMask(cOnes int) uint64 {
 	step := 64 / cOnes
 	var mask uint64
@@ -143,168 +124,74 @@ func jumpMask(cOnes int) uint64 {
 	return mask
 }
 
-// Reset prepares the Chunker to split r from the start, reusing its buffers.
-func (c *Chunker) Reset(r io.Reader) {
-	c.r = r
-	c.jfp = 0
-	c.jskip = 0
-	c.cbuf = c.cbuf[:0]
-	c.head = 0
-	c.chunkStart = 0
-	c.consumed = 0
-	c.bounds = c.bounds[:0]
-	c.bcur = 0
-	c.eof = false
-	c.done = false
-	c.err = nil
-	c.chunk = nil
-	c.atMask = false
+// jcCut is the JC cutpoint finder: a port of plakar chunkers/jc/jc.go Algorithm.
+type jcCut struct {
+	g            [256]uint64
+	maskC        uint64
+	maskJ        uint64
+	jumpLen      int
+	min          int
+	normal       int
+	max          int
+	specFaithful bool
+	buf          []byte
 }
+
+func (f *jcCut) MaxSize() int { return f.max }
+
+func (f *jcCut) Cut(data []byte, eof bool) (int, bool) {
+	n := len(data)
+
+	switch {
+	case f.specFaithful:
+		if n >= f.max {
+			n = f.max
+		}
+	case n <= f.normal:
+		return n, false
+	case n >= f.max:
+		n = f.max
+	}
+
+	// Hoist config into locals so the scan loop below does not reload struct
+	// fields through the receiver pointer on every iteration.
+	g := &f.g
+	maskC, maskJ, jumpLen := f.maskC, f.maskJ, f.jumpLen
+	data = data[:n:n] // fold the bound into data so data[i] needs no separate check
+
+	fp := uint64(0)
+	for i := f.min; i < n; {
+		fp = (fp << 1) + g[data[i]]
+		if fp&maskJ == 0 {
+			if fp&maskC == 0 {
+				return i, true // boundary byte i starts the next chunk
+			}
+			fp = 0
+			i += jumpLen
+		} else {
+			i++
+		}
+	}
+	return n, false
+}
+
+// Reset prepares the Chunker to split r from the start, reusing its buffers.
+func (c *Chunker) Reset(r io.Reader) { c.core.Reset(r) }
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error. After it returns false, Err reports any error other than EOF.
-func (c *Chunker) Next() bool {
-	if c.err != nil || c.done {
-		c.chunk = nil
-		c.atMask = false
-		return false
-	}
-	for {
-		minByte := c.chunkStart + c.min - 1
-		maxByte := c.chunkStart + c.max - 1
+func (c *Chunker) Next() bool { return c.core.Next() }
 
-		for c.bcur < len(c.bounds) {
-			e := c.bounds[c.bcur]
-			if e < minByte {
-				c.bcur++
-				continue
-			}
-			if e <= maxByte {
-				c.bcur++
-				return c.emit(e, true)
-			}
-			break
-		}
+// Bytes returns the current chunk, valid until the next call to Next. Before the
+// first call to Next, and after Next returns false, Bytes returns nil.
+func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
 
-		if c.consumed-1 >= maxByte {
-			return c.emit(maxByte, false)
-		}
+// AtMask reports whether the current chunk was cut by the mask (true) or forced
+// at max / end of stream (false).
+func (c *Chunker) AtMask() bool { return c.core.AtMask() }
 
-		if !c.readBatch() {
-			if c.err != nil {
-				return c.jFail()
-			}
-			if c.head < len(c.cbuf) {
-				c.done = true
-				return c.emit(c.consumed-1, false)
-			}
-			return c.jFail()
-		}
-	}
-}
-
-// emit records the chunk ending at global byte e.
-func (c *Chunker) emit(e int, atMask bool) bool {
-	l := e - c.chunkStart + 1
-	c.chunk = c.cbuf[c.head : c.head+l]
-	c.atMask = atMask
-	c.head += l
-	c.chunkStart += l
-	return true
-}
-
-// readBatch reads the next block directly into cbuf's spare capacity,
-// finds jump-chunk boundaries within it, and records them in c.bounds.
-func (c *Chunker) readBatch() bool {
-	// Compact delivered bytes to reclaim the front of cbuf.
-	if c.head > 0 {
-		m := copy(c.cbuf, c.cbuf[c.head:])
-		c.cbuf = c.cbuf[:m]
-		c.head = 0
-	}
-	if c.bcur > 0 {
-		m := copy(c.bounds, c.bounds[c.bcur:])
-		c.bounds = c.bounds[:m]
-		c.bcur = 0
-	}
-
-	if c.eof {
-		return false
-	}
-
-	// Grow cbuf if needed (does not happen when cap was pre-allocated correctly).
-	if cap(c.cbuf)-len(c.cbuf) < batchSize {
-		newbuf := make([]byte, len(c.cbuf), len(c.cbuf)+batchSize)
-		copy(newbuf, c.cbuf)
-		c.cbuf = newbuf
-	}
-
-	// Read directly into cbuf's spare capacity, skipping the rbuf→cbuf copy.
-	readBase := len(c.cbuf)
-	c.cbuf = c.cbuf[:readBase+batchSize]
-	n := 0
-	for n < batchSize && !c.eof {
-		m, err := c.r.Read(c.cbuf[readBase+n : readBase+batchSize])
-		n += m
-		if err == io.EOF {
-			c.eof = true
-		} else if err != nil {
-			c.err = err
-			c.cbuf = c.cbuf[:readBase]
-			return false
-		}
-	}
-	c.cbuf = c.cbuf[:readBase+n]
-	if n == 0 {
-		return false
-	}
-
-	if c.jskip >= n {
-		// Entire batch falls within a pending skip; accumulate bytes into cbuf
-		// but defer boundary scan.
-		c.consumed += n
-		c.jskip -= n
-		return true
-	}
-
-	batchO := c.consumed
-	oldSkip := c.jskip
-	c.consumed += n
-
-	// firstSkip: bytes at the start of the scanned slice that belong to the
-	// current chunk's min zone. JumpBoundaries treats these as fp=0 and emits
-	// no boundaries there.
-	firstSkip := c.chunkStart + c.min - (batchO + oldSkip)
-	if firstSkip < 0 {
-		firstSkip = 0
-	}
-
-	nb, newFp, skip := c.jbrd.JumpBoundaries(c.la, c.cbuf[readBase+oldSkip:readBase+n], c.maskC, c.jumpLen, c.jfp, firstSkip, c.min)
-	c.jfp = newFp
-	c.jskip = skip
-
-	for _, g := range c.la[:nb] {
-		c.bounds = append(c.bounds, batchO+oldSkip+int(g))
-	}
-	return true
-}
-
-// jFail clears state and signals no further chunks.
-func (c *Chunker) jFail() bool {
-	c.done = true
-	c.chunk = nil
-	c.atMask = false
-	return false
-}
-
-// Bytes returns the current chunk, valid until the next call to Next. Before
-// the first call to Next, and after Next returns false, Bytes returns nil.
-func (c *Chunker) Bytes() []byte { return c.chunk }
-
-// AtMask reports whether the current chunk was cut by the mask (true) or
-// forced at max / end of stream (false). Before the first call to Next, and
-// after Next returns false, AtMask returns false.
-func (c *Chunker) AtMask() bool { return c.atMask }
+// Offset returns the start byte offset of the current chunk in the stream.
+func (c *Chunker) Offset() int { return c.core.Offset() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *Chunker) Err() error { return c.err }
+func (c *Chunker) Err() error { return c.core.Err() }
