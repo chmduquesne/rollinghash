@@ -10,9 +10,12 @@ Each algorithm lives in its own subpackage:
   - [github.com/chmduquesne/rollinghash/v4/cdc/ultracdc]: UltraCDC (8-byte
     window, Hamming distance to 0xAA, no rolling hash)
 
-They share one Next/Bytes/ContentDefined/Sum/Err iterator shape, so switching algorithm is
-a one-line change at construction. Boundaries are byte-for-byte compatible with
-the corresponding algorithm in PlakarKorp/go-cdc-chunkers;
+Every *Chunker implements [github.com/chmduquesne/rollinghash/v4.Chunker] and
+every *ChunkWriter (from each package's NewChunkWriter, the push-based
+counterpart fed via Write/Close) implements
+[github.com/chmduquesne/rollinghash/v4.ChunkWriter], so one loop works across
+all algorithms and both drive styles. Boundaries are byte-for-byte compatible
+with the corresponding algorithm in PlakarKorp/go-cdc-chunkers;
 [github.com/chmduquesne/rollinghash/v4/cdc/gocdc] is a signature-compatible
 drop-in for that library's NewChunker/Next/Split/Copy API.
 

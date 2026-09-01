@@ -9,6 +9,10 @@
 //
 // Boundaries match PlakarKorp/go-cdc-chunkers: the boundary byte is the first
 // byte of the next chunk, not the last byte of the current one.
+//
+// New returns a pull-based *Chunker (rollinghash.Chunker) over an io.Reader;
+// NewChunkWriter returns the push-based *ChunkWriter (rollinghash.ChunkWriter),
+// fed via Write/Close.
 package jumpchunker
 
 import (
@@ -80,9 +84,14 @@ func WithBuffer(buf []byte) Option {
 // maskC and jumpLen are derived from it. Chunk lengths are kept in [min, max].
 // h must expose Table() (gearhash64 does); New panics otherwise.
 func New(r io.Reader, h rollinghash.Hash, normalSize, min, max int, opts ...Option) *Chunker {
+	f := newCut(h, normalSize, min, max, opts)
+	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+}
+
+func newCut(h rollinghash.Hash, normalSize, min, max int, opts []Option) *jcCut {
 	ht, ok := h.(gearTabler)
 	if !ok {
-		panic("jumpchunker: Chunker requires a Gear hash exposing Table()")
+		panic("jumpchunker: requires a Gear hash exposing Table()")
 	}
 	maskC, jumpLen := jumpParams(normalSize)
 	f := &jcCut{
@@ -97,7 +106,7 @@ func New(r io.Reader, h rollinghash.Hash, normalSize, min, max int, opts ...Opti
 	for _, opt := range opts {
 		opt(f)
 	}
-	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+	return f
 }
 
 // jumpParams derives maskC and jumpLen for a target normalSize (this package's

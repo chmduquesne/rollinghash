@@ -8,6 +8,10 @@
 // byte of the next chunk. By default the boundary masks are derived from
 // normalSize; use WithMasks to pin them (LegacyMaskS/LegacyMaskL reproduce
 // plakar's "fastcdc" variant and the reference implementation's 8 KiB tuning).
+//
+// New returns a pull-based *Chunker (rollinghash.Chunker) over an io.Reader;
+// NewChunkWriter returns the push-based *ChunkWriter (rollinghash.ChunkWriter),
+// fed via Write/Close.
 package fastcdc
 
 import (
@@ -71,9 +75,14 @@ func WithBuffer(buf []byte) Option {
 // New returns a Chunker over r. Chunk lengths are kept in [minSize, maxSize]
 // with an average near normalSize. h must expose Table(); New panics otherwise.
 func New(r io.Reader, h rollinghash.Hash, minSize, normalSize, maxSize int, opts ...Option) *Chunker {
+	f := newCut(h, minSize, normalSize, maxSize, opts)
+	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+}
+
+func newCut(h rollinghash.Hash, minSize, normalSize, maxSize int, opts []Option) *fcCut {
 	ht, ok := h.(gearTabler)
 	if !ok {
-		panic("fastcdc: Chunker requires a Gear hash exposing Table()")
+		panic("fastcdc: requires a Gear hash exposing Table()")
 	}
 	maskS, maskL := calculateMasks(normalSize, normalLevel)
 	f := &fcCut{
@@ -87,7 +96,7 @@ func New(r io.Reader, h rollinghash.Hash, minSize, normalSize, maxSize int, opts
 	for _, opt := range opts {
 		opt(f)
 	}
-	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+	return f
 }
 
 // calculateMasks derives the strict and loose masks for a target size, matching

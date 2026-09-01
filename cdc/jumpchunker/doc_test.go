@@ -42,3 +42,47 @@ func ExampleChunker() {
 	// Output:
 	// split 4096 bytes into 16 chunks
 }
+
+// ExampleChunkWriter shows the push-based counterpart: feed bytes with Write as
+// they arrive, drain Next in between, then Close and drain the tail.
+func ExampleChunkWriter() {
+	data := make([]byte, 4096)
+	x := uint32(1)
+	for i := range data {
+		x ^= x << 13
+		x ^= x >> 17
+		x ^= x << 5
+		data[i] = byte(x)
+	}
+
+	w := jumpchunker.NewChunkWriter(gearhash64.New(), 256, 64, 1024)
+
+	total, chunks := 0, 0
+	drain := func() {
+		for w.Next() {
+			total += len(w.Bytes())
+			chunks++
+		}
+	}
+	for off := 0; off < len(data); off += 512 {
+		end := off + 512
+		if end > len(data) {
+			end = len(data)
+		}
+		if _, err := w.Write(data[off:end]); err != nil {
+			log.Fatal(err)
+		}
+		drain()
+	}
+	if err := w.Close(); err != nil {
+		log.Fatal(err)
+	}
+	drain()
+	if err := w.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("split %d bytes into %d chunks\n", total, chunks)
+	// Output:
+	// split 4096 bytes into 16 chunks
+}
