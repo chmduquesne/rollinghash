@@ -1,4 +1,4 @@
-package rollinghash_test
+package jumpchunker_test
 
 import (
 	"bytes"
@@ -7,9 +7,18 @@ import (
 	"testing"
 	"testing/iotest"
 
-	rollinghash "github.com/chmduquesne/rollinghash/v4"
+	"github.com/chmduquesne/rollinghash/v4/cdc/jumpchunker"
 	"github.com/chmduquesne/rollinghash/v4/gearhash64"
 )
+
+func testData(n int) []byte {
+	data := make([]byte, n)
+	// A mix that produces a realistic spread of values.
+	for i := range data {
+		data[i] = byte(i*2654435761 + i/7)
+	}
+	return data
+}
 
 // jumpRoller mirrors the unexported jumpBoundaryRoller interface so the test
 // package can call JumpBoundaries without importing internal types.
@@ -18,7 +27,7 @@ type jumpRoller interface {
 }
 
 // jumpTestParams mirrors the internal jumpParams derivation so the reference
-// implementation uses the same maskC/jumpLen as JumpChunker.
+// implementation uses the same maskC/jumpLen as Chunker.
 func jumpTestParams(normalSize int) (maskC uint64, jumpLen int) {
 	lg := bits.Len(uint(normalSize)) - 1
 	if lg < 3 {
@@ -35,8 +44,8 @@ func jumpTestParams(normalSize int) (maskC uint64, jumpLen int) {
 
 // refJumpChunk is the reference implementation of Jump Chunking.
 // It calls JumpBoundaries once per chunk (always with fp=0), matching the
-// semantics of JumpChunker which resets fp at the start of every chunk's scan
-// region — including after forced cuts at max. A single-pass call would fail
+// semantics of Chunker which resets fp at the start of every chunk's scan
+// region, including after forced cuts at max. A single-pass call would fail
 // to reset fp at forced cuts and would diverge.
 func refJumpChunk(jr jumpRoller, data []byte, normalSize, min, max int) ([][]byte, []bool) {
 	if len(data) == 0 {
@@ -54,7 +63,7 @@ func refJumpChunk(jr jumpRoller, data []byte, normalSize, min, max int) ([][]byt
 
 		// Find the first JC boundary in data[start:] with fp=0. JumpBoundaries
 		// skips the min zone (firstSkip=min) and resets fp there, exactly as
-		// JumpChunker does at each chunk boundary.
+		// Chunker does at each chunk boundary.
 		slice := data[start:]
 		nb, _, _ := jr.JumpBoundaries(a[:1], slice, maskC, jumpLen, 0, min, min)
 
@@ -83,7 +92,7 @@ func refJumpChunk(jr jumpRoller, data []byte, normalSize, min, max int) ([][]byt
 	return chunks, atMask
 }
 
-func collectJumpChunks(t *testing.T, c *rollinghash.JumpChunker) ([][]byte, []bool) {
+func collectJumpChunks(t *testing.T, c *jumpchunker.Chunker) ([][]byte, []bool) {
 	t.Helper()
 	var chunks [][]byte
 	var atMask []bool
@@ -97,9 +106,9 @@ func collectJumpChunks(t *testing.T, c *rollinghash.JumpChunker) ([][]byte, []bo
 	return chunks, atMask
 }
 
-// TestJumpChunker checks the JumpChunker against the single-pass reference
+// TestChunker checks the Chunker against the single-pass reference
 // across several normalSize/min/max configurations.
-func TestJumpChunker(t *testing.T) {
+func TestChunker(t *testing.T) {
 	data := testData(300 * 1024)
 	configs := []struct {
 		normalSize, min, max int
@@ -114,7 +123,7 @@ func TestJumpChunker(t *testing.T) {
 	for _, cfg := range configs {
 		want, wantMask := refJumpChunk(h, data, cfg.normalSize, cfg.min, cfg.max)
 
-		c := rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.New(), cfg.normalSize, cfg.min, cfg.max)
+		c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), cfg.normalSize, cfg.min, cfg.max)
 		got, gotMask := collectJumpChunks(t, c)
 
 		if len(got) != len(want) {
@@ -134,16 +143,16 @@ func TestJumpChunker(t *testing.T) {
 	}
 }
 
-// TestJumpChunkerDeterminism verifies that a one-byte-at-a-time reader
+// TestChunkerDeterminism verifies that a one-byte-at-a-time reader
 // produces the same chunks as a normal reader.
-func TestJumpChunkerDeterminism(t *testing.T) {
+func TestChunkerDeterminism(t *testing.T) {
 	data := testData(200 * 1024)
 	const normalSize, min, max = 1024, 512, 16384
 
-	c := rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
+	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
 	want, _ := collectJumpChunks(t, c)
 
-	c = rollinghash.NewJumpChunker(iotest.OneByteReader(bytes.NewReader(data)), gearhash64.New(), normalSize, min, max)
+	c = jumpchunker.New(iotest.OneByteReader(bytes.NewReader(data)), gearhash64.New(), normalSize, min, max)
 	got, _ := collectJumpChunks(t, c)
 
 	if len(got) != len(want) {
@@ -156,13 +165,13 @@ func TestJumpChunkerDeterminism(t *testing.T) {
 	}
 }
 
-// TestJumpChunkerEdgeCases covers empty, smaller-than-min, and exactly-min inputs.
-func TestJumpChunkerEdgeCases(t *testing.T) {
+// TestChunkerEdgeCases covers empty, smaller-than-min, and exactly-min inputs.
+func TestChunkerEdgeCases(t *testing.T) {
 	const normalSize = 256
 	_, jumpLen := jumpTestParams(normalSize)
 
 	// Empty input: no chunks.
-	c := rollinghash.NewJumpChunker(bytes.NewReader(nil), gearhash64.New(), normalSize, 1, 64)
+	c := jumpchunker.New(bytes.NewReader(nil), gearhash64.New(), normalSize, 1, 64)
 	if c.Next() {
 		t.Error("empty: expected no chunks")
 	}
@@ -172,7 +181,7 @@ func TestJumpChunkerEdgeCases(t *testing.T) {
 
 	// Input shorter than min: one final chunk.
 	data := testData(10)
-	c = rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.New(), normalSize, 20, 1024)
+	c = jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, 20, 1024)
 	got, _ := collectJumpChunks(t, c)
 	if len(got) != 1 || !bytes.Equal(got[0], data) {
 		t.Errorf("short: expected one chunk of all data, got %d chunks", len(got))
@@ -182,7 +191,7 @@ func TestJumpChunkerEdgeCases(t *testing.T) {
 	h := gearhash64.New()
 	data = testData(jumpLen * 3)
 	want, wantMask := refJumpChunk(h, data, normalSize, 64, 2048)
-	c = rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.New(), normalSize, 64, 2048)
+	c = jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, 64, 2048)
 	gotChunks, gotMask := collectJumpChunks(t, c)
 	if len(gotChunks) != len(want) {
 		t.Fatalf("jumpspan: got %d chunks, want %d", len(gotChunks), len(want))
@@ -194,13 +203,13 @@ func TestJumpChunkerEdgeCases(t *testing.T) {
 	}
 }
 
-// TestJumpChunkerAtMask verifies that forced cuts are exactly max bytes long
+// TestChunkerAtMask verifies that forced cuts are exactly max bytes long
 // (except for the final chunk).
-func TestJumpChunkerAtMask(t *testing.T) {
+func TestChunkerAtMask(t *testing.T) {
 	data := testData(128 * 1024)
 	const normalSize, min, max = 512, 200, 4096
 
-	c := rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
+	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
 	var chunks [][]byte
 	var atMask []bool
 	for c.Next() {
@@ -221,13 +230,13 @@ func TestJumpChunkerAtMask(t *testing.T) {
 	}
 }
 
-// TestJumpChunkerAccessorLifecycle checks that Bytes() and AtMask() are nil/false
+// TestChunkerAccessorLifecycle checks that Bytes() and AtMask() are nil/false
 // before the first Next() and after Next() returns false.
-func TestJumpChunkerAccessorLifecycle(t *testing.T) {
+func TestChunkerAccessorLifecycle(t *testing.T) {
 	data := testData(200 * 1024)
 	const normalSize, min, max = 1024, 512, 16384
 
-	c := rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
+	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
 
 	if c.Bytes() != nil || c.AtMask() {
 		t.Error("expected zero-value accessors before first Next")
@@ -248,10 +257,10 @@ func TestJumpChunkerAccessorLifecycle(t *testing.T) {
 	}
 }
 
-// TestJumpChunkerError verifies that reader errors are surfaced via Err.
-func TestJumpChunkerError(t *testing.T) {
+// TestChunkerError verifies that reader errors are surfaced via Err.
+func TestChunkerError(t *testing.T) {
 	boom := errors.New("boom")
-	c := rollinghash.NewJumpChunker(iotest.ErrReader(boom), gearhash64.New(), 256, 1, 64)
+	c := jumpchunker.New(iotest.ErrReader(boom), gearhash64.New(), 256, 1, 64)
 	if c.Next() {
 		t.Error("expected Next to fail on reader error")
 	}
@@ -260,15 +269,15 @@ func TestJumpChunkerError(t *testing.T) {
 	}
 }
 
-// TestJumpChunkerReset checks that Reset reuses buffers correctly.
-func TestJumpChunkerReset(t *testing.T) {
+// TestChunkerReset checks that Reset reuses buffers correctly.
+func TestChunkerReset(t *testing.T) {
 	data := testData(200 * 1024)
 	const normalSize, min, max = 1024, 512, 16384
 
 	h := gearhash64.New()
 	want, _ := refJumpChunk(h, data, normalSize, min, max)
 
-	c := rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
+	c := jumpchunker.New(bytes.NewReader(data), gearhash64.New(), normalSize, min, max)
 	// First pass.
 	got1, _ := collectJumpChunks(t, c)
 	// Second pass via Reset.
@@ -304,7 +313,7 @@ func benchRandData(n int) []byte {
 }
 
 // refJumpChunkRaw is like refJumpChunk but accepts explicit maskC and jumpLen
-// instead of deriving them from normalSize. Used by TestJumpChunkerWithJumpMask.
+// instead of deriving them from normalSize. Used by TestChunkerWithJumpMask.
 func refJumpChunkRaw(jr jumpRoller, data []byte, maskC uint64, jumpLen, min, max int) ([][]byte, []bool) {
 	if len(data) == 0 {
 		return nil, nil
@@ -341,13 +350,13 @@ func refJumpChunkRaw(jr jumpRoller, data []byte, maskC uint64, jumpLen, min, max
 	return chunks, atMask
 }
 
-// TestJumpChunkerWithJumpMask verifies that WithJumpMask correctly overrides the
+// TestChunkerWithJumpMask verifies that WithJumpMask correctly overrides the
 // derived maskC and jumpLen. It uses gear table and parameters compatible with
 // PlakarKorp/go-cdc-chunkers (legacy default: maskC=0x590003570000, jumpLen=4096).
 // Note: our algorithm includes the boundary byte in the current chunk (inclusive),
 // whereas Plakar's excludes it (exclusive). Boundaries fall on the same byte;
 // only the side differs.
-func TestJumpChunkerWithJumpMask(t *testing.T) {
+func TestChunkerWithJumpMask(t *testing.T) {
 	// Gear table from PlakarKorp/go-cdc-chunkers/chunkers/jc/jc_precomputed.go
 	var plakarGearTable = [256]uint64{
 		0x4d65822107fcfd52, 0x78629a0f5f3f164f, 0xd5104dc76695721d, 0xb80704bb7b4d7c03,
@@ -428,8 +437,8 @@ func TestJumpChunkerWithJumpMask(t *testing.T) {
 	h := gearhash64.NewFromUint64Array(plakarGearTable)
 	want, wantMask := refJumpChunkRaw(h, data, plakarMaskC, plakarJumpLen, min, max)
 
-	c := rollinghash.NewJumpChunker(bytes.NewReader(data), gearhash64.NewFromUint64Array(plakarGearTable), 8192, min, max,
-		rollinghash.WithJumpMask(plakarMaskC, plakarJumpLen))
+	c := jumpchunker.New(bytes.NewReader(data), gearhash64.NewFromUint64Array(plakarGearTable), 8192, min, max,
+		jumpchunker.WithJumpMask(plakarMaskC, plakarJumpLen))
 	got, gotMask := collectJumpChunks(t, c)
 
 	if len(got) != len(want) {
@@ -448,9 +457,9 @@ func TestJumpChunkerWithJumpMask(t *testing.T) {
 	}
 }
 
-// BenchmarkJumpChunker measures JumpChunker throughput and compares it to
-// BenchmarkChunker/gearhash64/fused.
-func BenchmarkJumpChunker(b *testing.B) {
+// BenchmarkChunker measures Chunker throughput and compares it to
+// BenchmarkChunker/gearhash64/fused in the rollinghash package.
+func BenchmarkChunker(b *testing.B) {
 	data := benchRandData(1 << 20)
 	const normalSize, min, max = 8192, 2 << 10, 64 << 10
 
@@ -458,7 +467,7 @@ func BenchmarkJumpChunker(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	c := rollinghash.NewJumpChunker(nil, gearhash64.New(), normalSize, min, max)
+	c := jumpchunker.New(nil, gearhash64.New(), normalSize, min, max)
 	r := bytes.NewReader(data)
 	for range b.N {
 		r.Reset(data)
@@ -471,4 +480,3 @@ func BenchmarkJumpChunker(b *testing.B) {
 		}
 	}
 }
-
