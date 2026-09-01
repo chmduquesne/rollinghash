@@ -125,7 +125,8 @@ func embedMask(maskC uint64) uint64 {
 }
 
 // JCSetup reproduces chunkers/jc/jc.go (*JC).Setup: it derives maskC, maskJ and
-// jumpLength. legacy is true for the "jc" variant.
+// jumpLength. legacy is true for the "jc" and "jc-v1.1.0" variants (both are
+// built with legacy=true; only "jc-v1.0.0" computes its masks).
 func JCSetup(o Opts, legacy bool) (maskC, maskJ uint64, jumpLength int) {
 	b := uint64(math.Log2(float64(o.NormalSize)))
 	cOnes := b - 1

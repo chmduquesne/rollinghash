@@ -86,7 +86,7 @@ func TestChunkerMatchesPlakar(t *testing.T) {
 	}{
 		{"jc", true, false},
 		{"jc-v1.0.0", false, false},
-		{"jc-v1.1.0", false, true},
+		{"jc-v1.1.0", true, true},
 	}
 
 	for _, cfg := range configs {
