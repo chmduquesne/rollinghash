@@ -1,8 +1,9 @@
 // Package chunkcore is the shared streaming engine for the content-defined
-// chunkers in the cdc tree (jumpchunker, fastcdc, ultracdc). It owns the
-// io.Reader, keeps a buffer holding at least one MaxSize window from the
-// current chunk start, and turns an algorithm-specific CutFinder into a
-// Next/Bytes iterator. It is internal and not part of the public API.
+// chunkers in the cdc tree (jumpchunker, fastcdc, ultracdc). It keeps a buffer
+// holding at least one MaxSize window from the current chunk start and turns an
+// algorithm-specific CutFinder into a Next/Bytes iterator, driven either by an
+// io.Reader (New) or by Write/Close (NewWriter). It is internal and not part of
+// the public API.
 //
 // The drive loop mirrors PlakarKorp/go-cdc-chunkers' Chunker.Next: make MaxSize
 // bytes available (or reach EOF), ask the CutFinder for the next cut length,
@@ -16,7 +17,11 @@
 // roughly one moved byte per output byte instead of one per chunk.
 package chunkcore
 
-import "io"
+import (
+	"io"
+
+	rollinghash "github.com/chmduquesne/rollinghash/v4"
+)
 
 // readBlock is how many bytes Core pulls from the reader per fill.
 const readBlock = 16 << 10
@@ -51,6 +56,9 @@ type Core struct {
 	done   bool
 	err    error
 
+	push   bool // fed by Write/Close instead of an io.Reader
+	closed bool // Close has been called (push mode)
+
 	chunk          []byte
 	contentDefined bool
 	sum            uint64
@@ -75,19 +83,67 @@ func New(r io.Reader, f CutFinder, buf []byte) *Core {
 	}
 }
 
+// NewWriter returns a push-mode Core: instead of pulling from an io.Reader it
+// is fed via Write, and Close marks end of input. buf is adopted as in New.
+func NewWriter(f CutFinder, buf []byte) *Core {
+	c := New(nil, f, buf)
+	c.push = true
+	return c
+}
+
 // Reset prepares the Core to chunk r from the start, keeping the buffer alloc.
 func (c *Core) Reset(r io.Reader) {
 	c.r = r
+	c.push = false
+	c.resetState()
+}
+
+// ResetWriter clears a push-mode Core for reuse.
+func (c *Core) ResetWriter() {
+	c.r = nil
+	c.push = true
+	c.resetState()
+}
+
+func (c *Core) resetState() {
 	c.buf = c.buf[:0]
 	c.start = 0
 	c.offset = 0
 	c.eof = false
+	c.closed = false
 	c.done = false
 	c.err = nil
 	c.chunk = nil
 	c.contentDefined = false
 	c.sum = 0
 	c.curOff = 0
+}
+
+// Write appends p to the buffer for a later Next (push mode). It always
+// consumes all of p and returns rollinghash.ErrClosed after Close. Callers
+// should drain Next in a loop after each Write; the consumed prefix is dropped
+// on demand, so the buffer stays bounded as long as that happens.
+func (c *Core) Write(p []byte) (int, error) {
+	if c.closed {
+		return 0, rollinghash.ErrClosed
+	}
+	// Drop the consumed prefix when the tail can't hold p, so the buffer stays
+	// bounded no matter how Write and Next are interleaved.
+	if c.start > 0 && cap(c.buf)-len(c.buf) < len(p) {
+		m := copy(c.buf, c.buf[c.start:])
+		c.buf = c.buf[:m]
+		c.offset += c.start
+		c.start = 0
+	}
+	c.buf = append(c.buf, p...)
+	return len(p), nil
+}
+
+// Close marks the end of input for a push-mode Core.
+func (c *Core) Close() error {
+	c.closed = true
+	c.eof = true
+	return nil
 }
 
 // Next advances to the next chunk. It returns false at end of input or on the
@@ -98,10 +154,19 @@ func (c *Core) Next() bool {
 		return false
 	}
 
-	// Make a full MaxSize window available from start, or reach EOF.
-	for len(c.buf)-c.start < c.max && !c.eof {
-		if !c.fill() {
-			return c.fail()
+	// Make a full MaxSize window available from start, or reach EOF. In push
+	// mode that means waiting for more Write calls; Next just reports "not
+	// ready" by returning false without marking the Core done.
+	if c.push {
+		if len(c.buf)-c.start < c.max && !c.eof {
+			c.clearChunk()
+			return false
+		}
+	} else {
+		for len(c.buf)-c.start < c.max && !c.eof {
+			if !c.fill() {
+				return c.fail()
+			}
 		}
 	}
 

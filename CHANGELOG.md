@@ -5,11 +5,12 @@
 ### Added
 
 - `cdc`: new umbrella tree of content-defined-chunking algorithms, each in its
-  own subpackage. Every `*Chunker` implements `rollinghash.Chunker`
-  (`Next`/`Bytes`/`ContentDefined`/`Sum`/`Offset`/`WindowSize`/`Err`/`Reset`),
-  so one loop works across all of them. Boundaries are byte-for-byte compatible
-  with the matching algorithm in `PlakarKorp/go-cdc-chunkers` — verified against
-  the real package by the
+  own subpackage. Every `*Chunker` implements `rollinghash.Chunker` and every
+  `*ChunkWriter` (each package's `NewChunkWriter`, the push-based counterpart
+  fed via `Write`/`Close`) implements `rollinghash.ChunkWriter`, so one loop
+  works across all algorithms and both drive styles. Boundaries are
+  byte-for-byte compatible with the matching algorithm in
+  `PlakarKorp/go-cdc-chunkers` — verified against the real package by the
   `cdc/bench` nested module (kept separate so its blake3/cpuid deps never enter
   the dependency-free main module). Head-to-head throughput on 1 MiB of random
   data vs go-cdc-chunkers v1.1.0, both allocation-free: JC ~9.85 GB/s vs ~5.0
@@ -37,6 +38,11 @@
   `fastcdc`, `ultracdc`, and `jc` families (including the `-v1.0.0` /
   `-v1.1.0` variants). Keyed FastCDC is not supported (those names return an
   error).
+- `cdc/{fastcdc,ultracdc,jumpchunker}.NewChunkWriter(…)`: push-based
+  `rollinghash.ChunkWriter` counterparts to `New`, fed via `Write`/`Close`
+  instead of an `io.Reader` (for callers whose data arrives in pieces, e.g.
+  content-addressable storage writers). Same parameters, same boundaries; share
+  the streaming engine with the pull-based `Chunker`.
 - `cdc/{fastcdc,ultracdc,jumpchunker}.WithBuffer([]byte)`: supply the working
   buffer, adopted when its capacity is large enough, for reuse across streams.
 - `gearhash64.Table()`: returns a copy of the hash's 256-entry Gear table, the

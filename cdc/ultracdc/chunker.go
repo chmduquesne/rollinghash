@@ -8,6 +8,10 @@
 // byte of the next chunk. By default a boundary is reported at the exact byte
 // that cleared the mask; WithSpecFaithful rounds boundaries up to the 8-byte
 // window, matching plakar's "ultracdc-v1.0.0".
+//
+// New returns a pull-based *Chunker (rollinghash.Chunker) over an io.Reader;
+// NewChunkWriter returns the push-based *ChunkWriter (rollinghash.ChunkWriter),
+// fed via Write/Close.
 package ultracdc
 
 import (
@@ -67,11 +71,16 @@ func WithBuffer(buf []byte) Option {
 // New returns a Chunker over r. Chunk lengths are kept in [minSize, maxSize]
 // with an average near normalSize.
 func New(r io.Reader, minSize, normalSize, maxSize int, opts ...Option) *Chunker {
+	f := newCut(minSize, normalSize, maxSize, opts)
+	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+}
+
+func newCut(minSize, normalSize, maxSize int, opts []Option) *ucCut {
 	f := &ucCut{min: minSize, normal: normalSize, max: maxSize}
 	for _, opt := range opts {
 		opt(f)
 	}
-	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+	return f
 }
 
 // ucCut is the UltraCDC cutpoint finder: a port of plakar

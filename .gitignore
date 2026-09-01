@@ -2,3 +2,5 @@ roll/roll
 rollstat/rollstat
 *.prof
 *.bin
+*.swp
+*.swo
