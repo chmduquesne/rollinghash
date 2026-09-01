@@ -153,18 +153,61 @@ func (f *jcCut) Cut(data []byte, eof bool) (int, bool) {
 		n = f.max
 	}
 
-	// Hoist config into locals so the scan loop below does not reload struct
-	// fields through the receiver pointer on every iteration.
+	// Hoist config into locals so the scan loop below never reloads struct
+	// fields through the receiver pointer.
 	g := &f.g
 	maskC, maskJ, jumpLen := f.maskC, f.maskJ, f.jumpLen
-	data = data[:n:n] // fold the bound into data so data[i] needs no separate check
+	data = data[:n:n] // fold the bound into data so data[i] needs no per-access check
 
 	fp := uint64(0)
-	for i := f.min; i < n; {
+	i := f.min
+
+	// Scan four bytes per iteration. The Gear recurrence stays serial, but
+	// issuing the four data[]/g[] dependent loads together (rather than one
+	// per loop turn behind a branch) lets them pipeline; the maskJ tests sit
+	// off the fingerprint's critical path. Four is the sweet spot here — eight
+	// lengthens the serial shift-add chain per block without hiding more load
+	// latency.
+	for i+4 <= n {
+		b := data[i : i+4]
+		g0, g1, g2, g3 := g[b[0]], g[b[1]], g[b[2]], g[b[3]]
+
+		if fp = (fp << 1) + g0; fp&maskJ == 0 {
+			if fp&maskC == 0 {
+				return i, true
+			}
+			fp, i = 0, i+jumpLen
+			continue
+		}
+		if fp = (fp << 1) + g1; fp&maskJ == 0 {
+			if fp&maskC == 0 {
+				return i + 1, true
+			}
+			fp, i = 0, i+1+jumpLen
+			continue
+		}
+		if fp = (fp << 1) + g2; fp&maskJ == 0 {
+			if fp&maskC == 0 {
+				return i + 2, true
+			}
+			fp, i = 0, i+2+jumpLen
+			continue
+		}
+		if fp = (fp << 1) + g3; fp&maskJ == 0 {
+			if fp&maskC == 0 {
+				return i + 3, true
+			}
+			fp, i = 0, i+3+jumpLen
+			continue
+		}
+		i += 4
+	}
+
+	for i < n {
 		fp = (fp << 1) + g[data[i]]
 		if fp&maskJ == 0 {
 			if fp&maskC == 0 {
-				return i, true // boundary byte i starts the next chunk
+				return i, true
 			}
 			fp = 0
 			i += jumpLen
