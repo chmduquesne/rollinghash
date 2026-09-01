@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 
+	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/cdc/fastcdc"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/plakar"
 	"github.com/chmduquesne/rollinghash/v4/cdc/jumpchunker"
@@ -42,17 +43,11 @@ type ChunkerOpts struct {
 }
 
 // Chunker mirrors *chunkers.Chunker: an iterator over content-defined chunks.
+// It wraps one of the cdc/* algorithm chunkers, which all satisfy
+// rollinghash.Chunker.
 type Chunker struct {
-	it                        cutIter
+	it                        rollinghash.Chunker
 	minSize, maxSize, normalS int
-}
-
-type cutIter interface {
-	Next() bool
-	Bytes() []byte
-	Offset() int
-	Err() error
-	Reset(io.Reader)
 }
 
 // NewChunker returns a Chunker that reads from reader and cuts with the named
@@ -77,20 +72,20 @@ func newChunker(algorithm string, reader io.Reader, opts *ChunkerOpts, buf []byt
 		return nil, fmt.Errorf("gocdc: %q: keyed variants are not supported", algorithm)
 	}
 
+	var it rollinghash.Chunker
 	switch algorithm {
 	case "fastcdc", "fastcdc-v1.0.0":
-		o := withDefaults(o, 2*1024, 8*1024, 64*1024)
+		o = withDefaults(o, 2*1024, 8*1024, 64*1024)
 		if err := validate(o, true); err != nil {
 			return nil, err
 		}
 		maskS, maskL := plakar.FastCDCSetupMasks(toPlakar(o), algorithm == "fastcdc")
-		c := fastcdc.New(reader, gearhash64.NewFromUint64Array(plakar.GearTable),
+		it = fastcdc.New(reader, gearhash64.NewFromUint64Array(plakar.GearTable),
 			o.MinSize, o.NormalSize, o.MaxSize,
 			fastcdc.WithMasks(maskS, maskL), fastcdc.WithBuffer(buf))
-		return &Chunker{it: c, minSize: o.MinSize, maxSize: o.MaxSize, normalS: o.NormalSize}, nil
 
 	case "jc", "jc-v1.0.0", "jc-v1.1.0":
-		o := withDefaults(o, 2*1024, 8*1024, 64*1024)
+		o = withDefaults(o, 2*1024, 8*1024, 64*1024)
 		if err := validate(o, false); err != nil {
 			return nil, err
 		}
@@ -104,12 +99,11 @@ func newChunker(algorithm string, reader io.Reader, opts *ChunkerOpts, buf []byt
 		if algorithm == "jc-v1.1.0" {
 			jopts = append(jopts, jumpchunker.WithSpecFaithful())
 		}
-		c := jumpchunker.New(reader, gearhash64.NewFromUint64Array(plakar.GearTable),
+		it = jumpchunker.New(reader, gearhash64.NewFromUint64Array(plakar.GearTable),
 			o.NormalSize, o.MinSize, o.MaxSize, jopts...)
-		return &Chunker{it: c, minSize: o.MinSize, maxSize: o.MaxSize, normalS: o.NormalSize}, nil
 
 	case "ultracdc", "ultracdc-v1.0.0":
-		o := withDefaults(o, 2*1024, 10*1024, 64*1024)
+		o = withDefaults(o, 2*1024, 10*1024, 64*1024)
 		if err := validate(o, false); err != nil {
 			return nil, err
 		}
@@ -117,14 +111,15 @@ func newChunker(algorithm string, reader io.Reader, opts *ChunkerOpts, buf []byt
 		if algorithm == "ultracdc-v1.0.0" {
 			uopts = append(uopts, ultracdc.WithSpecFaithful())
 		}
-		c := ultracdc.New(reader, o.MinSize, o.NormalSize, o.MaxSize, uopts...)
-		return &Chunker{it: c, minSize: o.MinSize, maxSize: o.MaxSize, normalS: o.NormalSize}, nil
+		it = ultracdc.New(reader, o.MinSize, o.NormalSize, o.MaxSize, uopts...)
 
 	case "kfastcdc", "kfastcdc-v1.0.0":
 		return nil, fmt.Errorf("gocdc: %q: keyed FastCDC is not supported", algorithm)
 	default:
 		return nil, fmt.Errorf("gocdc: unknown algorithm %q", algorithm)
 	}
+
+	return &Chunker{it: it, minSize: o.MinSize, maxSize: o.MaxSize, normalS: o.NormalSize}, nil
 }
 
 func withDefaults(o ChunkerOpts, minv, normal, maxv int) ChunkerOpts {
