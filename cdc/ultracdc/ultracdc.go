@@ -15,6 +15,7 @@ import (
 	"io"
 	"math/bits"
 
+	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
 )
 
@@ -37,12 +38,14 @@ func init() {
 //	c := ultracdc.New(r, minSize, normalSize, maxSize)
 //	for c.Next() {
 //		chunk := c.Bytes()
-//		if c.AtMask() { /* content-defined boundary */ }
+//		if c.ContentDefined() { /* content-defined boundary */ }
 //	}
 //	if err := c.Err(); err != nil { ... }
 type Chunker struct {
 	core *chunkcore.Core
 }
+
+var _ rollinghash.Chunker = (*Chunker)(nil)
 
 // Option configures New.
 type Option func(*ucCut)
@@ -83,7 +86,10 @@ type ucCut struct {
 
 func (f *ucCut) MaxSize() int { return f.max }
 
-func (f *ucCut) Cut(data []byte, eof bool) (cutpoint int, atMask bool) {
+// Window: UltraCDC compares 8-byte windows.
+func (f *ucCut) Window() int { return 8 }
+
+func (f *ucCut) Cut(data []byte, eof bool) (cutpoint int, contentDefined bool, sum uint64) {
 	minSize, maxSize, normalSize := f.min, f.max, f.normal
 	n := len(data)
 
@@ -92,7 +98,7 @@ func (f *ucCut) Cut(data []byte, eof bool) (cutpoint int, atMask bool) {
 
 	switch {
 	case n <= minSize:
-		return n, false
+		return n, false, 0
 	case n >= maxSize:
 		n = maxSize
 	case n <= normalSize:
@@ -100,7 +106,7 @@ func (f *ucCut) Cut(data []byte, eof bool) (cutpoint int, atMask bool) {
 	}
 
 	if n < minSize+8 {
-		return n, false
+		return n, false, 0
 	}
 
 	// Hoist config and the lookup table so the window loop below touches no
@@ -127,7 +133,7 @@ func (f *ucCut) Cut(data []byte, eof bool) (cutpoint int, atMask bool) {
 		if bytes.Equal(inBufWin, outBufWin) {
 			lowEntropyCount++
 			if lowEntropyCount >= lowEntropyStringThreshold {
-				return i + 8, true
+				return i + 8, true, uint64(dist)
 			}
 			continue
 		}
@@ -136,16 +142,16 @@ func (f *ucCut) Cut(data []byte, eof bool) (cutpoint int, atMask bool) {
 		for j := 0; j < 8; j++ {
 			if (uint64(dist) & mask) == 0 {
 				if spec {
-					return i + 8, true
+					return i + 8, true, uint64(dist)
 				}
-				return i + j, true
+				return i + j, true, uint64(dist)
 			}
 			dist += hd[data[i+j]] - hd[data[i+j-8]]
 		}
 		outBufWin = inBufWin
 	}
 
-	return n, false
+	return n, false, 0
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
@@ -158,12 +164,20 @@ func (c *Chunker) Next() bool { return c.core.Next() }
 // Bytes returns the current chunk, valid until the next call to Next.
 func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
 
-// AtMask reports whether the current chunk ended at a content-defined boundary
-// (true) or was forced at max / end of stream (false).
-func (c *Chunker) AtMask() bool { return c.core.AtMask() }
+// ContentDefined reports whether the current chunk ended at a content-defined
+// boundary (true) or was forced at max / end of stream (false).
+func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
+
+// Sum returns the running Hamming distance to 0xAA at the current chunk's
+// content-defined boundary, or 0 for a forced cut. UltraCDC uses no rolling
+// hash; this is the value its boundary mask is tested against.
+func (c *Chunker) Sum() uint64 { return c.core.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
 func (c *Chunker) Offset() int { return c.core.Offset() }
+
+// WindowSize returns 8: UltraCDC compares 8-byte windows.
+func (c *Chunker) WindowSize() int { return c.core.WindowSize() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
 func (c *Chunker) Err() error { return c.core.Err() }

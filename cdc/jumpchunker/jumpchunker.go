@@ -17,6 +17,7 @@ import (
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/gearscan"
 )
 
 // gearTabler is the capability jumpchunker needs from its hash: read access to
@@ -31,7 +32,7 @@ type gearTabler interface {
 //	c := jumpchunker.New(r, gearhash64.New(), normalSize, min, max)
 //	for c.Next() {
 //		chunk := c.Bytes()
-//		if c.AtMask() {
+//		if c.ContentDefined() {
 //			// content-defined boundary
 //		} else {
 //			// forced cut at max, or the final chunk at end of stream
@@ -44,6 +45,8 @@ type gearTabler interface {
 type Chunker struct {
 	core *chunkcore.Core
 }
+
+var _ rollinghash.Chunker = (*Chunker)(nil)
 
 // Option configures New.
 type Option func(*jcCut)
@@ -139,7 +142,11 @@ type jcCut struct {
 
 func (f *jcCut) MaxSize() int { return f.max }
 
-func (f *jcCut) Cut(data []byte, eof bool) (int, bool) {
+// Window: the Gear fingerprint is windowless but a 64-bit accumulator retains
+// only the last 64 bytes.
+func (f *jcCut) Window() int { return 64 }
+
+func (f *jcCut) Cut(data []byte, eof bool) (int, bool, uint64) {
 	n := len(data)
 
 	switch {
@@ -148,74 +155,29 @@ func (f *jcCut) Cut(data []byte, eof bool) (int, bool) {
 			n = f.max
 		}
 	case n <= f.normal:
-		return n, false
+		return n, false, 0
 	case n >= f.max:
 		n = f.max
 	}
 
-	// Hoist config into locals so the scan loop below never reloads struct
-	// fields through the receiver pointer.
 	g := &f.g
 	maskC, maskJ, jumpLen := f.maskC, f.maskJ, f.jumpLen
-	data = data[:n:n] // fold the bound into data so data[i] needs no per-access check
 
-	fp := uint64(0)
-	i := f.min
-
-	// Scan four bytes per iteration. The Gear recurrence stays serial, but
-	// issuing the four data[]/g[] dependent loads together (rather than one
-	// per loop turn behind a branch) lets them pipeline; the maskJ tests sit
-	// off the fingerprint's critical path. Four is the sweet spot here — eight
-	// lengthens the serial shift-add chain per block without hiding more load
-	// latency.
-	for i+4 <= n {
-		b := data[i : i+4]
-		g0, g1, g2, g3 := g[b[0]], g[b[1]], g[b[2]], g[b[3]]
-
-		if fp = (fp << 1) + g0; fp&maskJ == 0 {
-			if fp&maskC == 0 {
-				return i, true
-			}
-			fp, i = 0, i+jumpLen
-			continue
+	// Each between-jump run is a single un-reset Gear chain: scan it for the
+	// first maskJ hit with the shared 4-byte-unrolled loop, then classify the
+	// hit as a real boundary (maskC also clear) or a false one (reset and jump
+	// jumpLen bytes).
+	for i := f.min; i < n; {
+		pos, hit, fp := gearscan.Scan4(g, data, i, n, maskJ, 0)
+		if !hit {
+			return n, false, 0
 		}
-		if fp = (fp << 1) + g1; fp&maskJ == 0 {
-			if fp&maskC == 0 {
-				return i + 1, true
-			}
-			fp, i = 0, i+1+jumpLen
-			continue
+		if fp&maskC == 0 {
+			return pos, true, fp
 		}
-		if fp = (fp << 1) + g2; fp&maskJ == 0 {
-			if fp&maskC == 0 {
-				return i + 2, true
-			}
-			fp, i = 0, i+2+jumpLen
-			continue
-		}
-		if fp = (fp << 1) + g3; fp&maskJ == 0 {
-			if fp&maskC == 0 {
-				return i + 3, true
-			}
-			fp, i = 0, i+3+jumpLen
-			continue
-		}
-		i += 4
+		i = pos + jumpLen
 	}
-
-	for i < n {
-		fp = (fp << 1) + g[data[i]]
-		if fp&maskJ == 0 {
-			if fp&maskC == 0 {
-				return i, true
-			}
-			fp = 0
-			i += jumpLen
-		} else {
-			i++
-		}
-	}
-	return n, false
+	return n, false, 0
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
@@ -229,12 +191,20 @@ func (c *Chunker) Next() bool { return c.core.Next() }
 // first call to Next, and after Next returns false, Bytes returns nil.
 func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
 
-// AtMask reports whether the current chunk was cut by the mask (true) or forced
-// at max / end of stream (false).
-func (c *Chunker) AtMask() bool { return c.core.AtMask() }
+// ContentDefined reports whether the current chunk was cut by the mask (true)
+// or forced at max / end of stream (false).
+func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
+
+// Sum returns the Gear fingerprint at the current chunk's content-defined
+// boundary, or 0 for a forced cut.
+func (c *Chunker) Sum() uint64 { return c.core.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
 func (c *Chunker) Offset() int { return c.core.Offset() }
+
+// WindowSize returns 64: the Gear fingerprint is windowless, but a 64-bit
+// accumulator retains only the last 64 bytes.
+func (c *Chunker) WindowSize() int { return c.core.WindowSize() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
 func (c *Chunker) Err() error { return c.core.Err() }

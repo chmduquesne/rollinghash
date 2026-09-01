@@ -16,6 +16,7 @@ import (
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/gearscan"
 )
 
 // LegacyMaskS and LegacyMaskL are the fixed masks the reference FastCDC uses at
@@ -39,7 +40,7 @@ type gearTabler interface {
 //	c := fastcdc.New(r, gearhash64.New(), minSize, normalSize, maxSize)
 //	for c.Next() {
 //		chunk := c.Bytes()
-//		if c.AtMask() { /* content-defined boundary */ }
+//		if c.ContentDefined() { /* content-defined boundary */ }
 //	}
 //	if err := c.Err(); err != nil { ... }
 //
@@ -47,6 +48,8 @@ type gearTabler interface {
 type Chunker struct {
 	core *chunkcore.Core
 }
+
+var _ rollinghash.Chunker = (*Chunker)(nil)
 
 // Option configures New.
 type Option func(*fcCut)
@@ -128,13 +131,17 @@ type fcCut struct {
 
 func (f *fcCut) MaxSize() int { return f.max }
 
-func (f *fcCut) Cut(data []byte, eof bool) (int, bool) {
+// Window: the Gear fingerprint is windowless but a 64-bit accumulator retains
+// only the last 64 bytes.
+func (f *fcCut) Window() int { return 64 }
+
+func (f *fcCut) Cut(data []byte, eof bool) (int, bool, uint64) {
 	n := len(data)
 	normalSize := f.normal
 
 	switch {
 	case n <= f.min:
-		return n, false
+		return n, false, 0
 	case n >= f.max:
 		n = f.max
 	case n <= normalSize:
@@ -161,20 +168,16 @@ func (f *fcCut) Cut(data []byte, eof bool) (int, bool) {
 		p1end = n
 	}
 
-	fp := uint64(0)
-	for ; i < p1end; i++ {
-		fp = (fp << 1) + g[data[i]]
-		if fp&maskS == 0 {
-			return i, true // boundary byte i starts the next chunk
-		}
+	// Phase 1: strict mask over [i, p1end). Phase 2: loose mask over [p1end, n),
+	// continuing the same fingerprint. The boundary byte starts the next chunk.
+	pos, hit, fp := gearscan.Scan4(g, data, i, p1end, maskS, 0)
+	if hit {
+		return pos, true, fp
 	}
-	for ; i < n; i++ {
-		fp = (fp << 1) + g[data[i]]
-		if fp&maskL == 0 {
-			return i, true
-		}
+	if pos, hit, fp = gearscan.Scan4(g, data, p1end, n, maskL, fp); hit {
+		return pos, true, fp
 	}
-	return n, false
+	return n, false, 0
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
@@ -187,12 +190,20 @@ func (c *Chunker) Next() bool { return c.core.Next() }
 // Bytes returns the current chunk, valid until the next call to Next.
 func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
 
-// AtMask reports whether the current chunk was cut by a mask hit (true) or
-// forced at max / end of stream (false).
-func (c *Chunker) AtMask() bool { return c.core.AtMask() }
+// ContentDefined reports whether the current chunk was cut by a mask hit (true)
+// or forced at max / end of stream (false).
+func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
+
+// Sum returns the Gear fingerprint at the current chunk's content-defined
+// boundary, or 0 for a forced cut.
+func (c *Chunker) Sum() uint64 { return c.core.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
 func (c *Chunker) Offset() int { return c.core.Offset() }
+
+// WindowSize returns 64: the Gear fingerprint is windowless, but a 64-bit
+// accumulator retains only the last 64 bytes.
+func (c *Chunker) WindowSize() int { return c.core.WindowSize() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
 func (c *Chunker) Err() error { return c.core.Err() }

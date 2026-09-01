@@ -5,13 +5,15 @@
 ### Added
 
 - `cdc`: new umbrella tree of content-defined-chunking algorithms, each in its
-  own subpackage and sharing one `Next`/`Bytes`/`AtMask`/`Err` iterator shape.
-  Boundaries are byte-for-byte compatible with the matching algorithm in
-  `PlakarKorp/go-cdc-chunkers` — verified against the real package by the
+  own subpackage. Every `*Chunker` implements `rollinghash.Chunker`
+  (`Next`/`Bytes`/`ContentDefined`/`Sum`/`Offset`/`WindowSize`/`Err`/`Reset`),
+  so one loop works across all of them. Boundaries are byte-for-byte compatible
+  with the matching algorithm in `PlakarKorp/go-cdc-chunkers` — verified against
+  the real package by the
   `cdc/bench` nested module (kept separate so its blake3/cpuid deps never enter
   the dependency-free main module). Head-to-head throughput on 1 MiB of random
-  data, go-cdc-chunkers v1.1.0: JC ~8.8 GB/s vs ~5.0 (1.75×), FastCDC ~3.0 vs
-  ~2.7 (+12%), UltraCDC ~1.11 vs ~1.12; all allocation-free.
+  data vs go-cdc-chunkers v1.1.0, both allocation-free: JC ~9.85 GB/s vs ~5.0
+  (1.95×), FastCDC ~3.95 vs ~2.6 (1.52×), UltraCDC ~1.07 vs ~1.10 (0.97×).
 - `cdc/jumpchunker`: Jump Chunking (JC). Windowless accumulating Gear
   fingerprint with a dual-mask jump that skips regions provably free of
   boundaries. `jumpchunker.New` takes any hash exposing `Table()` (`gearhash64`
@@ -46,11 +48,12 @@
   engine and realigned to plakar's cut semantics — the boundary byte is now the
   first byte of the next chunk, not the last byte of the current one, and a
   sub-normalSize final segment is emitted whole by default. `New` now takes a
-  hash exposing `Table()` instead of `JumpBoundaries`. The scan is 4-byte
-  unrolled so the dependent `data[]`/Gear-table loads pipeline instead of
-  running one per branch: `BenchmarkChunker` on 1 MiB of random data went from
-  ~5.7 GB/s (old batch-incremental design) to ~8.8 GB/s, allocation-free — ~1.75×
-  go-cdc-chunkers' own JC on the same input.
+  hash exposing `Table()` instead of `JumpBoundaries`.
+- `cdc` Gear scan: the FastCDC and JC inner loops now share
+  `cdc/internal/gearscan.Scan4`, a 4-byte-unrolled scan that issues the
+  dependent `data[]`/Gear-table loads as a group so they pipeline instead of
+  running one per branch. On 1 MiB of random data, allocation-free: JC
+  ~5.7 GB/s (old batch-incremental design) → ~9.8; FastCDC ~2.9 → ~4.0.
 
 ### Removed
 

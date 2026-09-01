@@ -1,0 +1,43 @@
+// Package gearscan holds the shared inner loop of the Gear-based content-defined
+// chunkers (cdc/fastcdc, cdc/jumpchunker): scan a byte range for the first
+// position where the windowless accumulating Gear fingerprint clears a mask.
+// It is internal and not part of the public API.
+package gearscan
+
+// Scan4 scans data[lo:hi] for the first index i at which the running Gear
+// fingerprint — seeded with fp and advanced one byte at a time as
+// fp = (fp<<1) + g[b] — satisfies fp & mask == 0. It returns that index with
+// hit=true and the fingerprint value there; if no position clears the mask it
+// returns hi, false, and the fingerprint at hi.
+//
+// The scan runs four bytes per iteration. The recurrence is serial, but issuing
+// the four data[]/g[] dependent loads as a group (instead of one per loop turn
+// behind a branch) lets them pipeline, roughly doubling throughput on the
+// load-latency-bound common path. The caller must ensure hi <= len(data).
+func Scan4(g *[256]uint64, data []byte, lo, hi int, mask, fp uint64) (pos int, hit bool, endFP uint64) {
+	data = data[:hi:hi] // fold the bound so data[i:i+4] / data[i] need no check
+	i := lo
+	for ; i+4 <= hi; i += 4 {
+		b := data[i : i+4]
+		g0, g1, g2, g3 := g[b[0]], g[b[1]], g[b[2]], g[b[3]]
+
+		if fp = (fp << 1) + g0; fp&mask == 0 {
+			return i, true, fp
+		}
+		if fp = (fp << 1) + g1; fp&mask == 0 {
+			return i + 1, true, fp
+		}
+		if fp = (fp << 1) + g2; fp&mask == 0 {
+			return i + 2, true, fp
+		}
+		if fp = (fp << 1) + g3; fp&mask == 0 {
+			return i + 3, true, fp
+		}
+	}
+	for ; i < hi; i++ {
+		if fp = (fp << 1) + g[data[i]]; fp&mask == 0 {
+			return i, true, fp
+		}
+	}
+	return hi, false, fp
+}
