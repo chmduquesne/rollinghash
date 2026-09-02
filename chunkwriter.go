@@ -96,8 +96,11 @@ func (w *chunkWriter) Next() bool { return w.core.next() == emitted }
 // the first call to Next, and after Next returns false, Bytes returns nil.
 func (w *chunkWriter) Bytes() []byte { return w.core.Bytes() }
 
-// Sum returns the rolling checksum at the current chunk's boundary. Before
-// the first call to Next, and after Next returns false, Sum returns 0.
+// Sum returns the rolling checksum of the window ending at the current chunk's
+// cut, whether the cut was a mask hit, a forced cut at max, or the end of the
+// stream. It is 0 only for a final chunk whose stream has fewer than window
+// bytes. Before the first call to Next, and after Next returns false, Sum
+// returns 0.
 func (w *chunkWriter) Sum() uint64 { return w.core.Sum() }
 
 // ContentDefined reports whether the current chunk was cut by the mask

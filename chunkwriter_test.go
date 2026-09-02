@@ -3,6 +3,7 @@ package rollinghash_test
 import (
 	"bytes"
 	"errors"
+	"math/rand"
 	"testing"
 
 	"github.com/chmduquesne/rollinghash/v4"
@@ -116,26 +117,64 @@ func TestChunkWriterFeedGranularity(t *testing.T) {
 // TestChunkWriterVsChunker cross-checks ChunkWriter against Chunker fed the
 // same data through a bytes.Reader.
 func TestChunkWriterVsChunker(t *testing.T) {
-	data := testData(150 * 1024)
+	// Pseudo-random data with min < window so short chunks (straddling windows)
+	// and forced cuts both occur; every Sum() case is exercised and must match
+	// the Chunker byte for byte, since both wrap the same chunkerCore.
+	data := make([]byte, 150*1024)
+	rand.New(rand.NewSource(2)).Read(data)
 	const window = 48
-	const mask, min, max = 0x1ff, 256, 8192
+	const mask, min, max = 0x7f, 8, 4096
 
 	for _, h := range allHashes {
 		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, rollinghash.WithBoundaries(min, max))
-		want, wantCD := collectChunks(t, c)
+		var want [][]byte
+		var wantCD []bool
+		var wantSums []uint64
+		for c.Next() {
+			want = append(want, append([]byte(nil), c.Bytes()...))
+			wantCD = append(wantCD, c.ContentDefined())
+			wantSums = append(wantSums, c.Sum())
+		}
+		if err := c.Err(); err != nil {
+			t.Fatalf("[%s] chunker Err: %v", h.name, err)
+		}
 
 		cw := rollinghash.NewChunkWriter(h.new(), window, mask, rollinghash.WithBoundaries(min, max))
 		if _, err := cw.Write(data); err != nil {
 			t.Fatal(err)
 		}
 		cw.Close()
-		got, gotCD := collectChunkWriterChunks(t, cw)
-
-		equalChunks(t, h.name, got, want)
-		for i := range wantCD {
-			if gotCD[i] != wantCD[i] {
-				t.Fatalf("[%s] chunk %d ContentDefined: got %v want %v", h.name, i, gotCD[i], wantCD[i])
+		var i, straddled, forced int
+		for cw.Next() {
+			if i >= len(want) {
+				t.Fatalf("[%s] chunkwriter produced more than %d chunks", h.name, len(want))
 			}
+			if !bytes.Equal(cw.Bytes(), want[i]) {
+				t.Fatalf("[%s] chunk %d bytes differ from Chunker", h.name, i)
+			}
+			if cw.ContentDefined() != wantCD[i] {
+				t.Fatalf("[%s] chunk %d ContentDefined: got %v want %v", h.name, i, cw.ContentDefined(), wantCD[i])
+			}
+			if cw.Sum() != wantSums[i] {
+				t.Fatalf("[%s] chunk %d Sum: got 0x%x want 0x%x", h.name, i, cw.Sum(), wantSums[i])
+			}
+			e := cw.Offset() + len(cw.Bytes()) - 1
+			if e-window+1 < cw.Offset() {
+				straddled++
+			}
+			if !cw.ContentDefined() {
+				forced++
+			}
+			i++
+		}
+		if err := cw.Err(); err != nil {
+			t.Fatalf("[%s] chunkwriter Err: %v", h.name, err)
+		}
+		if i != len(want) {
+			t.Fatalf("[%s] chunkwriter produced %d chunks, want %d", h.name, i, len(want))
+		}
+		if straddled == 0 || forced == 0 {
+			t.Fatalf("[%s] test ineffective: straddled=%d forced=%d", h.name, straddled, forced)
 		}
 	}
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.3.2 - 2026-09-02
+
+### Fixed
+
+- `Chunker`/`ChunkWriter`: `Sum()` now always returns the true rolling digest
+  of the window ending at the chunk's cut. Two cases previously returned 0:
+  a content-defined boundary whose window straddled the previous chunk's end
+  (possible when `min` < `window`), and any forced cut at `max` or final
+  chunk. It now returns 0 only for a final chunk whose stream has fewer than
+  `window` bytes. This lets callers read the checksum at a forced cut to
+  confirm it did not satisfy the mask. No change to the chunk boundaries
+  produced.
+
 ## v4.3.1 - 2026-08-31
 
 ### Changed
