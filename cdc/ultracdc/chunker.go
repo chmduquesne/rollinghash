@@ -98,6 +98,17 @@ func (f *ucCut) MaxSize() int { return f.max }
 // Window: UltraCDC compares 8-byte windows.
 func (f *ucCut) Window() int { return 8 }
 
+// WindowDigest returns the Hamming distance of b to the repeated 0xAA pattern,
+// the value UltraCDC tests its boundary mask against, used for Sum at a forced
+// or final cut.
+func (f *ucCut) WindowDigest(b []byte) uint64 {
+	var d uint64
+	for _, v := range b {
+		d += uint64(hammingDistanceTo0xAA[v])
+	}
+	return d
+}
+
 func (f *ucCut) Cut(data []byte, eof bool) (cutpoint int, contentDefined bool, sum uint64) {
 	minSize, maxSize, normalSize := f.min, f.max, f.normal
 	n := len(data)
@@ -177,9 +188,11 @@ func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
 // boundary (true) or was forced at max / end of stream (false).
 func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
 
-// Sum returns the running Hamming distance to 0xAA at the current chunk's
-// content-defined boundary, or 0 for a forced cut. UltraCDC uses no rolling
-// hash; this is the value its boundary mask is tested against.
+// Sum returns the Hamming distance to 0xAA of the 8-byte window ending at the
+// current chunk's cut, whether the cut was a mask hit, a forced cut at max, or
+// the end of the stream. At a content-defined boundary it is the value tested
+// against the boundary mask. It is 0 only for a final chunk shorter than 8
+// bytes. UltraCDC uses no rolling hash; this is that mask-tested value.
 func (c *Chunker) Sum() uint64 { return c.core.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.

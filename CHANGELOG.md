@@ -50,6 +50,18 @@
 
 ### Changed
 
+- `cdc/{jumpchunker,fastcdc,ultracdc}` (unreleased): `Sum()` now matches the
+  parent `Chunker`/`ChunkWriter` semantics from v4.3.2: it returns the
+  algorithm's rolling value for the window ending at the chunk's cut regardless
+  of how the cut was chosen. At a content-defined boundary it is still the
+  mask-tested value; at a forced cut at `max` or the final chunk it is
+  recomputed over the last `WindowSize` bytes (Gear fingerprint for JC/FastCDC,
+  Hamming distance to `0xAA` for UltraCDC) instead of being 0, letting a caller
+  confirm the window did not satisfy the mask. It is 0 only for a final chunk
+  lying within `WindowSize` bytes of the start of the stream. The shared engine
+  now retains `WindowSize-1` bytes of lead-in across buffer compaction so this
+  window is available even when it straddles the previous chunk's end. No change
+  to chunk boundaries.
 - `cdc/jumpchunker` (unreleased): rewritten on the new shared `cdc` streaming
   engine and realigned to plakar's cut semantics — the boundary byte is now the
   first byte of the next chunk, not the last byte of the current one, and a
