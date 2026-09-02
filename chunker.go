@@ -297,21 +297,24 @@ func (c *chunkerCore) emit(e int, contentDefined bool) {
 	lo := c.chunkStart - c.cbufBase
 	c.chunk = c.cbuf[lo : lo+(e-c.chunkStart+1)]
 	c.offset = c.chunkStart
-	if contentDefined {
-		c.sumv = c.windowSum(e)
-	} else {
-		c.sumv = 0
-	}
+	// Sum is the rolling checksum of the window ending at the cut, regardless
+	// of how the cut was chosen: at a mask boundary the caller uses it as the
+	// hit value; at a forced cut or the final chunk it lets the caller confirm
+	// the window did not satisfy the mask.
+	c.sumv = c.windowSum(e)
 	c.contentDefined = contentDefined
 	c.chunkStart = e + 1
 }
 
 // windowSum recomputes the rolling checksum of the window ending at global byte
-// e from the buffered bytes (cheap: once per emitted chunk). Returns 0 when the
-// window is not fully buffered (a final chunk shorter than window).
+// e from the buffered bytes (cheap: once per emitted chunk). The window may
+// straddle the previous chunk's end; feed keeps window-1 bytes of lead-in
+// buffered before cbufBase precisely so those bytes are still available here.
+// Returns 0 only when the window is not fully buffered, i.e. a final chunk
+// whose stream has fewer than window bytes before its end.
 func (c *chunkerCore) windowSum(e int) uint64 {
 	start := e - c.window + 1
-	if start < c.chunkStart {
+	if start < c.cbufBase {
 		return 0
 	}
 	off := start - c.cbufBase
@@ -323,7 +326,9 @@ func (c *chunkerCore) windowSum(e int) uint64 {
 // Bytes returns the current chunk, valid until the next call to next/feed.
 func (c *chunkerCore) Bytes() []byte { return c.chunk }
 
-// Sum returns the rolling checksum at the current chunk's boundary.
+// Sum returns the rolling checksum of the window ending at the current chunk's
+// cut, whether or not that cut was a mask hit. It is 0 only for a final chunk
+// whose stream has fewer than window bytes.
 func (c *chunkerCore) Sum() uint64 { return c.sumv }
 
 // ContentDefined reports whether the current chunk was cut by the mask.
@@ -480,8 +485,11 @@ func (c *chunker) fillCore() bool {
 // the first call to Next, and after Next returns false, Bytes returns nil.
 func (c *chunker) Bytes() []byte { return c.core.Bytes() }
 
-// Sum returns the rolling checksum at the current chunk's boundary. Before
-// the first call to Next, and after Next returns false, Sum returns 0.
+// Sum returns the rolling checksum of the window ending at the current chunk's
+// cut, whether the cut was a mask hit, a forced cut at max, or the end of the
+// stream. It is 0 only for a final chunk whose stream has fewer than window
+// bytes. Before the first call to Next, and after Next returns false, Sum
+// returns 0.
 func (c *chunker) Sum() uint64 { return c.core.Sum() }
 
 // ContentDefined reports whether the current chunk was cut by the mask (true) rather

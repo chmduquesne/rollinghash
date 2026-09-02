@@ -116,15 +116,19 @@ type BatchRoller interface {
 //		if c.ContentDefined() {
 //			// content-defined boundary; Sum() is the hit value
 //		} else {
-//			// forced cut at max, or the final chunk
+//			// forced cut at max, or the final chunk; Sum() is still the
+//			// window checksum there (it just didn't satisfy the mask)
 //		}
 //	}
 //	if err := c.Err(); err != nil { ... }
 //
 // Bytes is valid only until the next call to Next. ContentDefined reports whether the
 // current chunk ended at a mask hit (true) or was forced at max / end of
-// stream (false). Sum returns the rolling checksum at a mask boundary; it
-// returns 0 on forced cuts. Offset returns the start byte offset of the current
+// stream (false). Sum returns the rolling checksum of the window ending at the
+// cut regardless of how the cut was chosen (at a mask hit it is the hit value;
+// on a forced cut or the final chunk it lets the caller confirm the window did
+// not satisfy the mask); it returns 0 only for a final chunk whose stream has
+// fewer than window bytes. Offset returns the start byte offset of the current
 // chunk in the stream; the end offset is Offset()+len(Bytes()). WindowSize
 // returns the rolling window size used for boundary detection. Use WithBoundaries
 // to set minimum and maximum chunk sizes (defaults: 0 and math.MaxInt).

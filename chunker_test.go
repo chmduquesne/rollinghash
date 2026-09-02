@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"math"
+	"math/rand"
 	"testing"
 	"testing/iotest"
 
@@ -209,7 +210,6 @@ func TestChunker(t *testing.T) {
 	}
 }
 
-
 // TestChunkerContentDefined verifies ContentDefined/Sum: a mask boundary satisfies sum&mask==0,
 // and a non-final forced boundary is exactly max bytes.
 func TestChunkerContentDefined(t *testing.T) {
@@ -232,14 +232,63 @@ func TestChunkerContentDefined(t *testing.T) {
 				if sums[i]&mask != 0 {
 					t.Fatalf("[%s] chunk %d ContentDefined but Sum 0x%x & mask != 0", h.name, i, sums[i])
 				}
-			} else {
-				if sums[i] != 0 {
-					t.Fatalf("[%s] chunk %d forced cut but Sum 0x%x != 0", h.name, i, sums[i])
-				}
-				if i != len(chunks)-1 && len(chunks[i]) != max {
+			} else if i != len(chunks)-1 {
+				// A non-final forced cut is exactly max bytes, and its window
+				// checksum must not satisfy the mask (otherwise it would have
+				// been taken as a content-defined boundary).
+				if len(chunks[i]) != max {
 					t.Fatalf("[%s] chunk %d forced cut but length %d != max %d", h.name, i, len(chunks[i]), max)
 				}
+				if sums[i]&mask == 0 {
+					t.Fatalf("[%s] chunk %d forced cut but Sum 0x%x & mask == 0", h.name, i, sums[i])
+				}
 			}
+		}
+	}
+}
+
+// TestChunkerSumDigest verifies that Sum() is the true rolling digest of the
+// window ending at each chunk's cut - at a content-defined boundary, at a forced
+// cut at max, and at the final chunk - including when that window straddles the
+// previous chunk's end (min < window, so short chunks are possible).
+func TestChunkerSumDigest(t *testing.T) {
+	// Pseudo-random data so short content-defined chunks (window straddling the
+	// previous boundary) and forced cuts both occur; testData is too periodic.
+	data := make([]byte, 128*1024)
+	rng := rand.New(rand.NewSource(1))
+	rng.Read(data)
+	const window = 56
+	const mask, min, max = 0x7f, 8, 4096
+
+	for _, h := range allHashes {
+		oracle := batchRollOracleHash(h.classic, data, window) // oracle[g] = digest of data[g:g+window]
+
+		c := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask, rollinghash.WithBoundaries(min, max))
+		var straddled, forced int
+		var chunks int
+		for c.Next() {
+			chunks++
+			e := c.Offset() + len(c.Bytes()) - 1
+			g := e - window + 1
+			if g < 0 {
+				if c.Sum() != 0 {
+					t.Fatalf("[%s] chunk ending at %d shorter than window but Sum 0x%x != 0", h.name, e, c.Sum())
+				}
+				continue
+			}
+			if c.Sum() != oracle[g] {
+				t.Fatalf("[%s] chunk ending at %d (contentDefined=%v): Sum 0x%x, want digest 0x%x",
+					h.name, e, c.ContentDefined(), c.Sum(), oracle[g])
+			}
+			if g < c.Offset() {
+				straddled++
+			}
+			if !c.ContentDefined() {
+				forced++
+			}
+		}
+		if straddled == 0 || forced == 0 {
+			t.Fatalf("[%s] test ineffective over %d chunks: straddled=%d forced=%d", h.name, chunks, straddled, forced)
 		}
 	}
 }
