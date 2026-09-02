@@ -53,6 +53,18 @@
 - `rabinkarp64.Pol.MarshalJSON`/`UnmarshalJSON`: encode a polynomial as a quoted
   lowercase-hex string, matching restic/chunker, so a polynomial from a restic
   repository config round-trips through `rabinkarp64.Pol`.
+- `cdc/compat/boxo`: drop-in for `github.com/ipfs/boxo/chunker` (package
+  `chunk`). `Splitter`, `NewSizeSplitter`/`NewRabin`/`NewRabinMinMax`/`NewBuzhash`,
+  `DefaultSplitter`, `SizeSplitterGen`, `Chan`, `FromString` and `Register` match
+  that package's signatures, so migrating is `import chunk "…/cdc/compat/boxo"`
+  and nothing else. Produces byte-identical chunks — and therefore identical
+  IPFS CIDs — for all three built-in splitters: rabin (`rabinkarp64` over
+  `IpfsRabinPoly`, 16-byte window), buzhash (`buzhash32` with boxo's table,
+  32-byte window), and fixed-size. Verified against `github.com/ipfs/boxo`
+  itself by the `cdc/compat/boxo/bench` nested module. Chunk slices are always
+  caller-owned (boxo's go-buffer-pool reuse is not reproduced); on 8 MiB of
+  random data the rabin splitter runs ~3× faster than boxo's
+  (`whyrusleeping/chunker`, unmaintained since 2018), buzhash ~7% slower.
 - `cdc/{fastcdc,ultracdc,jumpchunker}.NewChunkWriter(…)`: push-based
   `rollinghash.ChunkWriter` counterparts to `New`, fed via `Write`/`Close`
   instead of an `io.Reader` (for callers whose data arrives in pieces, e.g.

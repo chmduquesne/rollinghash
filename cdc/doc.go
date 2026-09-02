@@ -21,6 +21,10 @@ drop-in for that library's NewChunker/Next/Split/Copy API.
 [github.com/chmduquesne/rollinghash/v4/cdc/compat/restic] does the same for
 github.com/restic/chunker's Rabin fingerprint splitter, producing byte-identical
 boundaries via the rabinkarp64 hash.
+[github.com/chmduquesne/rollinghash/v4/cdc/compat/boxo] does the same for
+github.com/ipfs/boxo/chunker (rabin, buzhash and fixed-size splitting plus its
+FromString registry), producing byte-identical chunks — and therefore identical
+IPFS CIDs.
 
 The parent package's [github.com/chmduquesne/rollinghash/v4.Chunker] and
 [github.com/chmduquesne/rollinghash/v4.ChunkWriter] provide the classic
