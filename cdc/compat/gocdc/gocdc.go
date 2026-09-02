@@ -5,7 +5,7 @@
 // boundaries for the "fastcdc", "ultracdc", and "jc" families (including the
 // "-v1.0.0" / "-v1.1.0" variants). Migrating is a one-line change:
 //
-//	import chunkers "github.com/chmduquesne/rollinghash/v4/cdc/gocdc"
+//	import chunkers "github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc"
 //
 // Keyed FastCDC ("kfastcdc") is not supported; those names return an error.
 // Callers who want the typed, idiomatic API should use the cdc/fastcdc,

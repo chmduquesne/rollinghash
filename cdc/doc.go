@@ -16,7 +16,7 @@ counterpart fed via Write/Close) implements
 [github.com/chmduquesne/rollinghash/v4.ChunkWriter], so one loop works across
 all algorithms and both drive styles. Boundaries are byte-for-byte compatible
 with the corresponding algorithm in PlakarKorp/go-cdc-chunkers;
-[github.com/chmduquesne/rollinghash/v4/cdc/gocdc] is a signature-compatible
+[github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc] is a signature-compatible
 drop-in for that library's NewChunker/Next/Split/Copy API.
 
 The parent package's [github.com/chmduquesne/rollinghash/v4.Chunker] and

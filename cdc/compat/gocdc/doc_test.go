@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 
-	"github.com/chmduquesne/rollinghash/v4/cdc/gocdc"
+	"github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc"
 )
 
 // gocdc.NewChunker mirrors PlakarKorp/go-cdc-chunkers' chunkers.NewChunker

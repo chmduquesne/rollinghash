@@ -16,7 +16,7 @@
 // Keyed chunking: users who want this can pass any table (via
 // gearhash64.NewFromUint64Array) This package provides no key-derivation
 // helper; derive the table however you like. To reproduce plakar's "kfastcdc"
-// look at cdc/bench/keyed_test.go, function plakarKeyedGearTable
+// look at cdc/compat/gocdc/bench/keyed_test.go, function plakarKeyedGearTable
 package fastcdc
 
 import (

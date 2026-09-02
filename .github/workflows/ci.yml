@@ -37,7 +37,7 @@ jobs:
       run: go test -race ./...
 
   plakar-parity:
-    # Nested module cdc/bench: diffs cdc/gocdc against the real
+    # Nested module cdc/compat/gocdc/bench: diffs cdc/compat/gocdc against the real
     # github.com/PlakarKorp/go-cdc-chunkers. Kept out of the main module so its
     # blake3/cpuid deps never enter the dependency-free root.
     runs-on: ubuntu-latest
@@ -50,7 +50,7 @@ jobs:
         go-version: 'stable'
 
     - name: Parity test + benchmark
-      working-directory: cdc/bench
+      working-directory: cdc/compat/gocdc/bench
       run: |
         go test -v ./...
         go test -run=NONE -bench=. -benchmem ./...
