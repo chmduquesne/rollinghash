@@ -60,6 +60,12 @@
   dependent `data[]`/Gear-table loads as a group so they pipeline instead of
   running one per branch. On 1 MiB of random data, allocation-free: JC
   ~5.7 GB/s (old batch-incremental design) → ~9.8; FastCDC ~2.9 → ~4.0.
+- `cdc` streaming engine: the shared buffer keeps more compaction slack
+  (`2*MaxSize + 256 KiB`, was `+32 KiB`), so the consumed prefix is moved less
+  often and moves a smaller fraction of what it frees each time. No change to
+  chunk boundaries. `BenchmarkChunker` on 1 MiB of random data (boost off):
+  JC ~6.5 → ~6.8 GB/s (+4.8%), FastCDC +~2%; UltraCDC unchanged (compute-bound).
+  Costs ~224 KiB more resident buffer per chunker.
 
 ### Removed
 
