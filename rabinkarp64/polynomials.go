@@ -33,8 +33,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"math/bits"
+	"math/rand"
 	"strconv"
 )
 
@@ -156,6 +156,28 @@ func (x Pol) Div(d Pol) Pol {
 func (x Pol) Mod(d Pol) Pol {
 	_, r := x.DivMod(d)
 	return r
+}
+
+// MarshalJSON returns the JSON representation of the Pol: its coefficients as a
+// quoted hex string (no "0x" prefix). This matches restic/chunker, so a
+// polynomial stored in a restic repository config round-trips through this type.
+func (x Pol) MarshalJSON() ([]byte, error) {
+	buf := strconv.AppendUint([]byte{'"'}, uint64(x), 16)
+	buf = append(buf, '"')
+	return buf, nil
+}
+
+// UnmarshalJSON parses a Pol from the quoted hex string produced by MarshalJSON.
+func (x *Pol) UnmarshalJSON(data []byte) error {
+	if len(data) < 2 {
+		return errors.New("invalid string for polynomial")
+	}
+	n, err := strconv.ParseUint(string(data[1:len(data)-1]), 16, 64)
+	if err != nil {
+		return err
+	}
+	*x = Pol(n)
+	return nil
 }
 
 // I really dislike having a function that does not terminate, so specify a
