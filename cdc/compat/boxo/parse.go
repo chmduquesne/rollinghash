@@ -1,0 +1,127 @@
+package boxo
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
+)
+
+const (
+	// BlockSizeLimit is the maximum block size defined by the bitswap spec.
+	BlockSizeLimit int = 2 * 1024 * 1024 // 2 MiB
+
+	// ChunkOverheadBudget is reserved for protobuf/UnixFS framing overhead.
+	ChunkOverheadBudget int = 256
+
+	// ChunkSizeLimit is the maximum chunk size accepted by the chunker, set
+	// below BlockSizeLimit to leave room for framing overhead.
+	ChunkSizeLimit int = BlockSizeLimit - ChunkOverheadBudget
+)
+
+// Parsing errors, mirroring boxo/chunker.
+var (
+	ErrRabinMin = errors.New("rabin min must be greater than 16")
+	ErrSize     = errors.New("chunker size must be greater than 0")
+	ErrSizeMax  = fmt.Errorf("chunker parameters may not exceed the maximum chunk size of %d", ChunkSizeLimit)
+)
+
+// FromString returns a Splitter for the given chunker specification string,
+// matching boxo/chunker.FromString:
+//
+//   - "" or "default"                -- fixed-size chunks using DefaultBlockSize
+//   - "size-{size}"                  -- fixed-size chunks of the given byte size
+//   - "rabin"                        -- Rabin with DefaultBlockSize average
+//   - "rabin-{avg}"                  -- Rabin with the given average size
+//   - "rabin-min:{m}-avg:{a}-max:{x}" (labels optional) -- Rabin with bounds
+//   - "buzhash"                      -- Buzhash content-defined chunking
+//
+// Custom chunkers registered via Register are also available.
+func FromString(r io.Reader, chunker string) (Splitter, error) {
+	if chunker == "" || chunker == "default" {
+		return DefaultSplitter(r), nil
+	}
+	name, _, _ := strings.Cut(chunker, "-")
+	splittersMu.RLock()
+	ctor, ok := splitters[name]
+	splittersMu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("unrecognized chunker option: %s", chunker)
+	}
+	return ctor(r, chunker)
+}
+
+func parseSizeString(r io.Reader, chunker string) (Splitter, error) {
+	parts := strings.Split(chunker, "-")
+	if len(parts) != 2 {
+		return nil, errors.New("incorrect chunker string format (expected size-{size})")
+	}
+	size, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, err
+	} else if size <= 0 {
+		return nil, ErrSize
+	} else if size > ChunkSizeLimit {
+		return nil, ErrSizeMax
+	}
+	return NewSizeSplitter(r, int64(size)), nil
+}
+
+func parseBuzhashString(r io.Reader, _ string) (Splitter, error) {
+	return NewBuzhash(r), nil
+}
+
+func parseRabinString(r io.Reader, chunker string) (Splitter, error) {
+	parts := strings.Split(chunker, "-")
+	switch len(parts) {
+	case 1:
+		return NewRabin(r, uint64(DefaultBlockSize)), nil
+	case 2:
+		size, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return nil, err
+		} else if int(float32(size)*1.5) > ChunkSizeLimit {
+			return nil, ErrSizeMax
+		}
+		return NewRabin(r, uint64(size)), nil
+	case 4:
+		sub := strings.Split(parts[1], ":")
+		if len(sub) > 1 && sub[0] != "min" {
+			return nil, errors.New("first label must be min")
+		}
+		min, err := strconv.Atoi(sub[len(sub)-1])
+		if err != nil {
+			return nil, err
+		}
+		if min < 16 {
+			return nil, ErrRabinMin
+		}
+		sub = strings.Split(parts[2], ":")
+		if len(sub) > 1 && sub[0] != "avg" {
+			return nil, errors.New("second label must be avg")
+		}
+		avg, err := strconv.Atoi(sub[len(sub)-1])
+		if err != nil {
+			return nil, err
+		}
+		sub = strings.Split(parts[3], ":")
+		if len(sub) > 1 && sub[0] != "max" {
+			return nil, errors.New("final label must be max")
+		}
+		max, err := strconv.Atoi(sub[len(sub)-1])
+		if err != nil {
+			return nil, err
+		}
+		if min >= avg {
+			return nil, errors.New("incorrect format: rabin-min must be smaller than rabin-avg")
+		} else if avg >= max {
+			return nil, errors.New("incorrect format: rabin-avg must be smaller than rabin-max")
+		} else if max > ChunkSizeLimit {
+			return nil, ErrSizeMax
+		}
+		return NewRabinMinMax(r, uint64(min), uint64(avg), uint64(max)), nil
+	default:
+		return nil, errors.New("incorrect format (expected 'rabin' 'rabin-[avg]' or 'rabin-[min]-[avg]-[max]'")
+	}
+}

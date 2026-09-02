@@ -305,9 +305,7 @@ sufficient to produce independent hash functions.
 
 **`rabinkarp64`** is the slowest but lets you pick a specific irreducible
 polynomial, which matters when you need to match an existing implementation
-(e.g. restic). For restic specifically, `cdc/compat/restic` is a drop-in
-replacement for `github.com/restic/chunker`'s API that produces byte-identical
-chunk boundaries.
+(e.g. restic).
 
 ## License
 
