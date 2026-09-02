@@ -38,6 +38,21 @@
   `fastcdc`, `ultracdc`, and `jc` families (including the `-v1.0.0` /
   `-v1.1.0` variants). Keyed FastCDC is not supported (those names return an
   error).
+- `cdc/compat/restic`: drop-in for `github.com/restic/chunker`'s consumer API.
+  `New`/`NewWithBoundaries`, `*Chunker`, `Chunk`, `Pol`,
+  `RandomPolynomial`/`DerivePolynomial`, `MinSize`/`MaxSize`, the
+  `WithBoundaries`/`WithAverageBits`/`WithBuffer` options and the
+  `Next`/`Reset`/`SetAverageBits` methods match that package's, so migrating is
+  `import chunker "…/cdc/compat/restic"` and nothing else. Produces
+  byte-identical boundaries (Rabin fingerprint over a degree-53 polynomial,
+  64-byte window) via `rabinkarp64` + `rollinghash.NewChunker`, verified against
+  the real package by the `cdc/compat/restic/bench` nested module. `Chunk.Cut`
+  differs only on a final chunk shorter than `MinSize`, where restic returns a
+  value its own source calls meaningless. The `BaseChunker`/`NewBase` API is not
+  mirrored.
+- `rabinkarp64.Pol.MarshalJSON`/`UnmarshalJSON`: encode a polynomial as a quoted
+  lowercase-hex string, matching restic/chunker, so a polynomial from a restic
+  repository config round-trips through `rabinkarp64.Pol`.
 - `cdc/{fastcdc,ultracdc,jumpchunker}.NewChunkWriter(…)`: push-based
   `rollinghash.ChunkWriter` counterparts to `New`, fed via `Write`/`Close`
   instead of an `io.Reader` (for callers whose data arrives in pieces, e.g.
