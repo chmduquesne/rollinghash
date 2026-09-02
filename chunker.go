@@ -132,11 +132,11 @@ func (c *chunkerCore) reset() {
 // the trailing chunk instead of returning needMore.
 func (c *chunkerCore) finish() { c.eof = true }
 
-// feed ingests newBytes (bytes not previously seen) into the chunk byte
-// accumulator and compacts the already-emitted prefix of cbuf and bounds
-// first, so both stay bounded across many chunks. Boundary detection itself
-// is deferred to hashForward, driven lazily by next().
-func (c *chunkerCore) feed(newBytes []byte) {
+// compact drops the fully-consumed prefix of cbuf and bounds so both stay
+// bounded across many chunks. It runs before fresh bytes enter the
+// accumulator, whether they are appended by feed (push side) or read
+// straight into cbuf's tail by the pull-based chunker (see readTail).
+func (c *chunkerCore) compact() {
 	c.skipPreMin()
 
 	// Keep bytes from cbufBase = min(chunkStart, hashedTo) - (window-1): the
@@ -155,9 +155,42 @@ func (c *chunkerCore) feed(newBytes []byte) {
 		c.bounds = c.bounds[:m]
 		c.bcur = 0
 	}
+}
 
+// feed ingests newBytes (bytes not previously seen) into the chunk byte
+// accumulator, compacting the already-emitted prefix first. Boundary
+// detection itself is deferred to hashForward, driven lazily by next().
+func (c *chunkerCore) feed(newBytes []byte) {
+	c.compact()
 	c.cbuf = append(c.cbuf, newBytes...)
 	c.consumed += len(newBytes)
+}
+
+// readTail compacts, then ensures cbuf has room for up to n bytes past its
+// current length and returns that writable tail slice (length n). The
+// caller fills the first k <= n bytes of it and then calls commitTail(k).
+// This lets the pull-based chunker read from its io.Reader directly into
+// the chunk accumulator instead of bouncing every byte through a separate
+// read buffer.
+func (c *chunkerCore) readTail(n int) []byte {
+	c.compact()
+	l := len(c.cbuf)
+	if cap(c.cbuf) < l+n {
+		// Amortized (doubling) growth, like append, so cbuf's backing array
+		// stops reallocating once it has seen a full-size chunk.
+		newCap := max(cap(c.cbuf)*2, l+n)
+		grown := make([]byte, l, newCap)
+		copy(grown, c.cbuf)
+		c.cbuf = grown
+	}
+	return c.cbuf[l : l+n]
+}
+
+// commitTail marks the first n bytes of the slice returned by readTail as
+// filled and part of the stream.
+func (c *chunkerCore) commitTail(n int) {
+	c.cbuf = c.cbuf[:len(c.cbuf)+n]
+	c.consumed += n
 }
 
 // skipPreMin fast-forwards hashedTo past the current chunk's pre-min region:
@@ -368,8 +401,8 @@ func (c *chunkerCore) WindowSize() int { return c.window }
 type chunker struct {
 	core *chunkerCore
 
-	r    io.Reader
-	rbuf []byte
+	r        io.Reader
+	readSize int // bytes to pull per Read batch, == max(batchSize, window)
 }
 
 // chunkerOption is a functional option shared by NewChunker and NewChunkWriter.
@@ -419,11 +452,10 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, opts ...chunkerOpt
 	for _, opt := range opts {
 		opt(core)
 	}
-	bufSize := max(core.batchSize, window)
 	return &chunker{
-		core: core,
-		r:    r,
-		rbuf: make([]byte, bufSize),
+		core:     core,
+		r:        r,
+		readSize: max(core.batchSize, window),
 	}
 }
 
@@ -454,28 +486,28 @@ func (c *chunker) Next() bool {
 	}
 }
 
-// fillCore reads the next block from r into rbuf and feeds it to core. It
-// returns false once the reader is exhausted (core.finish has been called)
-// or on error (core.err is set).
+// fillCore reads the next block from r straight into core's chunk
+// accumulator (no intermediate buffer) and returns false once the reader is
+// exhausted (core.finish has been called) or on error (core.err is set).
 func (c *chunker) fillCore() bool {
 	if c.core.eof {
 		return false
 	}
+	buf := c.core.readTail(c.readSize)
 	n := 0
 	eof := false
-	for n < len(c.rbuf) && !eof {
-		m, err := c.r.Read(c.rbuf[n:])
+	for n < len(buf) && !eof {
+		m, err := c.r.Read(buf[n:])
 		n += m
 		if err == io.EOF {
 			eof = true
 		} else if err != nil {
+			c.core.commitTail(n)
 			c.core.err = err
 			return false
 		}
 	}
-	if n > 0 {
-		c.core.feed(c.rbuf[:n])
-	}
+	c.core.commitTail(n)
 	if eof {
 		c.core.finish()
 		return false

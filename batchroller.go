@@ -84,6 +84,30 @@ func (c *batchRollerCore) feed(newBytes []byte) {
 	c.buf = append(c.buf, newBytes...)
 }
 
+// readTail ensures buf has room for up to n bytes past its current length
+// and returns that writable tail slice (length n). The caller fills the
+// first k <= n bytes and then calls commitTail(k). This lets the pull-based
+// batchRoller read from its io.Reader directly into the accumulator instead
+// of bouncing every byte through a separate read buffer. next() has already
+// dropped the previously emitted prefix by the time this runs, so unlike
+// chunkerCore.readTail there is nothing to compact here.
+func (c *batchRollerCore) readTail(n int) []byte {
+	l := len(c.buf)
+	if cap(c.buf) < l+n {
+		// Amortized (doubling) growth, like append, so buf's backing array
+		// stops reallocating once it has seen a full-size batch.
+		newCap := max(cap(c.buf)*2, l+n)
+		grown := make([]byte, l, newCap)
+		copy(grown, c.buf)
+		c.buf = grown
+	}
+	return c.buf[l : l+n]
+}
+
+// commitTail marks the first n bytes of the slice returned by readTail as
+// filled and part of the stream.
+func (c *batchRollerCore) commitTail(n int) { c.buf = c.buf[:len(c.buf)+n] }
+
 // next attempts one non-blocking batch emission from currently buffered
 // state. It returns needMore if fewer than window bytes are available yet
 // and finish hasn't been called.
@@ -171,8 +195,8 @@ func (c *batchRollerCore) WindowSize() int { return c.window }
 type batchRoller struct {
 	core *batchRollerCore
 
-	r    io.Reader
-	rbuf []byte
+	r        io.Reader
+	readSize int // bytes to pull per Read batch, == core.batchSize
 }
 
 // NewBatchRoller returns a BatchRoller over r. window must be >= 1. h must
@@ -185,9 +209,9 @@ func NewBatchRoller(r io.Reader, h Hash, window int, opts ...batchRollerOption) 
 		opt(core)
 	}
 	return &batchRoller{
-		core: core,
-		r:    r,
-		rbuf: make([]byte, core.batchSize),
+		core:     core,
+		r:        r,
+		readSize: core.batchSize,
 	}
 }
 
@@ -220,28 +244,28 @@ func (s *batchRoller) Next() bool {
 	}
 }
 
-// fillCore reads the next block from r into rbuf and feeds it to core. It
-// returns false once the reader is exhausted (core.finish has been called)
-// or on error (core.err is set).
+// fillCore reads the next block from r straight into core's accumulator (no
+// intermediate buffer) and returns false once the reader is exhausted
+// (core.finish has been called) or on error (core.err is set).
 func (s *batchRoller) fillCore() bool {
 	if s.core.eof {
 		return false
 	}
+	buf := s.core.readTail(s.readSize)
 	n := 0
 	eof := false
-	for n < len(s.rbuf) && !eof {
-		m, err := s.r.Read(s.rbuf[n:])
+	for n < len(buf) && !eof {
+		m, err := s.r.Read(buf[n:])
 		n += m
 		if err == io.EOF {
 			eof = true
 		} else if err != nil {
+			s.core.commitTail(n)
 			s.core.err = err
 			return false
 		}
 	}
-	if n > 0 {
-		s.core.feed(s.rbuf[:n])
-	}
+	s.core.commitTail(n)
 	if eof {
 		s.core.finish()
 		return false
