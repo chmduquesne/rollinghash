@@ -22,6 +22,16 @@ func (f fixedCut) Cut(avail []byte, eof bool) (int, bool, uint64) {
 	return f.size, true, 42
 }
 
+// WindowDigest sums the window bytes so forced-cut Sum is a checkable function
+// of exactly the last Window() bytes.
+func (f fixedCut) WindowDigest(b []byte) uint64 {
+	var s uint64
+	for _, v := range b {
+		s += uint64(v)
+	}
+	return s
+}
+
 func drain(t *testing.T, c *chunkcore.Core) ([][]byte, []int) {
 	t.Helper()
 	var chunks [][]byte
@@ -108,6 +118,68 @@ func (r *bigBlockReader) Read(p []byte) (int, error) {
 	n := copy(p, r.data[r.pos:])
 	r.pos += n
 	return n, nil
+}
+
+// TestCoreSumWindow checks that Sum at a forced/final cut is WindowDigest of the
+// last Window() bytes ending at the cut - including when compaction has run and
+// that window straddles the previous chunk's end - and 0 only for a final chunk
+// shorter than the window.
+func TestCoreSumWindow(t *testing.T) {
+	sumLast8 := func(b []byte) uint64 {
+		var s uint64
+		for _, v := range b[len(b)-8:] {
+			s += uint64(v)
+		}
+		return s
+	}
+
+	// Big stream, small max: the buffer compacts several times before the tiny
+	// 3-byte final chunk, whose 8-byte window reaches back past c.start into
+	// the previous chunk.
+	data := randData(600000 + 3)
+	c := chunkcore.New(&bigBlockReader{data: data}, fixedCut{size: 20000, max: 32 * 1024}, nil)
+	end, forced := 0, 0
+	for c.Next() {
+		end += len(c.Bytes())
+		if c.ContentDefined() {
+			continue
+		}
+		forced++
+		if len(c.Bytes()) != 3 {
+			t.Fatalf("forced chunk %d bytes, want the 3-byte tail", len(c.Bytes()))
+		}
+		if c.Sum() != sumLast8(data[end-8:end]) {
+			t.Fatalf("straddling final window: Sum %d, want %d", c.Sum(), sumLast8(data[end-8:end]))
+		}
+	}
+	if err := c.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if forced != 1 {
+		t.Fatalf("saw %d forced cuts, want 1", forced)
+	}
+
+	// A whole stream shorter than the window: Sum stays 0.
+	c = chunkcore.New(bytes.NewReader([]byte("abc")), fixedCut{size: 20000, max: 32 * 1024}, nil)
+	if !c.Next() {
+		t.Fatal("expected one chunk")
+	}
+	if c.Sum() != 0 {
+		t.Fatalf("sub-window stream: Sum %d, want 0", c.Sum())
+	}
+}
+
+// randData fills a slice with xorshift64 pseudo-random bytes.
+func randData(n int) []byte {
+	b := make([]byte, n)
+	var x uint64 = 0x1234567
+	for i := range b {
+		x ^= x << 13
+		x ^= x >> 7
+		x ^= x << 17
+		b[i] = byte(x)
+	}
+	return b
 }
 
 func TestCoreBufferGrowth(t *testing.T) {

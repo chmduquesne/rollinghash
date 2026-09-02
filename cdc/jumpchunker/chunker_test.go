@@ -125,18 +125,32 @@ func TestChunkerImplementsRollinghashChunker(t *testing.T) {
 	if c.WindowSize() != 64 {
 		t.Fatalf("WindowSize = %d, want 64", c.WindowSize())
 	}
+	tab := gearhash64.New().Table()
+	gearDigest := func(b []byte) uint64 {
+		var fp uint64
+		for _, x := range b {
+			fp = (fp << 1) + tab[x]
+		}
+		return fp
+	}
+
 	sawCD, sawForced := false, false
 	for c.Next() {
+		end := c.Offset() + len(c.Bytes())
 		if c.ContentDefined() {
 			sawCD = true
-			if c.Sum() == 0 {
-				t.Fatal("content-defined chunk has Sum() == 0")
-			}
-		} else {
-			sawForced = true
-			if c.Sum() != 0 {
-				t.Fatalf("forced/final chunk has Sum() = %#x, want 0", c.Sum())
-			}
+			continue
+		}
+		// A forced cut at max or the final chunk: Sum() is now the Gear
+		// fingerprint of the 64 bytes ending at the cut, not 0 (0 only when
+		// the cut is within 64 bytes of the start of the stream).
+		sawForced = true
+		var want uint64
+		if end >= 64 {
+			want = gearDigest(data[end-64 : end])
+		}
+		if c.Sum() != want {
+			t.Fatalf("forced/final chunk ending at %d: Sum() = %#x, want %#x", end, c.Sum(), want)
 		}
 	}
 	if err := c.Err(); err != nil {

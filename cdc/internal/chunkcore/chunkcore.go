@@ -41,11 +41,16 @@ const compactionSlack = 16 * readBlock
 type CutFinder interface {
 	// Cut returns the length of the next chunk, whether it ends at a
 	// content-defined boundary (as opposed to a forced max cut or the final
-	// bytes of the stream), and the algorithm's rolling value at that boundary
-	// (0 when contentDefined is false). When eof is false, avail holds at
-	// least MaxSize bytes. The returned length is clamped to [1, len(avail)]
-	// by the caller.
+	// bytes of the stream), and the algorithm's rolling value at that boundary.
+	// The sum is used only when contentDefined is true; for a forced or final
+	// cut the core recomputes it from WindowDigest. When eof is false, avail
+	// holds at least MaxSize bytes. The returned length is clamped to
+	// [1, len(avail)] by the caller.
 	Cut(avail []byte, eof bool) (n int, contentDefined bool, sum uint64)
+	// WindowDigest returns the algorithm's rolling value over exactly the bytes
+	// b, which the core passes as the Window() bytes ending at a forced or
+	// final cut so Sum is meaningful there too.
+	WindowDigest(b []byte) uint64
 	MaxSize() int
 	// Window is the number of trailing bytes the boundary test depends on,
 	// reported by Chunker.WindowSize.
@@ -139,11 +144,8 @@ func (c *Core) Write(p []byte) (int, error) {
 	}
 	// Drop the consumed prefix when the tail can't hold p, so the buffer stays
 	// bounded no matter how Write and Next are interleaved.
-	if c.start > 0 && cap(c.buf)-len(c.buf) < len(p) {
-		m := copy(c.buf, c.buf[c.start:])
-		c.buf = c.buf[:m]
-		c.offset += c.start
-		c.start = 0
+	if cap(c.buf)-len(c.buf) < len(p) {
+		c.compact()
 	}
 	c.buf = append(c.buf, p...)
 	return len(p), nil
@@ -196,8 +198,17 @@ func (c *Core) Next() bool {
 	}
 	c.chunk = avail[:n]
 	c.contentDefined = cd
-	c.sum = sum
 	c.curOff = c.offset + c.start
+	// Sum is the rolling value of the window ending at the cut, however the cut
+	// was chosen. At a content-defined boundary that is the value Cut already
+	// tested against the mask; at a forced or final cut it is recomputed from
+	// the last window bytes (0 only when fewer than window bytes precede the
+	// cut, i.e. a final chunk near the very start of the stream).
+	if cd {
+		c.sum = sum
+	} else {
+		c.sum = c.windowDigestAt(c.start + n)
+	}
 	c.start += n
 	if c.eof && c.start >= len(c.buf) {
 		c.done = true
@@ -211,17 +222,40 @@ func (c *Core) clearChunk() {
 	c.sum = 0
 }
 
+// windowDigestAt returns the finder's rolling value over the window of c.window
+// bytes ending just before buf index end (exclusive). It returns 0 when fewer
+// than c.window bytes precede end; compact retains c.window-1 bytes of lead-in
+// before c.start, so this happens only for a final chunk lying within c.window
+// bytes of the start of the stream.
+func (c *Core) windowDigestAt(end int) uint64 {
+	lo := end - c.window
+	if lo < 0 {
+		return 0
+	}
+	return c.f.WindowDigest(c.buf[lo:end])
+}
+
+// compact drops the consumed prefix of buf, retaining c.window-1 bytes of
+// lead-in before start so windowDigestAt can still see a window that straddles
+// the previous chunk's end.
+func (c *Core) compact() {
+	keep := min(c.start, c.window-1)
+	src := c.start - keep
+	if src == 0 {
+		return
+	}
+	m := copy(c.buf, c.buf[src:])
+	c.buf = c.buf[:m]
+	c.offset += src
+	c.start = keep
+}
+
 // fill drops the consumed prefix if buf has no tail room, then reads one
 // readBlock into buf's tail. It returns false on reader error (with err set);
 // io.EOF sets eof and is not an error.
 func (c *Core) fill() bool {
 	if cap(c.buf)-len(c.buf) < readBlock {
-		if c.start > 0 {
-			m := copy(c.buf, c.buf[c.start:])
-			c.buf = c.buf[:m]
-			c.offset += c.start
-			c.start = 0
-		}
+		c.compact()
 		if cap(c.buf)-len(c.buf) < readBlock { // still tight: grow (shouldn't happen given New's sizing)
 			grown := make([]byte, len(c.buf), len(c.buf)+readBlock)
 			copy(grown, c.buf)
@@ -262,8 +296,12 @@ func (c *Core) Bytes() []byte { return c.chunk }
 // boundary (as opposed to a forced max cut or the final bytes of the stream).
 func (c *Core) ContentDefined() bool { return c.contentDefined }
 
-// Sum returns the algorithm's rolling value at the current chunk's boundary, or
-// 0 when the chunk was not cut at a content-defined boundary.
+// Sum returns the algorithm's rolling value for the window ending at the current
+// chunk's cut, whether that cut was a mask hit, a forced cut at max, or the end
+// of the stream. At a content-defined boundary it is the value the mask was
+// tested against. It is 0 only for a final chunk lying within WindowSize bytes
+// of the start of the stream, and before the first Next / after Next returns
+// false.
 func (c *Core) Sum() uint64 { return c.sum }
 
 // Offset is the stream offset of the current chunk's first byte.

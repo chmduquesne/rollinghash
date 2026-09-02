@@ -41,3 +41,16 @@ func Scan4(g *[256]uint64, data []byte, lo, hi int, mask, fp uint64) (pos int, h
 	}
 	return hi, false, fp
 }
+
+// Digest returns the windowless Gear fingerprint of b: fp seeded 0 and advanced
+// as fp = (fp<<1) + g[c] for every byte. Since the shift discards bits past 63,
+// for len(b) >= 64 this equals the fingerprint a Scan4 chain would hold after
+// the same trailing 64 bytes; the cdc engine uses it to report Sum at a forced
+// or final cut.
+func Digest(g *[256]uint64, b []byte) uint64 {
+	var fp uint64
+	for _, c := range b {
+		fp = (fp << 1) + g[c]
+	}
+	return fp
+}

@@ -149,6 +149,10 @@ func (f *fcCut) MaxSize() int { return f.max }
 // only the last 64 bytes.
 func (f *fcCut) Window() int { return 64 }
 
+// WindowDigest returns the Gear fingerprint of b, used for Sum at a forced or
+// final cut.
+func (f *fcCut) WindowDigest(b []byte) uint64 { return gearscan.Digest(&f.g, b) }
+
 func (f *fcCut) Cut(data []byte, eof bool) (int, bool, uint64) {
 	n := len(data)
 	normalSize := f.normal
@@ -208,8 +212,11 @@ func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
 // or forced at max / end of stream (false).
 func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
 
-// Sum returns the Gear fingerprint at the current chunk's content-defined
-// boundary, or 0 for a forced cut.
+// Sum returns the Gear fingerprint of the 64-byte window ending at the current
+// chunk's cut, whether the cut was a mask hit, a forced cut at max, or the end
+// of the stream. At a content-defined boundary it is the value tested against
+// the boundary mask. It is 0 only for a final chunk within 64 bytes of the
+// start of the stream.
 func (c *Chunker) Sum() uint64 { return c.core.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
