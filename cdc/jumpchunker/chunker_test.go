@@ -191,12 +191,27 @@ func TestChunkerEdgeCases(t *testing.T) {
 		t.Error("empty: expected zero-value accessors")
 	}
 
-	// Input shorter than min: one final chunk of all the data.
-	data := testData(10)
-	c = jumpchunker.New(bytes.NewReader(data), gearhash64.New(), 256, 20, 1024)
-	got := collect(t, c)
-	if len(got) != 1 || !bytes.Equal(got[0], data) {
-		t.Errorf("short: expected one chunk of all data, got %d chunks", len(got))
+	// A stream shorter than the 64-byte window still yields its bytes as one
+	// final, non-content-defined chunk (matches rollinghash.Chunker as of
+	// v4.3.3). Sum stays 0: no full window ends at the cut.
+	subWindow := testData(63)
+	c = jumpchunker.New(bytes.NewReader(subWindow), gearhash64.New(), 256, 64, 1024)
+	if !c.Next() {
+		t.Fatal("sub-window: expected one chunk")
+	}
+	if !bytes.Equal(c.Bytes(), subWindow) || c.ContentDefined() || c.Sum() != 0 {
+		t.Errorf("sub-window: chunk=%d bytes contentDefined=%v sum=%d, want %d bytes / false / 0",
+			len(c.Bytes()), c.ContentDefined(), c.Sum(), len(subWindow))
+	}
+	if c.Next() {
+		t.Error("sub-window: expected exactly one chunk")
+	}
+
+	// Exactly the window size: still one chunk of the whole input.
+	exact := testData(64)
+	c = jumpchunker.New(bytes.NewReader(exact), gearhash64.New(), 256, 64, 1024)
+	if got := collect(t, c); len(got) != 1 || !bytes.Equal(got[0], exact) {
+		t.Errorf("exactly-window: expected one chunk of the whole input, got %d chunks", len(got))
 	}
 }
 
