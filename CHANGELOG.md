@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.3.3 - 2026-09-02
+
+### Fixed
+
+- `Chunker`/`ChunkWriter`: a stream shorter than `window` now yields its bytes
+  as a single final chunk instead of no chunk at all. A chunk is just a byte
+  range, so it exists whether or not a rolling checksum can be computed over
+  its end; the old behavior silently dropped the entire content of a tiny
+  stream. `Sum()` is still 0 for such a chunk and `ContentDefined()` is false.
+  This matches the `Chunker`'s own reference implementation and the documented
+  "the trailing bytes of the stream form a final chunk". A truly empty stream
+  still yields no chunks.
+
 ## v4.3.2 - 2026-09-02
 
 ### Fixed

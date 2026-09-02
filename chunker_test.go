@@ -316,17 +316,22 @@ func TestChunkerEdgeCases(t *testing.T) {
 	const window = 16
 
 	for _, h := range allHashes {
-		c := rollinghash.NewChunker(bytes.NewReader(testData(window-1)), h.new(), window, 0xff, rollinghash.WithBoundaries(1, 64))
-		if c.Next() {
-			t.Errorf("[%s] sub-window: expected no chunks, got %d bytes", h.name, len(c.Bytes()))
+		subWindow := testData(window - 1)
+		c := rollinghash.NewChunker(bytes.NewReader(subWindow), h.new(), window, 0xff, rollinghash.WithBoundaries(1, 64))
+		got, cd := collectChunks(t, c)
+		if len(got) != 1 || !bytes.Equal(got[0], subWindow) {
+			t.Errorf("[%s] sub-window: expected one final chunk of the whole input, got %d chunks", h.name, len(got))
 		}
-		if c.Bytes() != nil || c.Sum() != 0 || c.ContentDefined() {
-			t.Errorf("[%s] sub-window: expected zero-value accessors", h.name)
+		if len(cd) == 1 && cd[0] {
+			t.Errorf("[%s] sub-window: final chunk must not be content-defined", h.name)
+		}
+		if c.Sum() != 0 || c.ContentDefined() {
+			t.Errorf("[%s] sub-window: expected zero-value accessors after exhaustion", h.name)
 		}
 
 		data := testData(window)
 		c = rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, 0xffffffff, rollinghash.WithBoundaries(1, 64))
-		got, _ := collectChunks(t, c)
+		got, _ = collectChunks(t, c)
 		if len(got) != 1 || !bytes.Equal(got[0], data) {
 			t.Errorf("[%s] exactly-window: expected one chunk of the whole input, got %d chunks", h.name, len(got))
 		}

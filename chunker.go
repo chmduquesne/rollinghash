@@ -272,11 +272,13 @@ func (c *chunkerCore) next() coreState {
 	}
 
 	if c.eof {
-		// A stream that never reached a full window yields no chunks at
-		// all (matches BatchRoller: "an input shorter than window yields
-		// no batches"), even though feed() unconditionally buffers
-		// whatever bytes it saw into cbuf.
-		if c.consumed >= c.window && c.chunkStart < c.consumed { // trailing bytes -> final chunk
+		// Any bytes not yet cut form a final chunk, even a stream that
+		// never reached a full window: a chunk is just a byte range, so
+		// it exists regardless of whether a rolling checksum could be
+		// computed over its end. windowSum reports 0 for such a chunk
+		// (see Sum), and ContentDefined is false. Only a truly empty
+		// stream yields no chunks.
+		if c.chunkStart < c.consumed { // trailing bytes -> final chunk
 			c.done = true
 			c.emit(c.consumed-1, false)
 			return emitted

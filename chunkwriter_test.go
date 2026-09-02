@@ -185,16 +185,18 @@ func TestChunkWriterEdgeCases(t *testing.T) {
 	const window = 16
 
 	for _, h := range allHashes {
+		subWindow := testData(window - 1)
 		cw := rollinghash.NewChunkWriter(h.new(), window, 0xff, rollinghash.WithBoundaries(1, 64))
-		if _, err := cw.Write(testData(window - 1)); err != nil {
+		if _, err := cw.Write(subWindow); err != nil {
 			t.Fatal(err)
 		}
 		cw.Close()
-		if cw.Next() {
-			t.Errorf("[%s] sub-window: expected no chunks, got %d bytes", h.name, len(cw.Bytes()))
+		got, _ := collectChunkWriterChunks(t, cw)
+		if len(got) != 1 || !bytes.Equal(got[0], subWindow) {
+			t.Errorf("[%s] sub-window: expected one final chunk of the whole input, got %d chunks", h.name, len(got))
 		}
-		if cw.Bytes() != nil || cw.Sum() != 0 || cw.ContentDefined() {
-			t.Errorf("[%s] sub-window: expected zero-value accessors", h.name)
+		if cw.Sum() != 0 || cw.ContentDefined() {
+			t.Errorf("[%s] sub-window: expected zero-value accessors after exhaustion", h.name)
 		}
 
 		data := testData(window)
@@ -203,7 +205,7 @@ func TestChunkWriterEdgeCases(t *testing.T) {
 			t.Fatal(err)
 		}
 		cw.Close()
-		got, _ := collectChunkWriterChunks(t, cw)
+		got, _ = collectChunkWriterChunks(t, cw)
 		if len(got) != 1 || !bytes.Equal(got[0], data) {
 			t.Errorf("[%s] exactly-window: expected one chunk of the whole input, got %d chunks", h.name, len(got))
 		}
