@@ -12,9 +12,9 @@
 //
 // The buffer is not compacted on every chunk. start is a moving index into buf;
 // consumed bytes are physically dropped only when buf runs out of tail room for
-// the next read. The buffer is sized (2*MaxSize + slack) so that, by the time
-// that happens, start has advanced ~MaxSize, making compaction amortize to
-// roughly one moved byte per output byte instead of one per chunk.
+// the next read. The buffer is sized (2*MaxSize + compactionSlack) so that, by
+// the time that happens, start has advanced well past MaxSize, making
+// compaction move proportionally fewer bytes than it frees.
 package chunkcore
 
 import (
@@ -25,6 +25,16 @@ import (
 
 // readBlock is how many bytes Core pulls from the reader per fill.
 const readBlock = 16 << 10
+
+// compactionSlack is the spare tail room kept beyond the 2*MaxSize a full
+// window needs. Compaction moves the live bytes (~MaxSize) every time the tail
+// fills; more slack runs it less often and, since start has advanced further by
+// then, each run copies a smaller fraction of what it reclaims. 16*readBlock
+// (256 KiB) is the measured knee for a ~1 MiB working set — past it the buffer
+// spills L2 and the residency costs more than the saved copies. On
+// BenchmarkChunker this is ~+5% for jumpchunker (the most copy-bound algorithm)
+// and neutral for fastcdc/ultracdc.
+const compactionSlack = 16 * readBlock
 
 // CutFinder is a stateless port of a plakar Algorithm function. It is called
 // once per chunk with the bytes available from the current chunk start.
@@ -66,11 +76,11 @@ type Core struct {
 }
 
 // New returns a Core reading from r and cutting with f. If buf is non-nil and
-// large enough (cap >= 2*MaxSize + 2*readBlock) it is adopted as the working
-// buffer; otherwise a fresh one is allocated.
+// large enough (cap >= 2*MaxSize + compactionSlack) it is adopted as the
+// working buffer; otherwise a fresh one is allocated.
 func New(r io.Reader, f CutFinder, buf []byte) *Core {
 	max := f.MaxSize()
-	want := 2*max + 2*readBlock
+	want := 2*max + compactionSlack
 	if buf == nil || cap(buf) < want {
 		buf = make([]byte, 0, want)
 	}
