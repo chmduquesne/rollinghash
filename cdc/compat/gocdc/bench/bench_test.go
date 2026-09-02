@@ -1,6 +1,6 @@
 // Package bench compares this repo's CDC packages against the real
 // github.com/PlakarKorp/go-cdc-chunkers: parity tests with real plakar as the
-// oracle (cdc/gocdc for the unkeyed families, cdc/fastcdc for keyed FastCDC)
+// oracle (cdc/compat/gocdc for the unkeyed families, cdc/fastcdc for keyed FastCDC)
 // and a head-to-head throughput benchmark.
 package bench
 
@@ -13,7 +13,7 @@ import (
 	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/fastcdc"
 	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/jc"
 	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/ultracdc"
-	gocdc "github.com/chmduquesne/rollinghash/v4/cdc/gocdc"
+	gocdc "github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc"
 )
 
 func randData(n int) []byte {

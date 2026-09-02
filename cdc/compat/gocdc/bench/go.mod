@@ -2,8 +2,8 @@
 // cpuid deps) for head-to-head parity tests and benchmarks only. Kept separate
 // so the main rollinghash module stays dependency-free. Run with:
 //
-//	cd cdc/bench && go test ./... && go test -bench . ./...
-module github.com/chmduquesne/rollinghash/v4/cdc/bench
+//	cd cdc/compat/gocdc/bench && go test ./... && go test -bench . ./...
+module github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc/bench
 
 go 1.23.0
 
@@ -17,4 +17,4 @@ require (
 
 require github.com/klauspost/cpuid/v2 v2.0.12 // indirect
 
-replace github.com/chmduquesne/rollinghash/v4 => ../..
+replace github.com/chmduquesne/rollinghash/v4 => ../../../..

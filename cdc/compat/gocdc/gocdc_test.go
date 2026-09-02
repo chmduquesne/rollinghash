@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/chmduquesne/rollinghash/v4/cdc/gocdc"
+	"github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/plakar"
 )
 
