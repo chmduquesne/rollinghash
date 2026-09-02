@@ -1,6 +1,7 @@
-// Package bench compares cdc/gocdc against the real
-// github.com/PlakarKorp/go-cdc-chunkers: a parity test (real plakar as the
-// oracle) and a head-to-head throughput benchmark.
+// Package bench compares this repo's CDC packages against the real
+// github.com/PlakarKorp/go-cdc-chunkers: parity tests with real plakar as the
+// oracle (cdc/gocdc for the unkeyed families, cdc/fastcdc for keyed FastCDC)
+// and a head-to-head throughput benchmark.
 package bench
 
 import (

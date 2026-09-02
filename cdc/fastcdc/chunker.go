@@ -12,6 +12,11 @@
 // New returns a pull-based *Chunker (rollinghash.Chunker) over an io.Reader;
 // NewChunkWriter returns the push-based *ChunkWriter (rollinghash.ChunkWriter),
 // fed via Write/Close.
+//
+// Keyed chunking: users who want this can pass any table (via
+// gearhash64.NewFromUint64Array) This package provides no key-derivation
+// helper; derive the table however you like. To reproduce plakar's "kfastcdc"
+// look at cdc/bench/keyed_test.go, function plakarKeyedGearTable
 package fastcdc
 
 import (
