@@ -62,6 +62,13 @@
   now retains `WindowSize-1` bytes of lead-in across buffer compaction so this
   window is available even when it straddles the previous chunk's end. No change
   to chunk boundaries.
+- `cdc/{jumpchunker,fastcdc,ultracdc}` (unreleased): confirmed to match the
+  parent `Chunker`/`ChunkWriter` v4.3.3 semantics — a stream shorter than
+  `WindowSize` yields its bytes as one final, non-content-defined chunk
+  (`Sum()` 0), and only a truly empty stream yields no chunks. The shared
+  streaming engine (`cdc/internal/chunkcore`) already emitted trailing bytes
+  unconditionally, so no code change was needed; the edge-case tests for all
+  three algorithms and both drive styles now assert it explicitly.
 - `cdc/jumpchunker` (unreleased): rewritten on the new shared `cdc` streaming
   engine and realigned to plakar's cut semantics — the boundary byte is now the
   first byte of the next chunk, not the last byte of the current one, and a

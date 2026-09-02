@@ -35,6 +35,42 @@ func drainWriter(t *testing.T, w *fastcdc.ChunkWriter, data []byte, step int) []
 	return out
 }
 
+// TestChunkWriterEdgeCases mirrors TestChunkerEdgeCases for the push API: a
+// stream shorter than the window is still emitted as one final,
+// non-content-defined chunk (rollinghash.ChunkWriter behaves this way as of
+// v4.3.3), and a truly empty stream yields nothing.
+func TestChunkWriterEdgeCases(t *testing.T) {
+	w := fastcdc.NewChunkWriter(gearhash64.New(), 64, 256, 1024)
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if w.Next() {
+		t.Error("empty: expected no chunks")
+	}
+
+	subWindow := structData(63)
+	w = fastcdc.NewChunkWriter(gearhash64.New(), 64, 256, 1024)
+	if _, err := w.Write(subWindow); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !w.Next() {
+		t.Fatal("sub-window: expected one chunk")
+	}
+	if !bytes.Equal(w.Bytes(), subWindow) || w.ContentDefined() || w.Sum() != 0 {
+		t.Errorf("sub-window: chunk=%d bytes contentDefined=%v sum=%d, want %d bytes / false / 0",
+			len(w.Bytes()), w.ContentDefined(), w.Sum(), len(subWindow))
+	}
+	if w.Next() {
+		t.Error("sub-window: expected exactly one chunk")
+	}
+	if err := w.Err(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestChunkWriterMatchesChunker checks the push API produces the same chunks as
 // the pull API for the same bytes, across write-piece sizes.
 func TestChunkWriterMatchesChunker(t *testing.T) {

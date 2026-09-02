@@ -125,16 +125,44 @@ func TestChunkerDeterminism(t *testing.T) {
 }
 
 func TestChunkerEdgeCases(t *testing.T) {
-	c := ultracdc.New(bytes.NewReader(nil), 128, 1024, 8192)
+	// Empty input: no chunks, zero-value accessors.
+	c := ultracdc.New(bytes.NewReader(nil), 64, 1024, 8192)
 	if c.Next() {
 		t.Error("empty: expected no chunks")
 	}
+	if c.Bytes() != nil || c.Sum() != 0 || c.ContentDefined() {
+		t.Error("empty: expected zero-value accessors")
+	}
 
-	data := randData(50)
-	c = ultracdc.New(bytes.NewReader(data), 128, 1024, 8192)
-	got := collect(t, c)
-	if len(got) != 1 || !bytes.Equal(got[0], data) {
-		t.Errorf("short: expected one chunk of all data, got %d chunks", len(got))
+	// A stream shorter than the 8-byte UltraCDC window still yields its bytes as
+	// one final, non-content-defined chunk (matches rollinghash.Chunker as of
+	// v4.3.3). Sum stays 0: no full window ends at the cut.
+	subWindow := randData(7)
+	c = ultracdc.New(bytes.NewReader(subWindow), 64, 1024, 8192)
+	if !c.Next() {
+		t.Fatal("sub-window: expected one chunk")
+	}
+	if !bytes.Equal(c.Bytes(), subWindow) || c.ContentDefined() || c.Sum() != 0 {
+		t.Errorf("sub-window: chunk=%d bytes contentDefined=%v sum=%d, want %d bytes / false / 0",
+			len(c.Bytes()), c.ContentDefined(), c.Sum(), len(subWindow))
+	}
+	if c.Next() {
+		t.Error("sub-window: expected exactly one chunk")
+	}
+
+	// A short (sub-min) stream longer than the window: still one final chunk of
+	// the whole input.
+	short := randData(50)
+	c = ultracdc.New(bytes.NewReader(short), 64, 1024, 8192)
+	if got := collect(t, c); len(got) != 1 || !bytes.Equal(got[0], short) {
+		t.Errorf("short: expected one chunk of the whole input, got %d chunks", len(got))
+	}
+
+	// Exactly the window size: still one chunk of the whole input.
+	exact := randData(8)
+	c = ultracdc.New(bytes.NewReader(exact), 64, 1024, 8192)
+	if got := collect(t, c); len(got) != 1 || !bytes.Equal(got[0], exact) {
+		t.Errorf("exactly-window: expected one chunk of the whole input, got %d chunks", len(got))
 	}
 }
 
