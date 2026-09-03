@@ -11,7 +11,7 @@
   works across all algorithms and both drive styles. Boundaries are
   byte-for-byte compatible with the matching algorithm in
   `PlakarKorp/go-cdc-chunkers` — verified against the real package by the
-  `cdc/compat/gocdc/bench` nested module (kept separate so its blake3/cpuid deps never enter
+  `cdc/compat/plakar/bench` nested module (kept separate so its blake3/cpuid deps never enter
   the dependency-free main module). Head-to-head throughput on 1 MiB of random
   data vs go-cdc-chunkers v1.1.0, both allocation-free: JC ~9.85 GB/s vs ~5.0
   (1.95×), FastCDC ~3.95 vs ~2.6 (1.52×), UltraCDC ~1.07 vs ~1.10 (0.97×).
@@ -46,11 +46,11 @@
   `buildbarn/go-cdc`'s `NewRepMaxContentDefinedChunker` for the same table,
   verified against a port of its `NewSimpleRepMaxContentDefinedChunker`
   reference (upstream requires Go 1.26, so it is not pulled as a nested module).
-- `cdc/compat/gocdc`: drop-in for `PlakarKorp/go-cdc-chunkers`' consumer API. Its
+- `cdc/compat/plakar`: drop-in for `PlakarKorp/go-cdc-chunkers`' consumer API. Its
   `NewChunker`/`NewChunkerBuffer`, `*Chunker`, `ChunkerOpts`, `ErrMinSize` /
   `ErrMaxSize` / `ErrNormalSize`, and the `Next`/`Split`/`Copy` method
   signatures match that package's, so migrating is `import chunkers
-  "…/cdc/compat/gocdc"` and nothing else. Produces byte-identical chunks for the
+  "…/cdc/compat/plakar"` and nothing else. Produces byte-identical chunks for the
   `fastcdc`, `ultracdc`, and `jc` families (including the `-v1.0.0` /
   `-v1.1.0` variants). Keyed FastCDC is not supported (those names return an
   error).

@@ -1,4 +1,4 @@
-package gocdc_test
+package plakar_test
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc"
+	plakarcompat "github.com/chmduquesne/rollinghash/v4/cdc/compat/plakar"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/plakar"
 )
 
@@ -46,7 +46,7 @@ func oracle(t *testing.T, algorithm string, data []byte, o plakar.Opts) [][]byte
 	return plakar.Chunks(algo, data, o)
 }
 
-func drain(t *testing.T, c *gocdc.Chunker) [][]byte {
+func drain(t *testing.T, c *plakarcompat.Chunker) [][]byte {
 	t.Helper()
 	var out [][]byte
 	for {
@@ -78,10 +78,10 @@ func TestNewChunkerMatchesPlakar(t *testing.T) {
 	}
 	cases := []struct {
 		name string
-		opts *gocdc.ChunkerOpts
+		opts *plakarcompat.ChunkerOpts
 	}{
 		{"defaults", nil},
-		{"custom", &gocdc.ChunkerOpts{MinSize: 512, NormalSize: 4 * 1024, MaxSize: 32 * 1024}},
+		{"custom", &plakarcompat.ChunkerOpts{MinSize: 512, NormalSize: 4 * 1024, MaxSize: 32 * 1024}},
 	}
 	datasets := map[string][]byte{
 		"rand256k": randData(256 * 1024),
@@ -97,7 +97,7 @@ func TestNewChunkerMatchesPlakar(t *testing.T) {
 			}
 			for dname, data := range datasets {
 				want := oracle(t, algo, data, po)
-				c, err := gocdc.NewChunker(algo, bytes.NewReader(data), cs.opts)
+				c, err := plakarcompat.NewChunker(algo, bytes.NewReader(data), cs.opts)
 				if err != nil {
 					t.Fatalf("%s/%s: NewChunker: %v", algo, cs.name, err)
 				}
@@ -123,10 +123,10 @@ func TestNewChunkerBuffer(t *testing.T) {
 	data := randData(200 * 1024)
 	buf := make([]byte, 0, 4*64*1024)
 
-	c1, _ := gocdc.NewChunker("fastcdc", bytes.NewReader(data), nil)
+	c1, _ := plakarcompat.NewChunker("fastcdc", bytes.NewReader(data), nil)
 	want := drain(t, c1)
 
-	c2, err := gocdc.NewChunkerBuffer("fastcdc", bytes.NewReader(data), nil, buf)
+	c2, err := plakarcompat.NewChunkerBuffer("fastcdc", bytes.NewReader(data), nil, buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestNewChunkerBuffer(t *testing.T) {
 
 func TestSplitOffsets(t *testing.T) {
 	data := randData(200 * 1024)
-	c, err := gocdc.NewChunker("fastcdc", bytes.NewReader(data), nil)
+	c, err := plakarcompat.NewChunker("fastcdc", bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestSplitOffsets(t *testing.T) {
 
 func TestCopy(t *testing.T) {
 	data := randData(150 * 1024)
-	c, err := gocdc.NewChunker("jc", bytes.NewReader(data), nil)
+	c, err := plakarcompat.NewChunker("jc", bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestCopy(t *testing.T) {
 
 func TestSplitPropagatesError(t *testing.T) {
 	sentinel := errors.New("stop")
-	c, _ := gocdc.NewChunker("ultracdc", bytes.NewReader(randData(100*1024)), nil)
+	c, _ := plakarcompat.NewChunker("ultracdc", bytes.NewReader(randData(100*1024)), nil)
 	err := c.Split(func(uint, uint, []byte) error { return sentinel })
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("Split error = %v, want %v", err, sentinel)
@@ -196,25 +196,25 @@ func TestSplitPropagatesError(t *testing.T) {
 }
 
 func TestUnknownKeyedAndInvalid(t *testing.T) {
-	if _, err := gocdc.NewChunker("bogus", bytes.NewReader(nil), nil); err == nil {
+	if _, err := plakarcompat.NewChunker("bogus", bytes.NewReader(nil), nil); err == nil {
 		t.Error("expected error for unknown algorithm")
 	}
-	if _, err := gocdc.NewChunker("kfastcdc", bytes.NewReader(nil), nil); err == nil {
+	if _, err := plakarcompat.NewChunker("kfastcdc", bytes.NewReader(nil), nil); err == nil {
 		t.Error("expected error for keyed variant")
 	}
-	if _, err := gocdc.NewChunker("fastcdc", bytes.NewReader(nil), &gocdc.ChunkerOpts{Key: []byte("k")}); err == nil {
+	if _, err := plakarcompat.NewChunker("fastcdc", bytes.NewReader(nil), &plakarcompat.ChunkerOpts{Key: []byte("k")}); err == nil {
 		t.Error("expected error when Key is set")
 	}
 	// FastCDC requires a power-of-two NormalSize.
-	if _, err := gocdc.NewChunker("fastcdc", bytes.NewReader(nil), &gocdc.ChunkerOpts{
+	if _, err := plakarcompat.NewChunker("fastcdc", bytes.NewReader(nil), &plakarcompat.ChunkerOpts{
 		MinSize: 512, NormalSize: 5000, MaxSize: 32 * 1024,
-	}); !errors.Is(err, gocdc.ErrNormalSize) {
+	}); !errors.Is(err, plakarcompat.ErrNormalSize) {
 		t.Errorf("expected ErrNormalSize, got %v", err)
 	}
 	// MinSize >= NormalSize.
-	if _, err := gocdc.NewChunker("jc", bytes.NewReader(nil), &gocdc.ChunkerOpts{
+	if _, err := plakarcompat.NewChunker("jc", bytes.NewReader(nil), &plakarcompat.ChunkerOpts{
 		MinSize: 8192, NormalSize: 4096, MaxSize: 64 * 1024,
-	}); !errors.Is(err, gocdc.ErrMinSize) {
+	}); !errors.Is(err, plakarcompat.ErrMinSize) {
 		t.Errorf("expected ErrMinSize, got %v", err)
 	}
 }

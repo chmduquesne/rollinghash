@@ -21,7 +21,7 @@ counterpart fed via Write/Close) implements
 [github.com/chmduquesne/rollinghash/v4.ChunkWriter], so one loop works across
 all algorithms and both drive styles. Boundaries are byte-for-byte compatible
 with the corresponding algorithm in PlakarKorp/go-cdc-chunkers;
-[github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc] is a signature-compatible
+[github.com/chmduquesne/rollinghash/v4/cdc/compat/plakar] is a signature-compatible
 drop-in for that library's NewChunker/Next/Split/Copy API.
 [github.com/chmduquesne/rollinghash/v4/cdc/compat/restic] does the same for
 github.com/restic/chunker's Rabin fingerprint splitter, producing byte-identical
