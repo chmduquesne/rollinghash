@@ -9,6 +9,7 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"github.com/chmduquesne/rollinghash/v4/buzhash64"
 	duplicacy "github.com/chmduquesne/rollinghash/v4/cdc/compat/duplicacy"
 )
 
@@ -233,6 +234,59 @@ func TestSplitAcrossReaders(t *testing.T) {
 	for i := range whole {
 		if got[i] != whole[i] {
 			t.Fatalf("chunk %d: split %v != whole %v", i, got[i], whole[i])
+		}
+	}
+}
+
+// TestChunkHash checks Chunk.Hash: the buzhash of the window (= minimum chunk
+// size) ending at each cut, recomputed independently from the seeded table.
+func TestChunkHash(t *testing.T) {
+	seed := []byte("duplicacy")
+	const avg, minSz, maxSz = 1024, 256, 4096
+	tbl := refTable(seed)
+	windowHash := func(win []byte) uint64 {
+		h := buzhash64.NewFromUint64Array(tbl)
+		h.Write(win)
+		return h.Sum64()
+	}
+
+	for _, n := range []int{300, 5000, 200_000} {
+		data := xorshift(n, 0xC0FFEE+uint64(n))
+		m := duplicacy.CreateChunkMaker(
+			duplicacy.WithChunkSeed(seed),
+			duplicacy.WithAverageChunkSize(avg),
+			duplicacy.WithMinimumChunkSize(minSz),
+			duplicacy.WithMaximumChunkSize(maxSz),
+		)
+		var chunks []duplicacy.Chunk
+		collect := func(c duplicacy.Chunk) {
+			c.Data = append([]byte(nil), c.Data...)
+			chunks = append(chunks, c)
+		}
+		if err := m.AddData(bytes.NewReader(data), collect); err != nil {
+			t.Fatal(err)
+		}
+		if err := m.AddData(nil, collect); err != nil {
+			t.Fatal(err)
+		}
+
+		for i, c := range chunks {
+			e := c.Start + c.Length - 1 // last byte of the chunk = the cut
+			if e-minSz+1 < 0 {
+				if c.Hash != 0 {
+					t.Fatalf("n=%d chunk %d shorter than window: Hash %#x, want 0", n, i, c.Hash)
+				}
+				continue
+			}
+			want := windowHash(data[e-minSz+1 : e+1])
+			last := i == len(chunks)-1
+			if c.Hash != want && !(last && c.Hash == 0) {
+				t.Fatalf("n=%d chunk %d (cut %d, len %d): Hash %#x, want %#x", n, i, e, c.Length, c.Hash, want)
+			}
+			// A content-defined boundary's hash must satisfy the mask.
+			if c.Length < maxSz && !last && c.Hash&uint64(avg-1) != 0 {
+				t.Fatalf("n=%d chunk %d: content-defined but Hash %#x & mask != 0", n, i, c.Hash)
+			}
 		}
 	}
 }
