@@ -1,6 +1,6 @@
 // Package bench compares this repo's CDC packages against the real
 // github.com/PlakarKorp/go-cdc-chunkers: parity tests with real plakar as the
-// oracle (cdc/compat/gocdc for the unkeyed families, cdc/fastcdc for keyed FastCDC)
+// oracle (cdc/compat/plakar for the unkeyed families, cdc/fastcdc for keyed FastCDC)
 // and a head-to-head throughput benchmark.
 package bench
 
@@ -13,7 +13,7 @@ import (
 	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/fastcdc"
 	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/jc"
 	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/ultracdc"
-	gocdc "github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc"
+	compat "github.com/chmduquesne/rollinghash/v4/cdc/compat/plakar"
 )
 
 func randData(n int) []byte {
@@ -43,8 +43,8 @@ type opts struct{ min, normal, max int }
 func plakarOpts(o opts) *chunkers.ChunkerOpts {
 	return &chunkers.ChunkerOpts{MinSize: o.min, MaxSize: o.max, NormalSize: o.normal}
 }
-func gocdcOpts(o opts) *gocdc.ChunkerOpts {
-	return &gocdc.ChunkerOpts{MinSize: o.min, MaxSize: o.max, NormalSize: o.normal}
+func compatOpts(o opts) *compat.ChunkerOpts {
+	return &compat.ChunkerOpts{MinSize: o.min, MaxSize: o.max, NormalSize: o.normal}
 }
 
 func drainPlakar(tb testing.TB, c *chunkers.Chunker) [][]byte {
@@ -64,7 +64,7 @@ func drainPlakar(tb testing.TB, c *chunkers.Chunker) [][]byte {
 	}
 }
 
-func drainGocdc(tb testing.TB, c *gocdc.Chunker) [][]byte {
+func drainCompat(tb testing.TB, c *compat.Chunker) [][]byte {
 	tb.Helper()
 	var out [][]byte
 	for {
@@ -76,7 +76,7 @@ func drainGocdc(tb testing.TB, c *gocdc.Chunker) [][]byte {
 			return out
 		}
 		if err != nil {
-			tb.Fatalf("gocdc Next: %v", err)
+			tb.Fatalf("ours Next: %v", err)
 		}
 	}
 }
@@ -87,7 +87,7 @@ var algorithms = []string{
 	"ultracdc", "ultracdc-v1.0.0",
 }
 
-// TestParityWithRealPlakar diffs gocdc's output against real plakar,
+// TestParityWithRealPlakar diffs our output against real plakar,
 // byte-for-byte, for every algorithm/variant across a few configs and data
 // shapes. This is a stronger check than the in-repo ports: it also proves those
 // ports are faithful.
@@ -122,11 +122,11 @@ func TestParityWithRealPlakar(t *testing.T) {
 				}
 				want := drainPlakar(t, pc)
 
-				gc, err := gocdc.NewChunker(algo, bytes.NewReader(data), gocdcOpts(cfg))
+				gc, err := compat.NewChunker(algo, bytes.NewReader(data), compatOpts(cfg))
 				if err != nil {
-					t.Fatalf("%s/%s: gocdc NewChunker: %v", algo, cname, err)
+					t.Fatalf("%s/%s: ours NewChunker: %v", algo, cname, err)
 				}
-				got := drainGocdc(t, gc)
+				got := drainCompat(t, gc)
 
 				if len(got) != len(want) {
 					t.Fatalf("%s/%s/%s: got %d chunks, want %d", algo, cname, dname, len(got), len(want))
@@ -157,7 +157,7 @@ func BenchmarkVsPlakar(b *testing.B) {
 
 	for _, tc := range bench {
 		b.Run(tc.name+"/ours", func(b *testing.B) {
-			c, err := gocdc.NewChunker(tc.name, bytes.NewReader(data), gocdcOpts(tc.cfg))
+			c, err := compat.NewChunker(tc.name, bytes.NewReader(data), compatOpts(tc.cfg))
 			if err != nil {
 				b.Fatal(err)
 			}

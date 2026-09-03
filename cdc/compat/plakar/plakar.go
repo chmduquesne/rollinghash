@@ -1,16 +1,16 @@
-// Package gocdc is a drop-in replacement for the consumer API of
+// Package plakar is a drop-in replacement for the consumer API of
 // PlakarKorp/go-cdc-chunkers. Its NewChunker/NewChunkerBuffer, *Chunker,
 // ChunkerOpts, ErrMinSize/ErrMaxSize/ErrNormalSize, and the Next/Split/Copy
 // methods match that package's signatures, and it produces byte-identical chunk
 // boundaries for the "fastcdc", "ultracdc", and "jc" families (including the
 // "-v1.0.0" / "-v1.1.0" variants). Migrating is a one-line change:
 //
-//	import chunkers "github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc"
+//	import chunkers "github.com/chmduquesne/rollinghash/v4/cdc/compat/plakar"
 //
 // Keyed FastCDC ("kfastcdc") is not supported; those names return an error.
 // Callers who want the typed, idiomatic API should use the cdc/fastcdc,
 // cdc/ultracdc, and cdc/jumpchunker packages directly.
-package gocdc
+package plakar
 
 import (
 	"errors"
@@ -69,7 +69,7 @@ func newChunker(algorithm string, reader io.Reader, opts *ChunkerOpts, buf []byt
 		o = *opts
 	}
 	if o.Key != nil {
-		return nil, fmt.Errorf("gocdc: %q: keyed variants are not supported", algorithm)
+		return nil, fmt.Errorf("plakar: %q: keyed variants are not supported", algorithm)
 	}
 
 	var it rollinghash.Chunker
@@ -114,9 +114,9 @@ func newChunker(algorithm string, reader io.Reader, opts *ChunkerOpts, buf []byt
 		it = ultracdc.New(reader, o.MinSize, o.NormalSize, o.MaxSize, uopts...)
 
 	case "kfastcdc", "kfastcdc-v1.0.0":
-		return nil, fmt.Errorf("gocdc: %q: keyed FastCDC is not supported", algorithm)
+		return nil, fmt.Errorf("plakar: %q: keyed FastCDC is not supported", algorithm)
 	default:
-		return nil, fmt.Errorf("gocdc: unknown algorithm %q", algorithm)
+		return nil, fmt.Errorf("plakar: unknown algorithm %q", algorithm)
 	}
 
 	return &Chunker{it: it, minSize: o.MinSize, maxSize: o.MaxSize, normalS: o.NormalSize}, nil

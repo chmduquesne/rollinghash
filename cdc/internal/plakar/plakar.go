@@ -2,7 +2,7 @@
 // shared Gear table, its per-variant mask/parameter derivation, verbatim ports
 // of its three cutpoint Algorithm functions, and a driver reproducing its
 // streaming Chunker.Next loop. It lets the cdc tree stay byte-for-byte
-// compatible with plakar without taking a real dependency on it: cdc/compat/gocdc
+// compatible with plakar without taking a real dependency on it: cdc/compat/plakar
 // uses the table and derivations, and the algorithm packages' tests use the
 // Algorithm ports as an oracle. It is internal and not part of the public API.
 //

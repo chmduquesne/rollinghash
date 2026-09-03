@@ -1,4 +1,4 @@
-package gocdc_test
+package plakar_test
 
 import (
 	"bytes"
@@ -6,10 +6,10 @@ import (
 	"io"
 	"log"
 
-	"github.com/chmduquesne/rollinghash/v4/cdc/compat/gocdc"
+	"github.com/chmduquesne/rollinghash/v4/cdc/compat/plakar"
 )
 
-// gocdc.NewChunker mirrors PlakarKorp/go-cdc-chunkers' chunkers.NewChunker
+// plakar.NewChunker mirrors PlakarKorp/go-cdc-chunkers' chunkers.NewChunker
 // signature exactly: pick an algorithm by name, then drain it with Next until
 // io.EOF. Migrating from that package is just changing the import path.
 func ExampleNewChunker() {
@@ -22,7 +22,7 @@ func ExampleNewChunker() {
 		data[i] = byte(x)
 	}
 
-	c, err := gocdc.NewChunker("fastcdc", bytes.NewReader(data), &gocdc.ChunkerOpts{
+	c, err := plakar.NewChunker("fastcdc", bytes.NewReader(data), &plakar.ChunkerOpts{
 		MinSize: 1024, NormalSize: 4096, MaxSize: 16384,
 	})
 	if err != nil {
