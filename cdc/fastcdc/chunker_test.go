@@ -204,6 +204,43 @@ func TestChunkerReset(t *testing.T) {
 	}
 }
 
+// TestInclusiveBoundary checks that WithInclusiveBoundary keeps the
+// mask-clearing byte in the current chunk: the first content-defined cut lands
+// exactly one byte later than the default. (Later cuts diverge entirely, since
+// each chunk's scan restarts relative to its own start.) The stream must still
+// reassemble and stay deterministic.
+func TestInclusiveBoundary(t *testing.T) {
+	for _, data := range [][]byte{randData(300 * 1024), structData(200 * 1024), randData(70*1024 + 7)} {
+		mk := func(r io.Reader, opts ...fastcdc.Option) [][]byte {
+			return collect(t, fastcdc.New(r, gearhash64.New(), 2*1024, 8*1024, 64*1024, opts...))
+		}
+		def := mk(bytes.NewReader(data))
+		inc := mk(bytes.NewReader(data), fastcdc.WithInclusiveBoundary())
+
+		if !bytes.Equal(bytes.Join(inc, nil), data) {
+			t.Fatal("inclusive: chunks do not reassemble to the input")
+		}
+		// The +1 invariant only applies when the first cut is content-defined
+		// (structData is regular enough to force a max cut first).
+		if len(def[0]) < 64*1024 {
+			if len(inc[0]) != len(def[0])+1 {
+				t.Fatalf("first inclusive chunk %d bytes, want %d", len(inc[0]), len(def[0])+1)
+			}
+		}
+
+		// Determinism under a byte-at-a-time reader.
+		got := mk(iotest.OneByteReader(bytes.NewReader(data)), fastcdc.WithInclusiveBoundary())
+		if len(got) != len(inc) {
+			t.Fatalf("onebyte: %d chunks, want %d", len(got), len(inc))
+		}
+		for i := range inc {
+			if !bytes.Equal(got[i], inc[i]) {
+				t.Fatalf("onebyte chunk %d differs", i)
+			}
+		}
+	}
+}
+
 func TestNewPanicsWithoutTable(t *testing.T) {
 	defer func() {
 		if recover() == nil {

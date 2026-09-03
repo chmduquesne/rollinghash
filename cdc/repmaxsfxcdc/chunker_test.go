@@ -290,6 +290,59 @@ func BenchmarkChunker(b *testing.B) {
 	}
 }
 
+// TestSubstitutionBox checks the relabelling invariance: chunking data with a
+// bijective S-box must equal chunking the byte-for-byte remapped data with no
+// S-box (the box only ever affects comparisons, never emitted bytes), and the
+// identity box must be a no-op.
+func TestSubstitutionBox(t *testing.T) {
+	// A fixed permutation of 0..255 (xorshift-shuffled).
+	var box [256]byte
+	for i := range box {
+		box[i] = byte(i)
+	}
+	var x uint64 = 0x2545f4914f6cdd1d
+	for i := len(box) - 1; i > 0; i-- {
+		x ^= x << 13
+		x ^= x >> 7
+		x ^= x << 17
+		j := int(x % uint64(i+1))
+		box[i], box[j] = box[j], box[i]
+	}
+	var identity [256]byte
+	for i := range identity {
+		identity[i] = byte(i)
+	}
+
+	for _, cfg := range []struct{ min, horizon int }{{16, 64}, {256, 512}, {512, 2 * 1024}} {
+		for name, data := range map[string][]byte{
+			"rand": randData(200 * 1024),
+			"low":  lowCardData(200 * 1024),
+			"tail": randData(40*1024 + 333),
+		} {
+			remapped := make([]byte, len(data))
+			for i, b := range data {
+				remapped[i] = box[b]
+			}
+			// A boxed run over the original data must cut at the same offsets
+			// as a plain run over the byte-for-byte remapped data.
+			want := lens(collect(t, repmaxsfxcdc.New(bytes.NewReader(remapped), cfg.min, cfg.horizon)))
+			boxed := lens(collect(t, repmaxsfxcdc.New(bytes.NewReader(data), cfg.min, cfg.horizon,
+				repmaxsfxcdc.WithSubstitutionBox(box))))
+			if !equalInts(boxed, want) {
+				t.Fatalf("%v/%s: boxed lengths %v, want %v", cfg, name, boxed, want)
+			}
+
+			// Identity box is a no-op.
+			plain := collect(t, repmaxsfxcdc.New(bytes.NewReader(data), cfg.min, cfg.horizon))
+			idBox := collect(t, repmaxsfxcdc.New(bytes.NewReader(data), cfg.min, cfg.horizon,
+				repmaxsfxcdc.WithSubstitutionBox(identity)))
+			if !sameChunks(plain, idBox) {
+				t.Fatalf("%v/%s: identity box changed the output", cfg, name)
+			}
+		}
+	}
+}
+
 func TestNewPanics(t *testing.T) {
 	mustPanic := func(name string, fn func()) {
 		t.Helper()

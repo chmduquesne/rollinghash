@@ -63,6 +63,15 @@ func WithBuffer(buf []byte) Option {
 	return func(f *sfxCut) { f.buf = buf }
 }
 
+// WithSubstitutionBox remaps every byte through box before comparing the
+// candidate strings (the emitted bytes are unchanged). buildbarn/go-cdc uses a
+// bijective S-box here to break up linearity in sorted input, which otherwise
+// makes every record start a candidate cut. Pass a permutation of 0..255; the
+// identity box is equivalent to not setting the option.
+func WithSubstitutionBox(box [256]byte) Option {
+	return func(f *sfxCut) { f.sbox = &box }
+}
+
 // New returns a Chunker over r. Chunk lengths are kept in [minSize, 2*minSize);
 // horizon is the read-ahead within which the repeated-maximum search always
 // finds the optimal cut (0 gives uniform minSize chunks). New panics if
@@ -90,7 +99,8 @@ func newCut(minSize, horizon int, opts []Option) *sfxCut {
 // simpleRepMaxSfxChunkReader.ReadNextChunk.
 type sfxCut struct {
 	min  int
-	peek int // 2*min + horizon, the read-ahead buildbarn peeks per chunk
+	peek int        // 2*min + horizon, the read-ahead buildbarn peeks per chunk
+	sbox *[256]byte // nil = identity (compare raw bytes)
 	buf  []byte
 }
 
@@ -126,6 +136,10 @@ func (f *sfxCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 		return len(d), false, 0
 	}
 
+	if f.sbox != nil {
+		return cutSbox(f.sbox, d, min)
+	}
+
 	// Repeated maximum: the cut is the position in [min, len(d)-min] whose
 	// following min bytes are lexicographically largest (ties resolve to the
 	// earliest position). If that would make the chunk >= 2*min, restrict the
@@ -149,6 +163,37 @@ func (f *sfxCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 		}
 		d = d[:best]
 	}
+}
+
+// cutSbox is Cut's repeated-maximum search with every compared byte first mapped
+// through the substitution box. Only comparisons see the remapped values; the
+// emitted chunk length and Sum (the raw first byte of the winning string) are
+// unchanged.
+func cutSbox(sb *[256]byte, d []byte, min int) (int, bool, uint64) {
+	for {
+		best := min
+		bestFirst := sb[d[min]]
+		for i := min + 1; i <= len(d)-min; i++ {
+			if c := sb[d[i]]; c > bestFirst || (c == bestFirst && sboxLess(sb, d[best:best+min], d[i:i+min])) {
+				best, bestFirst = i, c
+			}
+		}
+		if best < 2*min {
+			return best, true, uint64(d[best])
+		}
+		d = d[:best]
+	}
+}
+
+// sboxLess reports whether a is lexicographically less than b once every byte is
+// mapped through sb.
+func sboxLess(sb *[256]byte, a, b []byte) bool {
+	for k := range a {
+		if x, y := sb[a[k]], sb[b[k]]; x != y {
+			return x < y
+		}
+	}
+	return false
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.

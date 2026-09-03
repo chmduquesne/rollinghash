@@ -35,15 +35,17 @@
   is largest within `[minSize, maxSize]` from the chunk start — no boundary
   mask, so lengths land in `[minSize, maxSize]` with no probabilistic tail.
   Same hash/`Table()` contract as the other Gear chunkers; boundaries verified
-  against a port of upstream's `NewSimpleMaxContentDefinedChunker`.
+  against a port of upstream's `NewSimpleMaxContentDefinedChunker`, and
+  byte-for-byte against the real package by the `cdc/compat/buildbarn/bench`
+  nested module.
 - `cdc/aecdc`: AE (Asymmetric Extremum, Zhang et al. 2015), in `buildbarn/go-cdc`'s
   variant. Uses no rolling hash: it scans raw byte values, tracks the running
   maximum since the last cut, and cuts `minSize` bytes past that maximum once
   `minSize` bytes pass without a larger value (an unbounded left window, a
   fixed-size right window). Content-defined chunks are `[minSize+1, maxSize]`; a
   final chunk may be shorter. Boundaries verified against a port of upstream's
-  `NewSimpleAsymmetricExtremumContentDefinedChunker` (upstream's AE is on `main`,
-  not yet in a tagged release).
+  `NewSimpleAsymmetricExtremumContentDefinedChunker`, and byte-for-byte against
+  the real package by the `cdc/compat/buildbarn/bench` nested module.
 - `cdc/repmaxsfxcdc`: RepMaxSfxCDC ("repeated maximum, suffix"), from
   `buildbarn/go-cdc`. Same strict `[minSize, 2*minSize)` bound and `(minSize,
   horizon)` parameters as RepMaxCDC, but with no rolling hash: it cuts before the
@@ -51,9 +53,11 @@
   string. Port of buildbarn's *simple* reference (a first-byte prefilter keeps
   the common case near-linear; the whole horizon is still rescanned per chunk,
   and structured runs degrade toward `O(minSize·horizon)` — buildbarn's linear
-  periodicity handling and substitution box are future work). Boundaries verified
-  against `NewSimpleRepMaxSfxContentDefinedChunker` (identity substitution box);
-  upstream's RepMaxSfxCDC is on `main`, not yet in a tagged release.
+  periodicity handling is future work). `WithSubstitutionBox` remaps compared
+  bytes for parity with buildbarn's non-identity S-box. Boundaries verified
+  against `NewSimpleRepMaxSfxContentDefinedChunker`, and byte-for-byte (including
+  a seeded S-box) against the real package by the `cdc/compat/buildbarn/bench`
+  nested module.
 - `cdc/repmaxcdc`: RepMaxCDC ("repeated maximum"), the tight-bound chunker from
   `buildbarn/go-cdc` proposed for Bazel's remote-execution protocol. Cuts at the
   position where the windowless accumulating Gear fingerprint is maximal within
@@ -62,8 +66,9 @@
   horizon only controls quality and can be raised freely). `repmaxcdc.New` takes
   any hash exposing `Table()` and panics otherwise; boundaries match
   `buildbarn/go-cdc`'s `NewRepMaxContentDefinedChunker` for the same table,
-  verified against a port of its `NewSimpleRepMaxContentDefinedChunker`
-  reference (upstream requires Go 1.26, so it is not pulled as a nested module).
+  verified against a port of its `NewSimpleRepMaxContentDefinedChunker` reference
+  and byte-for-byte against the real package by the `cdc/compat/buildbarn/bench`
+  nested module (which fetches the Go 1.26 toolchain upstream requires).
 - `cdc/compat/plakar`: drop-in for `PlakarKorp/go-cdc-chunkers`' consumer API. Its
   `NewChunker`/`NewChunkerBuffer`, `*Chunker`, `ChunkerOpts`, `ErrMinSize` /
   `ErrMaxSize` / `ErrNormalSize`, and the `Next`/`Split`/`Copy` method
@@ -122,6 +127,25 @@
   per-batch re-prime and the per-cut `Chunk.Hash` recompute), and the
   multiple-of-64 window precludes SIMD, so it is slower in absolute terms than
   the small-window CDC algorithms here.
+- `cdc/compat/buildbarn`: drop-in for the consumer API of
+  `github.com/buildbarn/go-cdc`. The `ContentDefinedChunker` / `ChunkReader` /
+  `Peeker` interfaces, the
+  `New{Fast,Max,RepMax,RepMaxSfx,AsymmetricExtremum}ContentDefinedChunker`
+  constructors (and `NewSimple*` variants), and `GearTable` / `SubstitutionBox`
+  with `FastContentDefinedChunkerGearTable` / `NoSubstitutionBox` /
+  `NewSeededGearTable` / `NewSeededSubstitutionBox` match that package's
+  signatures, so migrating is `import cdc "…/cdc/compat/buildbarn"` and nothing
+  else. Backed by `cdc/{fastcdc,maxcdc,repmaxcdc,repmaxsfxcdc,aecdc}`; produces
+  byte-identical chunks for all five algorithms, verified against the real
+  package by the `cdc/compat/buildbarn/bench` nested module (which fetches the
+  Go 1.26 toolchain upstream requires). `DiscardUpToGuaranteedChunk`
+  (parallel-chunking synchronization) is not implemented —
+  `SupportsDiscardUpToGuaranteedChunk` returns false; `NewFastContentDefinedChunker`
+  panics for a `normalSizeBytes` outside buildbarn's eight tabulated sizes.
+- `cdc/fastcdc.WithInclusiveBoundary()`: option that keeps the mask-clearing byte
+  in the current chunk instead of starting the next one with it — the convention
+  used by `github.com/buildbarn/go-cdc` and the FastCDC paper, versus the default
+  (PlakarKorp) convention. Forced max-size cuts are unaffected.
 - `cdc/{fastcdc,ultracdc,jumpchunker}.NewChunkWriter(…)`: push-based
   `rollinghash.ChunkWriter` counterparts to `New`, fed via `Write`/`Close`
   instead of an `io.Reader` (for callers whose data arrives in pieces, e.g.
@@ -139,6 +163,9 @@
 
 ### Changed
 
+- Minimum Go version is now 1.24 (`go.mod` `go 1.24.0`), up from 1.23 (now
+  end-of-life). `cdc/compat/buildbarn`'s `NewSeededGearTable` /
+  `NewSeededSubstitutionBox` use `crypto/sha3`, stdlib since Go 1.24.
 - `cdc/{jumpchunker,fastcdc,ultracdc}` (unreleased): `Sum()` now matches the
   parent `Chunker`/`ChunkWriter` semantics from v4.3.2: it returns the
   algorithm's rolling value for the window ending at the chunk's cut regardless
