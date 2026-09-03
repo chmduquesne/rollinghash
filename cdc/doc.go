@@ -25,6 +25,9 @@ boundaries via the rabinkarp64 hash.
 github.com/ipfs/boxo/chunker (rabin, buzhash and fixed-size splitting plus its
 FromString registry), producing byte-identical chunks — and therefore identical
 IPFS CIDs.
+[github.com/chmduquesne/rollinghash/v4/cdc/compat/duplicacy] reproduces the
+chunk boundaries of github.com/gilbertchen/duplicacy's ChunkMaker (buzhash with
+a window equal to the minimum chunk size, seeded from the repository ChunkSeed).
 
 The parent package's [github.com/chmduquesne/rollinghash/v4.Chunker] and
 [github.com/chmduquesne/rollinghash/v4.ChunkWriter] provide the classic
