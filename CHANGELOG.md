@@ -44,6 +44,16 @@
   final chunk may be shorter. Boundaries verified against a port of upstream's
   `NewSimpleAsymmetricExtremumContentDefinedChunker` (upstream's AE is on `main`,
   not yet in a tagged release).
+- `cdc/repmaxsfxcdc`: RepMaxSfxCDC ("repeated maximum, suffix"), from
+  `buildbarn/go-cdc`. Same strict `[minSize, 2*minSize)` bound and `(minSize,
+  horizon)` parameters as RepMaxCDC, but with no rolling hash: it cuts before the
+  position whose following `minSize` bytes form the lexicographically largest
+  string. Port of buildbarn's *simple* reference (a first-byte prefilter keeps
+  the common case near-linear; the whole horizon is still rescanned per chunk,
+  and structured runs degrade toward `O(minSize·horizon)` — buildbarn's linear
+  periodicity handling and substitution box are future work). Boundaries verified
+  against `NewSimpleRepMaxSfxContentDefinedChunker` (identity substitution box);
+  upstream's RepMaxSfxCDC is on `main`, not yet in a tagged release.
 - `cdc/repmaxcdc`: RepMaxCDC ("repeated maximum"), the tight-bound chunker from
   `buildbarn/go-cdc` proposed for Bazel's remote-execution protocol. Cuts at the
   position where the windowless accumulating Gear fingerprint is maximal within
