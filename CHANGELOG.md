@@ -45,7 +45,34 @@
   fixed-size right window). Content-defined chunks are `[minSize+1, maxSize]`; a
   final chunk may be shorter. Boundaries verified against a port of upstream's
   `NewSimpleAsymmetricExtremumContentDefinedChunker`, and byte-for-byte against
-  the real package by the `cdc/compat/buildbarn/bench` nested module.
+  the real package by the `cdc/compat/buildbarn/bench` nested module. Its inner
+  scan is now the two `cdc/internal/vectorscan` primitives (see below), with no
+  change to any boundary. `BenchmarkChunker` (1 MiB random, ~8 KiB chunks, Zen
+  4): ~11.0 GB/s on amd64 with AVX2, ~2.8 without.
+- `cdc/internal/vectorscan`: the two byte-scanning primitives the hashless,
+  extremum-based chunkers reduce to, per VectorCDC (Udayashankar et al., FAST
+  '25) — Extreme Byte Search (`MaxByte`/`MinByte`) and Range Scan
+  (`IndexGT`/`IndexGE`/`IndexLT`/`IndexLE`). On amd64 they run on 256-bit vectors
+  (AVX2: packed min/max, packed compare, move-mask), gated by a dependency-free
+  `CPUID`/`XGETBV` probe in the style of `golang.org/x/sys/cpu`; every other
+  build (non-amd64, or `-tags purego`) uses the plain byte loops, which are also
+  the spec the assembly is tested against. Internal, not part of the public API.
+- `cdc/ramcdc`: RAM (Rapid Asymmetric Maximum, Widodo et al. 2017). No rolling
+  hash: takes the maximum byte of a fixed `windowSize` window at each chunk
+  start, then cuts before the first later byte greater than or equal to it; a
+  hard `maxSize` forces a cut. Content-defined chunks are `[windowSize, maxSize]`;
+  a final chunk may be shorter. Boundaries verified against a port of
+  dedup-bench's `RAM_Chunking::find_cutpoint`. Accelerated via
+  `cdc/internal/vectorscan`: `BenchmarkChunker` ~20 GB/s on amd64 with AVX2,
+  ~1.5 without.
+- `cdc/maxpcdc`: MAXP / Local Maximum Chunking. No rolling hash: cuts right after
+  a byte that is a local maximum over the `windowSize` bytes on each side of it —
+  distinct from `cdc/maxcdc`, which is a Gear-fingerprint maximum. A hard
+  `maxSize` forces a cut. Boundaries verified against a port of dedup-bench's
+  `MAXP_Chunking::find_cutpoint_native`. Accelerated via
+  `cdc/internal/vectorscan`: `BenchmarkChunker` ~10 GB/s on amd64 with AVX2, ~2.0
+  without. Degrades toward `maxSize` on low-entropy data, where local maxima are
+  rare.
 - `cdc/repmaxsfxcdc`: RepMaxSfxCDC ("repeated maximum, suffix"), from
   `buildbarn/go-cdc`. Same strict `[minSize, 2*minSize)` bound and `(minSize,
   horizon)` parameters as RepMaxCDC, but with no rolling hash: it cuts before the

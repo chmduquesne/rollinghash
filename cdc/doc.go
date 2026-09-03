@@ -20,6 +20,16 @@ Each algorithm lives in its own subpackage:
   - [github.com/chmduquesne/rollinghash/v4/cdc/aecdc]: AE (Asymmetric Extremum;
     raw-byte extremum, unbounded left window, no rolling hash), matching
     buildbarn/go-cdc
+  - [github.com/chmduquesne/rollinghash/v4/cdc/ramcdc]: RAM (Rapid Asymmetric
+    Maximum; raw-byte window maximum then a forward scan, no rolling hash)
+  - [github.com/chmduquesne/rollinghash/v4/cdc/maxpcdc]: MAXP / Local Maximum
+    Chunking (raw-byte local maximum over two small windows, no rolling hash) —
+    distinct from cdc/maxcdc, which is a Gear-fingerprint maximum
+
+cdc/aecdc, cdc/ramcdc and cdc/maxpcdc are the three hashless algorithms
+accelerated by VectorCDC (Udayashankar et al., FAST '25): their extreme-byte and
+range-scan inner loops run through cdc/internal/vectorscan, which uses AVX2 on
+amd64 and a portable byte loop elsewhere, with identical boundaries either way.
 
 Every *Chunker implements [github.com/chmduquesne/rollinghash/v4.Chunker] and
 every *ChunkWriter (from each package's NewChunkWriter, the push-based
