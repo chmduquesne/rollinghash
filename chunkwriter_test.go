@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/chmduquesne/rollinghash/v4"
+	"github.com/chmduquesne/rollinghash/v4/buzhash32"
 )
 
 // collectChunkWriterChunks drains a ChunkWriter after Close, checking that
@@ -390,6 +391,65 @@ func TestChunkWriterReset(t *testing.T) {
 				t.Fatalf("chunk %d ContentDefined: got %v want %v", i, gotCD[i], wantCD[i])
 			}
 		}
+	}
+}
+
+// TestChunkWriterWithBuffer checks that WithBuffer feeds through the push path
+// too: same chunks, and an adequate buffer removes the accumulator's start-up
+// growth allocations that Write's core.feed append would otherwise pay.
+func TestChunkWriterWithBuffer(t *testing.T) {
+	const window = 32
+	const mask, min, max = 0x1ff, 512, 64 * 1024
+	data := testData(400 * 1024)
+
+	for _, h := range allHashes {
+		want, wantCD := refChunk(h.classic, data, window, mask, min, max)
+
+		big := make([]byte, 0, 2*max)
+		cw := rollinghash.NewChunkWriter(h.new(), window, mask,
+			rollinghash.WithBoundaries(min, max), rollinghash.WithBuffer(big))
+		if _, err := cw.Write(data); err != nil {
+			t.Fatal(err)
+		}
+		cw.Close()
+		got, gotCD := collectChunkWriterChunks(t, cw)
+		equalChunks(t, h.name, got, want)
+		equalBools(t, h.name, gotCD, wantCD)
+
+		// Undersized buffer still works.
+		tiny := rollinghash.NewChunkWriter(h.new(), window, mask,
+			rollinghash.WithBoundaries(min, max), rollinghash.WithBuffer(make([]byte, 0, 8)))
+		if _, err := tiny.Write(data); err != nil {
+			t.Fatal(err)
+		}
+		tiny.Close()
+		got2, _ := collectChunkWriterChunks(t, tiny)
+		equalChunks(t, h.name+"/tiny", got2, want)
+	}
+
+	const bigMax = 512 * 1024
+	big2 := testData(4 * 1024 * 1024)
+	hnew := func() rollinghash.Hash { return buzhash32.New() }
+	run := func(cw rollinghash.ChunkWriter) {
+		cw.Write(big2)
+		cw.Close()
+		for cw.Next() {
+		}
+	}
+	shared := make([]byte, 0, 2*bigMax+64*1024)
+	withBuf := testing.AllocsPerRun(20, func() {
+		run(rollinghash.NewChunkWriter(hnew(), window, mask,
+			rollinghash.WithBoundaries(min, bigMax), rollinghash.WithBuffer(shared)))
+	})
+	noBuf := testing.AllocsPerRun(20, func() {
+		run(rollinghash.NewChunkWriter(hnew(), window, mask,
+			rollinghash.WithBoundaries(min, bigMax)))
+	})
+	if noBuf-withBuf < 5 {
+		t.Errorf("WithBuffer barely changed ChunkWriter allocations: with=%.0f without=%.0f", withBuf, noBuf)
+	}
+	if withBuf > 16 {
+		t.Errorf("WithBuffer ChunkWriter allocates %.0f times, want a small constant (no-buffer: %.0f)", withBuf, noBuf)
 	}
 }
 

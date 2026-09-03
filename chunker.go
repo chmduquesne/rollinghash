@@ -442,6 +442,29 @@ func WithBatchSize(n int) chunkerOption {
 	return func(c *chunkerCore) { c.batchSize = n }
 }
 
+// WithBuffer supplies the buffer the chunker accumulates stream bytes in: it is
+// filled from the reader by NewChunker, or from Write by NewChunkWriter. Its
+// contents are ignored and only its capacity is used; the chunker still grows
+// it if a chunk plus its hashing lead-in exceeds that capacity, so an
+// undersized buffer is safe, just less effective.
+//
+// The accumulator's steady-state size is roughly max (the largest chunk, see
+// WithBoundaries) plus one read/hash batch (WithBatchSize, default 16 KiB) plus
+// window. make([]byte, 0, 2*max) covers it whenever max is at least the batch
+// size; otherwise add the batch size.
+//
+// A chunker already keeps its buffer across Reset, so this matters only when
+// you create many short-lived chunkers instead of reusing one: it lets them
+// share a single allocation (for example from a sync.Pool) rather than each
+// growing a buffer from nothing.
+func WithBuffer(buf []byte) chunkerOption {
+	return func(c *chunkerCore) {
+		if cap(buf) > cap(c.cbuf) {
+			c.cbuf = buf[:0]
+		}
+	}
+}
+
 // NewChunker returns a chunker over r. A boundary is placed where the rolling
 // checksum under h (over window bytes) satisfies checksum & mask == 0, with the
 // chunk length kept in [min, max]. window must be >= 1. Use WithMinSize and

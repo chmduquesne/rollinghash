@@ -2,6 +2,7 @@ package boxo
 
 import (
 	"io"
+	"sync"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/buzhash32"
@@ -15,31 +16,55 @@ const (
 	buzWin  = 32
 )
 
+// buzBufPool hands each Buzhash a chunk-accumulator buffer so that spinning up
+// one Splitter per stream (the usual boxo pattern) doesn't re-grow a buffer
+// from nothing every time — this is what boxo's own go-buffer-pool does.
+// Sized well above the chunker's steady-state need (~buzMax + one 16 KiB batch
+// + window) so it is never reallocated and can be returned as-is on EOF. It
+// pools *[]byte, not []byte, to keep the pooled value pointer-shaped.
+var buzBufPool = sync.Pool{New: func() any { s := make([]byte, 0, 2*buzMax); return &s }}
+
 // Buzhash splits content with a 32-bit buzhash, matching boxo/chunker.Buzhash.
 type Buzhash struct {
 	ch     rollinghash.Chunker
 	reader io.Reader
+	bufp   *[]byte // from buzBufPool; returned on EOF
 }
 
 // NewBuzhash returns a buzhash Splitter. Its parameters are fixed: a 32-byte
 // window, a 17-bit mask, and 128 KiB / 512 KiB min / max chunk sizes.
 func NewBuzhash(r io.Reader) *Buzhash {
 	h := buzhash32.NewFromUint32Array(bytehash)
+	bufp := buzBufPool.Get().(*[]byte)
 	return &Buzhash{
-		ch:     rollinghash.NewChunker(r, h, buzWin, buzMask, rollinghash.WithBoundaries(buzMin, buzMax)),
+		ch: rollinghash.NewChunker(r, h, buzWin, buzMask,
+			rollinghash.WithBoundaries(buzMin, buzMax), rollinghash.WithBuffer(*bufp)),
 		reader: r,
+		bufp:   bufp,
 	}
 }
 
 // NextBytes returns the next chunk, or io.EOF once the stream is drained.
 func (b *Buzhash) NextBytes() ([]byte, error) {
 	if !b.ch.Next() {
+		b.recycle()
 		if err := b.ch.Err(); err != nil {
 			return nil, err
 		}
 		return nil, io.EOF
 	}
 	return append([]byte(nil), b.ch.Bytes()...), nil
+}
+
+// recycle returns the accumulator buffer to the pool. It runs once, when the
+// stream is fully drained; a caller that abandons the Splitter early just lets
+// the buffer be collected. The chunk returned by NextBytes is always a fresh
+// copy, so nothing aliases the buffer after this point.
+func (b *Buzhash) recycle() {
+	if b.bufp != nil {
+		buzBufPool.Put(b.bufp)
+		b.bufp = nil
+	}
 }
 
 // Reader returns the io.Reader associated with this Splitter.
