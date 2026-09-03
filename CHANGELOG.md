@@ -36,6 +36,14 @@
   mask, so lengths land in `[minSize, maxSize]` with no probabilistic tail.
   Same hash/`Table()` contract as the other Gear chunkers; boundaries verified
   against a port of upstream's `NewSimpleMaxContentDefinedChunker`.
+- `cdc/aecdc`: AE (Asymmetric Extremum, Zhang et al. 2015), in `buildbarn/go-cdc`'s
+  variant. Uses no rolling hash: it scans raw byte values, tracks the running
+  maximum since the last cut, and cuts `minSize` bytes past that maximum once
+  `minSize` bytes pass without a larger value (an unbounded left window, a
+  fixed-size right window). Content-defined chunks are `[minSize+1, maxSize]`; a
+  final chunk may be shorter. Boundaries verified against a port of upstream's
+  `NewSimpleAsymmetricExtremumContentDefinedChunker` (upstream's AE is on `main`,
+  not yet in a tagged release).
 - `cdc/repmaxcdc`: RepMaxCDC ("repeated maximum"), the tight-bound chunker from
   `buildbarn/go-cdc` proposed for Bazel's remote-execution protocol. Cuts at the
   position where the windowless accumulating Gear fingerprint is maximal within
