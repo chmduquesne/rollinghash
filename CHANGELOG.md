@@ -61,10 +61,11 @@
   IPFS CIDs — for all three built-in splitters: rabin (`rabinkarp64` over
   `IpfsRabinPoly`, 16-byte window), buzhash (`buzhash32` with boxo's table,
   32-byte window), and fixed-size. Verified against `github.com/ipfs/boxo`
-  itself by the `cdc/compat/boxo/bench` nested module. Chunk slices are always
-  caller-owned (boxo's go-buffer-pool reuse is not reproduced); on 8 MiB of
-  random data the rabin splitter runs ~3× faster than boxo's
-  (`whyrusleeping/chunker`, unmaintained since 2018), buzhash ~7% slower.
+  itself by the `cdc/compat/boxo/bench` nested module. Chunk slices handed back
+  by `NextBytes` are always caller-owned copies; the accumulator buffer is
+  pooled (like boxo's go-buffer-pool use). On 8 MiB of random data the rabin
+  splitter runs ~3× faster than boxo's (`whyrusleeping/chunker`, unmaintained
+  since 2018) and buzhash is at parity.
 - `cdc/{fastcdc,ultracdc,jumpchunker}.NewChunkWriter(…)`: push-based
   `rollinghash.ChunkWriter` counterparts to `New`, fed via `Write`/`Close`
   instead of an `io.Reader` (for callers whose data arrives in pieces, e.g.
@@ -72,6 +73,11 @@
   the streaming engine with the pull-based `Chunker`.
 - `cdc/{fastcdc,ultracdc,jumpchunker}.WithBuffer([]byte)`: supply the working
   buffer, adopted when its capacity is large enough, for reuse across streams.
+- `WithBuffer([]byte)`: functional option for `NewChunker` / `NewChunkWriter`
+  supplying the byte accumulator, so callers that create many short-lived
+  chunkers can share one allocation (e.g. a `sync.Pool`) instead of each growing
+  a buffer from nothing. It does not change the chunk stream; a chunker reused
+  via `Reset` already keeps its buffer and needs nothing.
 - `gearhash64.Table()`: returns a copy of the hash's 256-entry Gear table, the
   inverse of `NewFromUint64Array`.
 

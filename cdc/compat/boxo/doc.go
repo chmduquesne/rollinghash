@@ -31,9 +31,10 @@
 // # Differences from boxo/chunker
 //
 //   - Each NextBytes result is a freshly allocated, caller-owned slice, as in
-//     boxo. The go-buffer-pool reuse strategy boxo layers on top is not
-//     reproduced; chunk contents are identical. Callers that want zero-copy
-//     iteration should use rollinghash.NewChunker directly.
+//     boxo. Callers that want zero-copy iteration should use
+//     rollinghash.NewChunker directly. The internal accumulator buffer is
+//     pooled across Splitter instances (like boxo's go-buffer-pool use), so
+//     creating one Splitter per stream does not re-grow a buffer each time.
 //   - Registering a custom chunker with Register affects only this package's
 //     registry, not boxo's, and vice versa.
 //

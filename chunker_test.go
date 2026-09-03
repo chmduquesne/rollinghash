@@ -9,6 +9,7 @@ import (
 	"testing/iotest"
 
 	"github.com/chmduquesne/rollinghash/v4"
+	"github.com/chmduquesne/rollinghash/v4/buzhash32"
 )
 
 // refChunk is an independent reference for the Chunker: it computes every window
@@ -91,6 +92,18 @@ func equalChunks(t *testing.T, name string, got, want [][]byte) {
 	for i := range want {
 		if !bytes.Equal(got[i], want[i]) {
 			t.Fatalf("[%s] chunk %d: got %d bytes, want %d bytes", name, i, len(got[i]), len(want[i]))
+		}
+	}
+}
+
+func equalBools(t *testing.T, name string, got, want []bool) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("[%s] got %d flags, want %d", name, len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("[%s] ContentDefined[%d] = %v, want %v", name, i, got[i], want[i])
 		}
 	}
 }
@@ -308,6 +321,73 @@ func TestChunkerDeterminism(t *testing.T) {
 		got, _ := collectChunks(t, slow)
 
 		equalChunks(t, h.name+"/onebyte", got, want)
+	}
+}
+
+// TestChunkerWithBuffer checks that WithBuffer does not change the chunk stream
+// (adequate or undersized buffer, and across Reset) and that an adequate buffer
+// removes the accumulator's start-up growth allocations.
+func TestChunkerWithBuffer(t *testing.T) {
+	data := testData(400 * 1024)
+	const window = 32
+	const mask, min, max = 0x1ff, 512, 64 * 1024
+
+	for _, h := range allHashes {
+		want, wantCD := collectChunks(t, rollinghash.NewChunker(
+			bytes.NewReader(data), h.new(), window, mask, rollinghash.WithBoundaries(min, max)))
+
+		// Adequate buffer: same chunks.
+		big := make([]byte, 0, 2*max)
+		gotC := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask,
+			rollinghash.WithBoundaries(min, max), rollinghash.WithBuffer(big))
+		got, gotCD := collectChunks(t, gotC)
+		equalChunks(t, h.name, got, want)
+		equalBools(t, h.name, gotCD, wantCD)
+
+		// Same chunker, Reset, second stream: still identical.
+		gotC.Reset(bytes.NewReader(data))
+		got2, _ := collectChunks(t, gotC)
+		equalChunks(t, h.name+"/reset", got2, want)
+
+		// Undersized buffer: still correct (it grows).
+		tiny := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask,
+			rollinghash.WithBoundaries(min, max), rollinghash.WithBuffer(make([]byte, 0, 8)))
+		got3, _ := collectChunks(t, tiny)
+		equalChunks(t, h.name+"/tiny", got3, want)
+
+		// WithBuffer(nil) is a no-op, not a panic.
+		nilBuf := rollinghash.NewChunker(bytes.NewReader(data), h.new(), window, mask,
+			rollinghash.WithBoundaries(min, max), rollinghash.WithBuffer(nil))
+		got4, _ := collectChunks(t, nilBuf)
+		equalChunks(t, h.name+"/nil", got4, want)
+	}
+
+	// Allocation: an adequate buffer eliminates the readTail doubling-growth
+	// allocations that a fresh chunker otherwise pays on its first stream. Use a
+	// cheap-to-construct hash and a large max so the growth series (nil -> ~2*max
+	// by doubling) is many allocations, unmistakably more than the handful of
+	// fixed ones (reader, chunker, core, la/lb).
+	const bigMax = 512 * 1024
+	big2 := testData(4 * 1024 * 1024)
+	hnew := func() rollinghash.Hash { return buzhash32.New() }
+	drain := func(c rollinghash.Chunker) {
+		for c.Next() {
+		}
+	}
+	shared := make([]byte, 0, 2*bigMax+64*1024)
+	withBuf := testing.AllocsPerRun(20, func() {
+		drain(rollinghash.NewChunker(bytes.NewReader(big2), hnew(), window, mask,
+			rollinghash.WithBoundaries(min, bigMax), rollinghash.WithBuffer(shared)))
+	})
+	noBuf := testing.AllocsPerRun(20, func() {
+		drain(rollinghash.NewChunker(bytes.NewReader(big2), hnew(), window, mask,
+			rollinghash.WithBoundaries(min, bigMax)))
+	})
+	if noBuf-withBuf < 5 {
+		t.Errorf("WithBuffer barely changed allocations: with=%.0f without=%.0f", withBuf, noBuf)
+	}
+	if withBuf > 16 {
+		t.Errorf("WithBuffer chunker allocates %.0f times, want a small constant (no-buffer: %.0f)", withBuf, noBuf)
 	}
 }
 
