@@ -21,6 +21,8 @@ type batchWriter struct {
 	pending []byte
 }
 
+var _ BatchWriter = (*batchWriter)(nil)
+
 // NewBatchWriter returns a BatchWriter. window must be >= 1. h must
 // implement BatchRoll; NewBatchWriter panics otherwise. Use WithBufferSize
 // to control the batch size (default 64 KiB); this doubles as the

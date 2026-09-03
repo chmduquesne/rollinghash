@@ -405,6 +405,8 @@ type chunker struct {
 	readSize int // bytes to pull per Read batch, == max(batchSize, window)
 }
 
+var _ Chunker = (*chunker)(nil)
+
 // chunkerOption is a functional option shared by NewChunker and NewChunkWriter.
 type chunkerOption func(*chunkerCore)
 

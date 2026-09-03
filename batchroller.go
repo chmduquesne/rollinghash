@@ -199,6 +199,8 @@ type batchRoller struct {
 	readSize int // bytes to pull per Read batch, == core.batchSize
 }
 
+var _ BatchRoller = (*batchRoller)(nil)
+
 // NewBatchRoller returns a BatchRoller over r. window must be >= 1. h must
 // implement BatchRoll; NewBatchRoller panics otherwise. Pass nil for r and
 // call Reset before the first Next to defer stream attachment. Use WithBufferSize
