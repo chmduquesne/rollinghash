@@ -31,7 +31,7 @@
 // that window on every batch, so CreateChunkMaker defaults the batch to roughly
 // eight windows (capped at 16 MiB) to amortise it; that buffer is allocated once
 // per maker and kept across Reset. Throughput then lands within a few percent of
-// a continuous single-pass roll of the same algorithm (~700 MB/s here on 32 MiB
+// a continuous single-pass roll of the same algorithm (~670 MB/s here on 32 MiB
 // of random data). The multiple-of-64 window also rules out any SIMD, so this is
 // slower in absolute terms than the small-window CDC algorithms in this module.
 // In a real backup, chunk hashing and I/O dominate and the splitter is not the
@@ -47,10 +47,11 @@
 //
 // # Differences from github.com/gilbertchen/duplicacy
 //
-//   - Only chunk boundaries are reproduced. Duplicacy's Chunk also carries the
-//     chunk's content hash and, from it, the chunk ID and file name; those
-//     depend on the repository's HashKey and compression settings and are out of
-//     scope here. Chunk exposes just Start, Length and Data.
+//   - Chunk boundaries and the buzhash at each boundary (Chunk.Hash — the value
+//     Duplicacy tests against its hashMask) are reproduced. Duplicacy's Chunk
+//     also carries the chunk's *content* hash and, from it, the chunk ID and
+//     file name; those depend on the repository's HashKey and compression
+//     settings and are out of scope here.
 //   - Duplicacy forces a cut at maximumChunkSize cleanly only when
 //     maximumChunkSize is a multiple of minimumChunkSize (true for every size
 //     triple its CLI produces, where the minimum is a quarter of the average and

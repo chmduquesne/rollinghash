@@ -74,14 +74,15 @@
   same offsets for a given seed and size triple. Duplicacy's buzhash splitter
   (window = minimum chunk size, single mask `averageChunkSize-1`, SHA-256 table
   chain from the repository `ChunkSeed`) is reproduced with `buzhash64` +
-  `rollinghash.NewChunkWriter`. Only boundaries are mirrored — chunk content
-  hashes, IDs and file names are out of scope. Verified against an independent
+  `rollinghash.NewChunkWriter`. `Chunk.Hash` is the buzhash of the window at the
+  cut (the value Duplicacy tests against its `hashMask`); the chunk *content*
+  hash, ID and file name are out of scope. Verified against an independent
   reimplementation of the algorithm rather than a nested bench module: Duplicacy
   ships no consumable Go module (its pre-`go.mod` tags no longer build against
   current transitive deps, its `v3` tags lack a `/v3` path). The buzhash window
   is the whole minimum chunk size (megabytes), so `CreateChunkMaker` defaults the
   hashing batch to ~8 windows to amortise `BatchBoundaries` priming; throughput
-  is then within a few percent of a single-pass roll (~700 MB/s on 32 MiB of
+  is then within a few percent of a single-pass roll (~670 MB/s on 32 MiB of
   random data), though the multiple-of-64 window precludes SIMD so it stays
   slower in absolute terms than the small-window CDC algorithms here.
 - `cdc/{fastcdc,ultracdc,jumpchunker}.NewChunkWriter(…)`: push-based

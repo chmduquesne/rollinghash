@@ -84,14 +84,20 @@ func WithMaximumChunkSize(n int) Option { return func(c *config) { c.max = n } }
 func WithBuffer(buf []byte) Option { return func(c *config) { c.buf = buf } }
 
 // Chunk is one content-defined chunk. Duplicacy's own Chunk type carries only
-// the bytes (and, later, their content hash); Start and Length are added here
-// for parity with this repo's other compat layers. Data aliases the maker's
-// internal buffer and is only valid for the duration of the sendChunk call that
-// received it; copy it if you need to keep it.
+// the bytes (and, later, their content hash); Start, Length and Hash are added
+// here. Data aliases the maker's internal buffer and is only valid for the
+// duration of the sendChunk call that received it; copy it if you need to keep
+// it.
 type Chunk struct {
 	Start  int
 	Length int
-	Data   []byte
+	// Hash is the buzhash of the 64-bit rolling window ending at the cut — the
+	// value Duplicacy's ChunkMaker tests against its hashMask. It is the mask
+	// hit value at a content-defined boundary; at a boundary forced by the
+	// maximum chunk size it is the window checksum there (which did not satisfy
+	// the mask), and 0 for a final chunk shorter than the window.
+	Hash uint64
+	Data []byte
 }
 
 // ChunkMaker splits a stream of data into content-defined chunks with the same
@@ -146,6 +152,8 @@ func CreateChunkMaker(opts ...Option) *ChunkMaker {
 		batch = n
 	}
 
+	// Chunk.Hash comes from ChunkWriter.Sum(), which the engine computes at
+	// every cut anyway.
 	m := &ChunkMaker{
 		w:   rollinghash.NewChunkWriter(h, c.min, mask, minMax, rollinghash.WithBatchSize(batch)),
 		buf: make([]byte, min(batch, 256*kib)),
@@ -195,7 +203,7 @@ func (m *ChunkMaker) AddData(reader io.Reader, sendChunk func(Chunk)) error {
 func (m *ChunkMaker) drain(sendChunk func(Chunk)) error {
 	for m.w.Next() {
 		b := m.w.Bytes()
-		sendChunk(Chunk{Start: m.sent, Length: len(b), Data: b})
+		sendChunk(Chunk{Start: m.sent, Length: len(b), Hash: m.w.Sum(), Data: b})
 		m.sent += len(b)
 	}
 	return m.w.Err()
