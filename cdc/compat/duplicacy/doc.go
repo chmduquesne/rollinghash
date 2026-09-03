@@ -30,12 +30,15 @@
 // sizes), where restic's is 64 bytes. NewChunkWriter's BatchBoundaries re-primes
 // that window on every batch, so CreateChunkMaker defaults the batch to roughly
 // eight windows (capped at 16 MiB) to amortise it; that buffer is allocated once
-// per maker and kept across Reset. Throughput then lands within a few percent of
-// a continuous single-pass roll of the same algorithm (~670 MB/s here on 32 MiB
-// of random data). The multiple-of-64 window also rules out any SIMD, so this is
-// slower in absolute terms than the small-window CDC algorithms in this module.
-// In a real backup, chunk hashing and I/O dominate and the splitter is not the
-// bottleneck.
+// per maker and kept across Reset. Even so it runs at about 0.85x of a
+// continuous single-pass roll of the same algorithm — the per-batch re-prime
+// and the per-cut window recompute for Chunk.Hash are work that roll never does.
+// BenchmarkChunkMaker measures both side by side (Duplicacy ships no consumable
+// Go module for a real head-to-head, so its "reference" arm is an independent
+// single-pass implementation of the algorithm). The multiple-of-64 window also
+// rules out any SIMD, so this is slower in absolute terms than the small-window
+// CDC algorithms in this module. In a real backup, chunk hashing and I/O
+// dominate and the splitter is not the bottleneck.
 //
 // Because Duplicacy requires averageChunkSize to be a power of two, the buzhash
 // window (= minimumChunkSize, itself normally a power of two) is a multiple of
