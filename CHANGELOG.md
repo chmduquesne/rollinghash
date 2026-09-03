@@ -30,6 +30,22 @@
   distance to `0xAA…AA`, cuts when that distance clears a small mask or on a
   long run of identical windows. Uses no rolling hash. `WithSpecFaithful`
   rounds boundaries up to the 8-byte window.
+- `cdc/maxcdc`: MaxCDC, from `buildbarn/go-cdc`. Over the same windowless
+  accumulating Gear fingerprint, cuts before the position where the fingerprint
+  is largest within `[minSize, maxSize]` from the chunk start — no boundary
+  mask, so lengths land in `[minSize, maxSize]` with no probabilistic tail.
+  Same hash/`Table()` contract as the other Gear chunkers; boundaries verified
+  against a port of upstream's `NewSimpleMaxContentDefinedChunker`.
+- `cdc/repmaxcdc`: RepMaxCDC ("repeated maximum"), the tight-bound chunker from
+  `buildbarn/go-cdc` proposed for Bazel's remote-execution protocol. Cuts at the
+  position where the windowless accumulating Gear fingerprint is maximal within
+  a read-ahead horizon, repeating the search until every chunk lands in
+  `[minSize, 2*minSize)`. Parameters are `minSize` and a horizon size (the
+  horizon only controls quality and can be raised freely). `repmaxcdc.New` takes
+  any hash exposing `Table()` and panics otherwise; boundaries match
+  `buildbarn/go-cdc`'s `NewRepMaxContentDefinedChunker` for the same table,
+  verified against a port of its `NewSimpleRepMaxContentDefinedChunker`
+  reference (upstream requires Go 1.26, so it is not pulled as a nested module).
 - `cdc/compat/gocdc`: drop-in for `PlakarKorp/go-cdc-chunkers`' consumer API. Its
   `NewChunker`/`NewChunkerBuffer`, `*Chunker`, `ChunkerOpts`, `ErrMinSize` /
   `ErrMaxSize` / `ErrNormalSize`, and the `Next`/`Split`/`Copy` method
