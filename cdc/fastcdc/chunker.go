@@ -77,6 +77,15 @@ func WithBuffer(buf []byte) Option {
 	return func(f *fcCut) { f.buf = buf }
 }
 
+// WithInclusiveBoundary makes a content-defined cut fall one byte later: the
+// byte whose Gear fingerprint cleared the mask ends the current chunk instead of
+// starting the next one. The default (plakar's convention) excludes it. Use this
+// to match implementations that include it, such as github.com/buildbarn/go-cdc
+// and the FastCDC paper's own pseudocode. Forced max-size cuts are unaffected.
+func WithInclusiveBoundary() Option {
+	return func(f *fcCut) { f.inclusive = true }
+}
+
 // New returns a Chunker over r. Chunk lengths are kept in [minSize, maxSize]
 // with an average near normalSize. h must expose Table(); New panics otherwise.
 func New(r io.Reader, h rollinghash.Hash, minSize, normalSize, maxSize int, opts ...Option) *Chunker {
@@ -140,6 +149,7 @@ type fcCut struct {
 	min          int
 	normal       int
 	max          int
+	inclusive    bool
 	buf          []byte
 }
 
@@ -187,15 +197,26 @@ func (f *fcCut) Cut(data []byte, eof bool) (int, bool, uint64) {
 	}
 
 	// Phase 1: strict mask over [i, p1end). Phase 2: loose mask over [p1end, n),
-	// continuing the same fingerprint. The boundary byte starts the next chunk.
+	// continuing the same fingerprint. f.cut places the boundary relative to the
+	// byte that cleared the mask.
 	pos, hit, fp := gearscan.Scan4(g, data, i, p1end, maskS, 0)
 	if hit {
-		return pos, true, fp
+		return f.cut(pos), true, fp
 	}
 	if pos, hit, fp = gearscan.Scan4(g, data, p1end, n, maskL, fp); hit {
-		return pos, true, fp
+		return f.cut(pos), true, fp
 	}
 	return n, false, 0
+}
+
+// cut turns a mask-hit index (the position of the clearing byte) into a chunk
+// length. By default the clearing byte starts the next chunk; WithInclusiveBoundary
+// keeps it in the current one. The core clamps the result to len(avail).
+func (f *fcCut) cut(pos int) int {
+	if f.inclusive {
+		return pos + 1
+	}
+	return pos
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.

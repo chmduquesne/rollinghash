@@ -44,7 +44,12 @@ a window equal to the minimum chunk size, seeded from the repository ChunkSeed).
 [github.com/chmduquesne/rollinghash/v4/cdc/repmaxsfxcdc] and
 [github.com/chmduquesne/rollinghash/v4/cdc/aecdc] match
 github.com/buildbarn/go-cdc's MaxCDC, RepMaxCDC, RepMaxSfxCDC and AE for the
-same size parameters (and, for the Gear chunkers, the same Gear table).
+same size parameters (and, for the Gear chunkers, the same Gear table);
+[github.com/chmduquesne/rollinghash/v4/cdc/compat/buildbarn] is a
+signature-compatible drop-in for that library's ContentDefinedChunker /
+ChunkReader / Peeker consumer API, covering those four plus FastCDC (via
+cdc/fastcdc's WithInclusiveBoundary), verified byte-for-byte against the real
+package by the cdc/compat/buildbarn/bench nested module.
 
 The parent package's [github.com/chmduquesne/rollinghash/v4.Chunker] and
 [github.com/chmduquesne/rollinghash/v4.ChunkWriter] provide the classic
