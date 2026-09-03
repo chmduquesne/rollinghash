@@ -24,6 +24,8 @@ type chunkWriter struct {
 	pending []byte
 }
 
+var _ ChunkWriter = (*chunkWriter)(nil)
+
 // NewChunkWriter returns a ChunkWriter. A boundary is placed where the
 // rolling checksum under h (over window bytes) satisfies checksum & mask ==
 // 0, with the chunk length kept in [min, max] (see WithBoundaries). window
