@@ -14,6 +14,9 @@ Each algorithm lives in its own subpackage:
   - [github.com/chmduquesne/rollinghash/v4/cdc/repmaxcdc]: RepMaxCDC (repeated
     Gear-fingerprint maximum, strict [minSize, 2*minSize) chunk sizes), matching
     buildbarn/go-cdc
+  - [github.com/chmduquesne/rollinghash/v4/cdc/aecdc]: AE (Asymmetric Extremum;
+    raw-byte extremum, unbounded left window, no rolling hash), matching
+    buildbarn/go-cdc
 
 Every *Chunker implements [github.com/chmduquesne/rollinghash/v4.Chunker] and
 every *ChunkWriter (from each package's NewChunkWriter, the push-based
@@ -33,10 +36,11 @@ IPFS CIDs.
 [github.com/chmduquesne/rollinghash/v4/cdc/compat/duplicacy] reproduces the
 chunk boundaries of github.com/gilbertchen/duplicacy's ChunkMaker (buzhash with
 a window equal to the minimum chunk size, seeded from the repository ChunkSeed).
-[github.com/chmduquesne/rollinghash/v4/cdc/maxcdc] and
-[github.com/chmduquesne/rollinghash/v4/cdc/repmaxcdc] match
-github.com/buildbarn/go-cdc's MaxCDC and RepMaxCDC for the same Gear table and
-size parameters.
+[github.com/chmduquesne/rollinghash/v4/cdc/maxcdc],
+[github.com/chmduquesne/rollinghash/v4/cdc/repmaxcdc] and
+[github.com/chmduquesne/rollinghash/v4/cdc/aecdc] match
+github.com/buildbarn/go-cdc's MaxCDC, RepMaxCDC and AE for the same size
+parameters (and, for the two Gear chunkers, the same Gear table).
 
 The parent package's [github.com/chmduquesne/rollinghash/v4.Chunker] and
 [github.com/chmduquesne/rollinghash/v4.ChunkWriter] provide the classic
