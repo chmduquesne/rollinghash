@@ -42,6 +42,24 @@ func Scan4(g *[256]uint64, data []byte, lo, hi int, mask, fp uint64) (pos int, h
 	return hi, false, fp
 }
 
+// Max advances the Gear fingerprint (seeded with fp) over data[lo:hi], one byte
+// at a time as fp = (fp<<1) + g[b], and returns the offset past lo of the last
+// position at which the fingerprint reached a new strict maximum (0 if nothing
+// beat the seed) together with that maximal value. It is the boundary search of
+// MaxCDC and RepMaxCDC — cut before the position with the highest fingerprint.
+// The caller must ensure hi <= len(data).
+func Max(g *[256]uint64, data []byte, lo, hi int, fp uint64) (bestOff int, bestFP uint64) {
+	data = data[:hi:hi] // fold the bound so data[i] needs no check
+	bestFP = fp
+	for i := lo; i < hi; i++ {
+		if fp = (fp << 1) + g[data[i]]; bestFP < fp {
+			bestFP = fp
+			bestOff = i - lo + 1
+		}
+	}
+	return
+}
+
 // Digest returns the windowless Gear fingerprint of b: fp seeded 0 and advanced
 // as fp = (fp<<1) + g[c] for every byte. Since the shift discards bits past 63,
 // for len(b) >= 64 this equals the fingerprint a Scan4 chain would hold after
