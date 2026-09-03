@@ -1,7 +1,8 @@
-// Package gearscan holds the shared inner loop of the Gear-based content-defined
-// chunkers (cdc/fastcdc, cdc/jumpchunker): scan a byte range for the first
-// position where the windowless accumulating Gear fingerprint clears a mask.
-// It is internal and not part of the public API.
+// Package gearscan holds the shared inner loops of the Gear-based
+// content-defined chunkers: Scan4 finds the first position where the windowless
+// accumulating Gear fingerprint clears a mask (cdc/fastcdc, cdc/jumpchunker);
+// Max finds the position where it is largest (cdc/maxcdc, cdc/repmaxcdc). It is
+// internal and not part of the public API.
 package gearscan
 
 // Scan4 scans data[lo:hi] for the first index i at which the running Gear
@@ -42,19 +43,42 @@ func Scan4(g *[256]uint64, data []byte, lo, hi int, mask, fp uint64) (pos int, h
 	return hi, false, fp
 }
 
-// Max advances the Gear fingerprint (seeded with fp) over data[lo:hi], one byte
-// at a time as fp = (fp<<1) + g[b], and returns the offset past lo of the last
-// position at which the fingerprint reached a new strict maximum (0 if nothing
-// beat the seed) together with that maximal value. It is the boundary search of
-// MaxCDC and RepMaxCDC — cut before the position with the highest fingerprint.
-// The caller must ensure hi <= len(data).
+// Max advances the Gear fingerprint (seeded with fp) over data[lo:hi] as
+// fp = (fp<<1) + g[b] and returns the offset past lo of the last position at
+// which the fingerprint reached a new strict maximum (0 if nothing beat the
+// seed) together with that maximal value. It is the boundary search of MaxCDC
+// and RepMaxCDC — cut before the position with the highest fingerprint. The
+// caller must ensure hi <= len(data).
+//
+// Like Scan4, the scan runs four bytes per iteration: the recurrence is serial
+// but issuing the four g[data[]] loads as a straight-line group lets them
+// pipeline ahead of the dependent fp updates (~40% faster than a scalar loop on
+// random data; the new-maximum branch compiles to conditional moves). The scalar
+// tail loop below is the spec.
 func Max(g *[256]uint64, data []byte, lo, hi int, fp uint64) (bestOff int, bestFP uint64) {
-	data = data[:hi:hi] // fold the bound so data[i] needs no check
+	data = data[:hi:hi] // fold the bound so data[i:i+4] / data[i] need no check
 	bestFP = fp
-	for i := lo; i < hi; i++ {
+	i := lo
+	for ; i+4 <= hi; i += 4 {
+		b := data[i : i+4 : i+4]
+		g0, g1, g2, g3 := g[b[0]], g[b[1]], g[b[2]], g[b[3]]
+		base := i - lo + 1
+		if fp = (fp << 1) + g0; bestFP < fp {
+			bestFP, bestOff = fp, base
+		}
+		if fp = (fp << 1) + g1; bestFP < fp {
+			bestFP, bestOff = fp, base+1
+		}
+		if fp = (fp << 1) + g2; bestFP < fp {
+			bestFP, bestOff = fp, base+2
+		}
+		if fp = (fp << 1) + g3; bestFP < fp {
+			bestFP, bestOff = fp, base+3
+		}
+	}
+	for ; i < hi; i++ {
 		if fp = (fp << 1) + g[data[i]]; bestFP < fp {
-			bestFP = fp
-			bestOff = i - lo + 1
+			bestFP, bestOff = fp, i-lo+1
 		}
 	}
 	return
