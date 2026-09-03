@@ -17,9 +17,10 @@ import (
 //
 // This is written from the algorithm (buzhash cyclic polynomial, window =
 // minimumChunkSize, single mask averageChunkSize-1, clamp to [min,max], SHA-256
-// table chain), not adapted from Duplicacy's source. It is the oracle the
-// compat package is checked against, since Duplicacy publishes no Go module
-// that still builds in isolation.
+// table chain), not adapted from Duplicacy's source. Since Duplicacy publishes
+// no Go module that still builds in isolation, refChunks stands in for it both
+// as the correctness oracle (TestParityReference) and as the throughput
+// baseline (BenchmarkChunkMaker).
 
 func refTable(seed []byte) (t [256]uint64) {
 	d := sha256.Sum256(seed)
@@ -34,8 +35,7 @@ func refTable(seed []byte) (t [256]uint64) {
 
 type span struct{ start, length int }
 
-func refChunks(seed []byte, avg, minSz, maxSz int, data []byte) []span {
-	tbl := refTable(seed)
+func refChunks(tbl [256]uint64, avg, minSz, maxSz int, data []byte) []span {
 	mask := uint64(avg - 1)
 	rot := minSz % 64
 
@@ -160,11 +160,12 @@ func TestParityReference(t *testing.T) {
 	}
 
 	for si, seed := range seeds {
+		tbl := refTable(seed)
 		for shapeName, gen := range shapes {
 			for _, n := range sizes {
 				data := gen(n, 0x9E3779B97F4A7C15+uint64(si))
 				for _, cfg := range configs {
-					want := refChunks(seed, cfg.avg, cfg.min, cfg.max, data)
+					want := refChunks(tbl, cfg.avg, cfg.min, cfg.max, data)
 					got := drainSpans(t, seed, cfg.avg, cfg.min, cfg.max, data)
 					if len(got) != len(want) {
 						t.Fatalf("seed=%q %s n=%d %v: %d chunks, want %d\n got=%v\nwant=%v",
@@ -367,20 +368,52 @@ func TestBadParams(t *testing.T) {
 	}
 }
 
+// BenchmarkChunkMaker is the permanent, reproducible throughput comparison for
+// this compat layer. Duplicacy ships no consumable Go module (see the package
+// doc), so instead of a head-to-head against the real package it pits the
+// compat ChunkMaker against refChunks — the independent single-pass
+// implementation of Duplicacy's algorithm that TestParityReference already
+// checks output against. "reference" is a lower bound on what Duplicacy's own
+// splitter loop can do (one continuous buzhash, primed once per chunk, no
+// content hashing); "compat" is this layer at its default configuration.
+//
+//	go test -run x -bench BenchmarkChunkMaker ./cdc/compat/duplicacy/
+//
+// As of writing, on 32 MiB of pseudo-random data with the default 4/1/16 MiB
+// size triple, compat runs at roughly 0.85x of reference. The gap is the
+// per-batch window re-prime in buzhash64.BatchBoundaries plus the per-cut
+// window recompute for Chunk.Hash, neither of which the single-pass reference
+// pays. See the "Performance" section of the package doc.
 func BenchmarkChunkMaker(b *testing.B) {
-	data := xorshift(16<<20, 0x2545F4914F6CDD1D)
-	m := duplicacy.CreateChunkMaker()
-	b.SetBytes(int64(len(data)))
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		m.Reset()
+	data := xorshift(32<<20, 0x2545F4914F6CDD1D)
+	const avg = duplicacy.DefaultAverageChunkSize
+	const minSz = duplicacy.DefaultMinimumChunkSize
+	const maxSz = duplicacy.DefaultMaximumChunkSize
+
+	b.Run("compat", func(b *testing.B) {
+		m := duplicacy.CreateChunkMaker() // default seed and size triple
 		sink := func(duplicacy.Chunk) {}
-		if err := m.AddData(bytes.NewReader(data), sink); err != nil {
-			b.Fatal(err)
+		b.SetBytes(int64(len(data)))
+		b.ReportAllocs()
+		b.ResetTimer()
+		for range b.N {
+			m.Reset()
+			if err := m.AddData(bytes.NewReader(data), sink); err != nil {
+				b.Fatal(err)
+			}
+			if err := m.AddData(nil, sink); err != nil {
+				b.Fatal(err)
+			}
 		}
-		if err := m.AddData(nil, sink); err != nil {
-			b.Fatal(err)
+	})
+
+	b.Run("reference", func(b *testing.B) {
+		tbl := refTable(duplicacy.DefaultChunkSeed)
+		b.SetBytes(int64(len(data)))
+		b.ReportAllocs()
+		b.ResetTimer()
+		for range b.N {
+			refChunks(tbl, avg, minSz, maxSz, data)
 		}
-	}
+	})
 }

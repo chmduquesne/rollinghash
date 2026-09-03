@@ -77,14 +77,17 @@
   `rollinghash.NewChunkWriter`. `Chunk.Hash` is the buzhash of the window at the
   cut (the value Duplicacy tests against its `hashMask`); the chunk *content*
   hash, ID and file name are out of scope. Verified against an independent
-  reimplementation of the algorithm rather than a nested bench module: Duplicacy
-  ships no consumable Go module (its pre-`go.mod` tags no longer build against
-  current transitive deps, its `v3` tags lack a `/v3` path). The buzhash window
-  is the whole minimum chunk size (megabytes), so `CreateChunkMaker` defaults the
-  hashing batch to ~8 windows to amortise `BatchBoundaries` priming; throughput
-  is then within a few percent of a single-pass roll (~670 MB/s on 32 MiB of
-  random data), though the multiple-of-64 window precludes SIMD so it stays
-  slower in absolute terms than the small-window CDC algorithms here.
+  reimplementation of the algorithm (`refChunks` in the tests) rather than a
+  nested bench module: Duplicacy ships no consumable Go module (its pre-`go.mod`
+  tags no longer build against current transitive deps, its `v3` tags lack a
+  `/v3` path). That same reference is the throughput baseline —
+  `BenchmarkChunkMaker` runs `compat` and `reference` side by side. The buzhash
+  window is the whole minimum chunk size (megabytes), so `CreateChunkMaker`
+  defaults the hashing batch to ~8 windows to amortise `BatchBoundaries`
+  priming; `compat` still runs at ~0.85x of the single-pass `reference` (the
+  per-batch re-prime and the per-cut `Chunk.Hash` recompute), and the
+  multiple-of-64 window precludes SIMD, so it is slower in absolute terms than
+  the small-window CDC algorithms here.
 - `cdc/{fastcdc,ultracdc,jumpchunker}.NewChunkWriter(…)`: push-based
   `rollinghash.ChunkWriter` counterparts to `New`, fed via `Write`/`Close`
   instead of an `io.Reader` (for callers whose data arrives in pieces, e.g.
