@@ -11,6 +11,8 @@ import (
 	"github.com/chmduquesne/rollinghash/v4/cdc/fastcdc"
 	"github.com/chmduquesne/rollinghash/v4/cdc/jumpchunker"
 	"github.com/chmduquesne/rollinghash/v4/cdc/maxcdc"
+	"github.com/chmduquesne/rollinghash/v4/cdc/maxpcdc"
+	"github.com/chmduquesne/rollinghash/v4/cdc/ramcdc"
 	"github.com/chmduquesne/rollinghash/v4/cdc/repmaxcdc"
 	"github.com/chmduquesne/rollinghash/v4/cdc/repmaxsfxcdc"
 	"github.com/chmduquesne/rollinghash/v4/cdc/ultracdc"
@@ -95,6 +97,12 @@ func h2hAlgos() []struct {
 		}},
 		{"aecdc", func(r io.Reader) rollinghash.Chunker {
 			return aecdc.New(r, 7680, 64<<10)
+		}},
+		{"ramcdc", func(r io.Reader) rollinghash.Chunker {
+			return ramcdc.New(r, 8<<10-256, 64<<10)
+		}},
+		{"maxpcdc", func(r io.Reader) rollinghash.Chunker {
+			return maxpcdc.New(r, 870, 64<<10)
 		}},
 	}
 }

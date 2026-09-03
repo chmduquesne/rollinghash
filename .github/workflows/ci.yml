@@ -30,6 +30,9 @@ jobs:
     - name: Test
       run: go test -v ./...
 
+    - name: Test (purego - vectorscan SWAR fallback)
+      run: go test -tags purego ./...
+
     - name: Benchmark
       run: go test -bench=. ./...
 

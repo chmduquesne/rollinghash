@@ -25,6 +25,7 @@ import (
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/vectorscan"
 )
 
 // A Chunker splits an io.Reader into content-defined chunks using AE.
@@ -101,72 +102,43 @@ func (f *aeCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 		d = d[:f.max]
 	}
 	n := len(d)
-	min := f.min // hoist: keep the hot loop off struct fields
+	msz := f.min
 
-	// maxValue is the running maximum byte since the chunk start; nextCut is
-	// min bytes past its position — the cut point, reached once that many
-	// non-exceeding bytes have followed. Tracking nextCut directly avoids an
-	// add per byte.
+	// AE decomposed into VectorCDC's two primitives, producing the exact same
+	// boundaries as the plain scan (see refAE in chunker_test.go, and the
+	// buildbarn parity test): d[0] is the first target byte; a Range Scan finds
+	// the next byte strictly greater than the running maximum, and the chunk is
+	// cut min bytes past a target that no later byte in that window exceeds.
 	//
-	// The scan runs eight bytes per iteration. The recurrence is serial, but
-	// issuing the eight comparisons as a straight-line group (rather than one
-	// per loop turn behind the loop-bound and cut-point branches) lets them
-	// pipeline — ~30% faster here, and the Go compiler will not unroll it. The
-	// scalar tail loop below is the real specification.
+	// The classic scan cuts at chunk length i when byte d[i-1] is the running
+	// max and the min bytes after it are all <= it. maxPos tracks that target's
+	// i (its byte index is maxPos-1); c = maxPos + min is the candidate cut. The
+	// scan never inspects the final byte d[n-1], so the exceed search stops at
+	// n-1.
+	if n < 3 {
+		return n, false, uint64(d[n-1])
+	}
 	maxValue := d[0]
-	nextCut := 1 + min
-	i := 2
-	for ; i+8 <= n; i += 8 {
-		s := d[i-1 : i+7 : i+7]
-		if s[0] > maxValue {
-			maxValue, nextCut = s[0], i+min
-		} else if i == nextCut {
-			return i, true, uint64(maxValue)
+	maxPos := 1
+	for {
+		c := maxPos + msz
+		hi := min(c, n-1)
+		if maxPos >= hi {
+			// The scan runs out of bytes before reaching c: forced cut.
+			return n, false, uint64(d[n-1])
 		}
-		if s[1] > maxValue {
-			maxValue, nextCut = s[1], i+1+min
-		} else if i+1 == nextCut {
-			return i + 1, true, uint64(maxValue)
+		w := d[maxPos:hi]
+		if rel := vectorscan.IndexGT(w, maxValue); rel < len(w) {
+			e := maxPos + rel // byte index of the new, larger target
+			maxValue = d[e]
+			maxPos = e + 1
+			continue
 		}
-		if s[2] > maxValue {
-			maxValue, nextCut = s[2], i+2+min
-		} else if i+2 == nextCut {
-			return i + 2, true, uint64(maxValue)
+		if hi == c {
+			return c, true, uint64(maxValue)
 		}
-		if s[3] > maxValue {
-			maxValue, nextCut = s[3], i+3+min
-		} else if i+3 == nextCut {
-			return i + 3, true, uint64(maxValue)
-		}
-		if s[4] > maxValue {
-			maxValue, nextCut = s[4], i+4+min
-		} else if i+4 == nextCut {
-			return i + 4, true, uint64(maxValue)
-		}
-		if s[5] > maxValue {
-			maxValue, nextCut = s[5], i+5+min
-		} else if i+5 == nextCut {
-			return i + 5, true, uint64(maxValue)
-		}
-		if s[6] > maxValue {
-			maxValue, nextCut = s[6], i+6+min
-		} else if i+6 == nextCut {
-			return i + 6, true, uint64(maxValue)
-		}
-		if s[7] > maxValue {
-			maxValue, nextCut = s[7], i+7+min
-		} else if i+7 == nextCut {
-			return i + 7, true, uint64(maxValue)
-		}
+		return n, false, uint64(d[n-1])
 	}
-	for ; i < n; i++ {
-		if b := d[i-1]; b > maxValue {
-			maxValue, nextCut = b, i+min
-		} else if i == nextCut {
-			return i, true, uint64(maxValue)
-		}
-	}
-	return n, false, uint64(maxValue)
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
