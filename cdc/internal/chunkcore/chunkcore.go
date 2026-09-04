@@ -57,6 +57,13 @@ type CutFinder interface {
 	Window() int
 }
 
+// cutResetter is implemented by a CutFinder that carries state across Cut
+// calls (an amortized search that must not leak into the next stream after
+// Reset/ResetWriter).
+type cutResetter interface {
+	ResetCut()
+}
+
 // Core is the streaming buffer + iterator shared by the cdc chunkers.
 type Core struct {
 	r      io.Reader
@@ -121,6 +128,9 @@ func (c *Core) ResetWriter() {
 }
 
 func (c *Core) resetState() {
+	if r, ok := c.f.(cutResetter); ok {
+		r.ResetCut()
+	}
 	c.buf = c.buf[:0]
 	c.start = 0
 	c.offset = 0

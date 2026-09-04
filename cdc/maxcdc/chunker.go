@@ -31,6 +31,14 @@ import (
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/gearscan"
 )
 
+// cand is a candidate cut point kept on mxCut's monotonic stack: the Gear
+// fingerprint at the position, and its offset relative to the current avail
+// (rebased by each returned chunk length, mirroring buildbarn's discard).
+type cand struct {
+	hash uint64
+	end  int
+}
+
 // window is the number of trailing bytes the Gear fingerprint depends on. The
 // fingerprint is windowless but its 64-bit accumulator retains only the last 64
 // bytes, and MaxCDC seeds each search from exactly this many bytes.
@@ -94,17 +102,32 @@ func newCut(h rollinghash.Hash, minSize, maxSize int, opts []Option) *mxCut {
 	for _, opt := range opts {
 		opt(f)
 	}
+	f.stack = make([]cand, 0, f.peek/f.min+2)
 	return f
 }
 
-// mxCut is the MaxCDC cutpoint finder: a port of buildbarn/go-cdc's
-// simpleMaxChunkReader.ReadNextChunk.
+// mxCut is the MaxCDC cutpoint finder: a port of buildbarn/go-cdc's optimized
+// maxChunkReader.ReadNextChunk. It keeps a monotonic stack of candidate cut
+// points across calls so each input byte's Gear fingerprint is computed
+// exactly once over the whole stream, rather than being rescanned by every
+// chunk's horizon (which is what the naive port of simpleMaxChunkReader did,
+// and why it ran ~1.3x slower than buildbarn's real implementation).
 type mxCut struct {
 	g    [256]uint64
 	min  int
 	peek int // min + max, the read-ahead buildbarn peeks per chunk
 	buf  []byte
+
+	// stack holds, oldest-first, the chunk boundaries not yet emitted: entry 0
+	// is returned by the next Cut call, the rest carry forward. It mirrors
+	// buildbarn's r.chunks minus its permanent zero-value anchor slot (dropped
+	// here immediately after use instead of rebased to zero and kept).
+	stack []cand
 }
+
+// ResetCut clears the carried-over candidate stack so a Reset'd Chunker
+// starts identically to a fresh one.
+func (f *mxCut) ResetCut() { f.stack = f.stack[:0] }
 
 func (f *mxCut) MaxSize() int { return f.peek }
 
@@ -127,24 +150,84 @@ func (f *mxCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 
 	// Too little left to guarantee a >= min follow-up chunk: emit everything
 	// as one forced chunk. The core only calls Cut with fewer than MaxSize
-	// (>= 2*min) bytes at end of stream, so this is the EOF tail.
+	// (>= 2*min) bytes at end of stream, so this is the EOF tail. The stack is
+	// cleared since no further Cut call will need it rebased.
 	if len(d) < 2*min {
+		f.stack = f.stack[:0]
 		return len(d), false, 0
 	}
 
 	// Reserve the trailing min bytes for the next chunk.
 	d = d[:len(d)-min]
 
-	// Seed the fingerprint over the 64 bytes ending at the earliest legal cut.
 	g := &f.g
-	var seed uint64
-	for _, b := range d[min-window : min] {
-		seed = (seed << 1) + g[b]
+	var previous, current cand
+	var older []cand
+	if len(f.stack) >= 2 {
+		// Resume where the previous call left off: current is the boundary
+		// still being extended, previous is the last confirmed candidate
+		// behind it, older is the rest of the stack (strictly increasing
+		// hashes, oldest first).
+		previous, current = f.stack[len(f.stack)-2], f.stack[len(f.stack)-1]
+		older = append(f.stack[:0], f.stack[:len(f.stack)-2]...)
+	} else {
+		// First chunk of the stream (or the stack was cleared): seed the
+		// fingerprint over the 64 bytes ending at the earliest legal cut.
+		var h uint64
+		for _, b := range d[min-window : min] {
+			h = (h << 1) + g[b]
+		}
+		previous = cand{hash: h, end: min}
+		current = previous
+		older = f.stack[:0]
 	}
 
-	// Cut before the highest-fingerprint position in [min, len(d)].
-	off, fp := gearscan.Max(g, d, min, len(d), seed)
-	return min + off, true, fp
+	for {
+		// Hash up to the next min-sized block boundary past current, or to
+		// the end of the horizon, whichever comes first.
+		region := d[current.end:]
+		if m := min - (current.end - previous.end); len(region) > m {
+			region = region[:m]
+		}
+		if len(region) == 0 {
+			if current.end-previous.end == min {
+				// No new maximum found in this block: it can never be
+				// beaten by anything further out, so it's final.
+				older = append(older, previous)
+				previous = current
+				continue
+			}
+			// Reached the horizon. previous/current (plus anything left in
+			// older) are the stable stack for the next call; the oldest
+			// entry is the chunk to emit now.
+			f.stack = append(older, previous, current)
+			break
+		}
+		for i, b := range region {
+			current.hash = (current.hash << 1) + g[b]
+			if current.hash > previous.hash {
+				// New record: everything shallower on the stack that this
+				// beats can never be the argmax of any future horizon, so
+				// it's collapsed away.
+				for len(older) > 0 && current.hash > older[len(older)-1].hash {
+					older = older[:len(older)-1]
+				}
+				previous = cand{hash: current.hash, end: current.end + i + 1}
+			}
+		}
+		current.end += len(region)
+	}
+
+	first := f.stack[0]
+	for i := 1; i < len(f.stack); i++ {
+		f.stack[i].end -= first.end
+	}
+	// Drop index 0 by copying the rest down onto the same backing array
+	// (rather than reslicing f.stack[1:]), so the stack's capacity - and thus
+	// this whole function's amortized zero-alloc behavior - isn't eaten one
+	// element per chunk.
+	f.stack = append(f.stack[:0], f.stack[1:]...)
+	return first.end, true, first.hash
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
