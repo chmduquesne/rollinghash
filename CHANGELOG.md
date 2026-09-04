@@ -73,6 +73,16 @@
   `cdc/internal/vectorscan`: `BenchmarkChunker` ~10 GB/s on amd64 with AVX2, ~2.0
   without. Degrades toward `maxSize` on low-entropy data, where local maxima are
   rare.
+- `cdc/analyze`: a nested-module tool (`cd cdc/analyze && go run .`) that
+  downloads a fixed multi-format corpus — consecutive versions of source trees,
+  arXiv PDFs, docker images, Wikimedia SQL / OpenStreetMap database backups,
+  re-encoded photos/video, HF models/datasets — and runs every chunker here plus
+  the real `go-cdc-chunkers` ones over it at three real-world size targets
+  (`sync` 64 KiB ≈ casync, `artifact` 256 KiB ≈ Stadia/buildbarn, `backup` 1 MiB
+  ≈ restic/plakar; `min = target/32`, `max = target*8`), printing chunk-size
+  distribution, deduplication ratio and boundary-resync resistance per profile.
+  Methodology ported from `go-cdc-chunkers`' `cmd/cdc`. Kept out of the root
+  module's dependency graph.
 - `cdc/repmaxsfxcdc`: RepMaxSfxCDC ("repeated maximum, suffix"), from
   `buildbarn/go-cdc`. Same strict `[minSize, 2*minSize)` bound and `(minSize,
   horizon)` parameters as RepMaxCDC, but with no rolling hash: it cuts before the
