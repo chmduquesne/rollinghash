@@ -5,7 +5,7 @@
 //	cd cdc/compat/restic/bench && go test ./... && go test -bench . ./...
 module github.com/chmduquesne/rollinghash/v4/cdc/compat/restic/bench
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.24.4
 
