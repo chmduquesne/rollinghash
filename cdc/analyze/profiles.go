@@ -1,9 +1,15 @@
 package main
 
-// A profile is a chunk-size target. min and max are always derived as
-// target/32 and target*8, so the only thing that varies between profiles is the
-// target itself — every algorithm sees the same 1 : 32 : 256 size envelope,
-// just scaled.
+// minDiv and maxMul set the min/max envelope around every profile's target:
+// min = target/minDiv, max = target*maxMul.
+const (
+	minDiv = 2
+	maxMul = 8
+)
+
+// A profile is a chunk-size target. min and max are derived from it, so the
+// only thing that varies between profiles is the target itself — every
+// algorithm sees the same size envelope, just scaled.
 type profile struct {
 	name     string
 	target   int
@@ -31,8 +37,7 @@ func standardProfiles() []profile {
 // sizeOpts holds the concrete min / normal / max a chunker is configured with.
 type sizeOpts struct{ min, normal, max int }
 
-// sizesFor derives the min/max envelope from a target: min = target/32,
-// max = target*8.
+// sizesFor derives the min/max envelope from a target using minDiv / maxMul.
 func sizesFor(target int) sizeOpts {
-	return sizeOpts{min: max(64, target>>5), normal: target, max: target << 3}
+	return sizeOpts{min: max(64, target/minDiv), normal: target, max: target * maxMul}
 }
