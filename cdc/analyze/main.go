@@ -1,8 +1,8 @@
 // Command analyze downloads a fixed multi-format corpus (consecutive versions of
 // source trees, database backups, docker images, PDFs, photos, video, AI
-// models/datasets) and runs every CDC algorithm in this repo — plus the real
-// go-cdc-chunkers ones — over it at three real-world size targets, printing
-// chunk-size distribution, deduplication ratio and boundary-resync resistance.
+// models/datasets) and runs every CDC algorithm in this repo over it at three
+// real-world size targets, printing chunk-size distribution, deduplication
+// ratio and boundary-resync resistance.
 //
 //	cd cdc/analyze && go run .                 # all profiles, whole corpus
 //	go run . -profile backup -only wikimedia-sql

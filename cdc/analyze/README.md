@@ -1,13 +1,11 @@
 # cdc/analyze
 
-A one-command comparison of every content-defined chunker in this repo — plus
-the real `github.com/PlakarKorp/go-cdc-chunkers` algorithms — over a fixed
-multi-format, real-world corpus, at the chunk sizes production systems actually
-use.
+A one-command comparison of every content-defined chunker in this repo over a
+fixed multi-format, real-world corpus, at the chunk sizes production systems
+actually use.
 
-It is a **nested module** (own `go.mod`): pulling `go-cdc-chunkers` and its
-blake3 / cpuid deps here keeps them out of the dependency-free root, exactly like
-`cdc/compat/*/bench`.
+It is a **nested module** (own `go.mod`) so this tool's own dependencies never
+leak into the dependency-free root, exactly like `cdc/compat/*/bench`.
 
 ```sh
 cd cdc/analyze
@@ -34,8 +32,8 @@ scaled.
 | `artifact` | 256 KiB | 8 KiB | 2 MiB | Google Stadia `cdc_stream`, Bazel RE-API / buildbarn |
 | `backup` | 1 MiB | 32 KiB | 8 MiB | restic, plakar (borg 2 MiB, kopia 4 MiB) |
 
-`go-cdc-chunkers`' own library default is 8 KiB — an LBFS-era number that no
-production system ships; hence these three instead.
+8 KiB (the LBFS-era default some libraries still ship) is not one of these — no
+production system uses it; hence these three instead.
 
 ## What it measures
 
@@ -59,11 +57,8 @@ A cell that exceeds `-timeout` (default 90 s) shows `timeout` — expect this fo
 `repmaxsfxcdc` at the `backup` target (its full-horizon suffix rescan is
 `O(min·horizon)` per chunk).
 
-The `plakar/*` rows are `go-cdc-chunkers`' current spec implementations
-(`fastcdc-v1.0.0`, `jc-v1.1.0`, `ultracdc-v1.0.0`) — independent of this repo's,
-not the legacy variants our `cdc/compat/plakar` mirrors. `ultracdc` (both ours
-and upstream's) does not scale past ~64 KiB chunks regardless of the target you
-ask for; `maxpcdc`'s size is data-dependent and often far off target — the `avg`
+`ultracdc` does not scale past ~64 KiB chunks regardless of the target you ask
+for; `maxpcdc`'s size is data-dependent and often far off target — the `avg`
 column shows the reality in both cases.
 
 ## Corpus
