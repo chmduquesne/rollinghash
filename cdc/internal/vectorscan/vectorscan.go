@@ -10,10 +10,12 @@
 //
 // Unlike a rolling-hash boundary test, neither primitive has a serial byte
 // dependency, so both vectorize cleanly. On amd64 with AVX2 the scan runs on
-// 256-bit vectors (packed max/min, packed compare, move-mask); every other
-// build — non-amd64, or the purego tag — uses the plain byte-loop versions in
-// this file, which are also the behavioural specification the assembly is
-// tested against.
+// 256-bit vectors (packed max/min, packed compare, move-mask); on arm64 it
+// runs on 128-bit NEON vectors (packed max/min, packed compare, block-level
+// hit test with a scalar fallback to pinpoint the index). Every other build —
+// any other architecture, or the purego tag — uses the plain byte-loop
+// versions in this file, which are also the behavioural specification both
+// assembly paths are tested against.
 //
 // It is internal and not part of the public API. cdc/aecdc, cdc/ramcdc and
 // cdc/maxpcdc drive their cutpoint search with it.

@@ -60,6 +60,11 @@ func withPaths(t *testing.T, fn func(t *testing.T)) {
 			setAVX2(false)
 			defer setAVX2(saved)
 		}
+		if haveNEONPath {
+			saved := getNEON()
+			setNEON(false)
+			defer setNEON(saved)
+		}
 		fn(t)
 	})
 	if haveAVX2Path && getAVX2Default() {
@@ -67,6 +72,14 @@ func withPaths(t *testing.T, fn func(t *testing.T)) {
 			saved := getAVX2()
 			setAVX2(true)
 			defer setAVX2(saved)
+			fn(t)
+		})
+	}
+	if haveNEONPath && getNEONDefault() {
+		t.Run("neon", func(t *testing.T) {
+			saved := getNEON()
+			setNEON(true)
+			defer setNEON(saved)
 			fn(t)
 		})
 	}
