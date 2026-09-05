@@ -1,5 +1,6 @@
-// Package chunkcore is the shared streaming engine for the content-defined
-// chunkers in the cdc tree (jumpchunker, fastcdc, ultracdc). It keeps a buffer
+// Package cutcore is the shared streaming engine for the content-defined
+// chunkers in the cdc tree (aecdc, fastcdc, jumpchunker, maxcdc, maxpcdc,
+// ramcdc, repmaxcdc, repmaxsfxcdc, ultracdc). It keeps a buffer
 // holding at least one MaxSize window from the current chunk start and turns an
 // algorithm-specific CutFinder into a Next/Bytes iterator, driven either by an
 // io.Reader (New) or by Write/Close (NewWriter). It is internal and not part of
@@ -15,7 +16,7 @@
 // the next read. The buffer is sized (2*MaxSize + compactionSlack) so that, by
 // the time that happens, start has advanced well past MaxSize, making
 // compaction move proportionally fewer bytes than it frees.
-package chunkcore
+package cutcore
 
 import (
 	"io"

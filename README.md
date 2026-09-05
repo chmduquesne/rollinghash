@@ -1,7 +1,7 @@
 [![CI](https://github.com/chmduquesne/rollinghash/actions/workflows/ci.yml/badge.svg)](https://github.com/chmduquesne/rollinghash/actions/workflows/ci.yml)
 [![Coverage Status](https://codecov.io/gh/chmduquesne/rollinghash/branch/master/graph/badge.svg)](https://codecov.io/gh/chmduquesne/rollinghash)
 [![GoDoc Reference](https://pkg.go.dev/badge/github.com/chmduquesne/rollinghash/v4.svg)](https://pkg.go.dev/github.com/chmduquesne/rollinghash/v4)
-![Go 1.23+](https://img.shields.io/badge/go-1.23%2B-blue.svg)
+![Go 1.24+](https://img.shields.io/badge/go-1.24%2B-blue.svg)
 
 # Rolling Hashes
 
@@ -36,56 +36,39 @@ for _, c := range data[n:] {
 The hash maintains an internal copy of the rolling window. Use `WriteWindow` to
 read it back out.
 
-### Pull interfaces
+Beyond `Roll`, this library builds two higher-level capabilities on top of a
+rolling hash: [Content-Defined Chunking](#content-defined-chunking) and
+[Block Searching](#block-searching), each available as a pull interface
+(owns an `io.Reader`, driven via `Next`) or a push interface (fed via
+`Write`/`Close`, an `io.WriteCloser`) for callers who don't control how data
+arrives, e.g. through an `io.Writer` you have to implement, a callback API,
+or a network read loop.
 
-`BatchRoller` and `Chunker` operate on an `io.Reader`: they own the stream
-and pull data from it themselves via `Next`. Use these when the data is
-already available behind an `io.Reader`.
+A push interface's `Write` coalesces incoming bytes until a full batch is
+available (or `Close` is called), so the batched rolling-hash computation
+still runs on reasonably large batches even when the caller writes in small
+pieces; it runs in O(n) regardless of `Write` call size or count. `Write`
+returns `ErrClosed` if called after `Close`.
 
-#### BatchRoller
+## Content-Defined Chunking
 
-[`rollinghash.BatchRoller`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#BatchRoller)
-is designed for searching a block within a stream, rsync-style: the rolling
-checksum acts as a cheap filter, and a secondary check confirms the match.
-Computations are batched to exploit instruction-level parallelism, achieving
-about twice the throughput of `Roll`.
+Content-Defined Chunking (CDC) splits a stream into variable-length chunks
+at boundaries determined by local content rather than fixed offsets, so
+inserting or deleting bytes only disturbs the chunks next to the edit,
+which is the basis for deduplicating storage and efficient resync/transfer. This
+library offers two ways to do it: a generic mask-based `Chunker`/
+`ChunkWriter` built on top of any rolling hash, and a family of purpose-built
+packages implementing specific published CDC algorithms.
 
-```golang
-data := []byte("the quick brown fox jumps over the lazy dog")
-
-needle := []byte("brown")
-window := len(needle)
-
-h := buzhash64.New()
-h.Write(needle)
-target := h.Sum64()
-
-s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window)
-for s.Next() {
-    sums, buf := s.Sums(), s.Bytes()
-    for i, sum := range sums {
-        if sum == target && bytes.Equal(buf[i:i+window], needle) {
-            fmt.Printf("found %q at offset %d\n", needle, s.Offset()+i)
-        }
-    }
-}
-if err := s.Err(); err != nil {
-    log.Fatal(err)
-}
-```
-
-Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`, at
-stream position `Offset()+i`. Use `WithBufferSize` to control the batch size and
-`Reset` to reuse the batch roller across multiple streams without extra
-allocations.
+### Rolling-hash CDC (Chunker / ChunkWriter)
 
 #### Chunker
 
 [`rollinghash.Chunker`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Chunker)
-is designed for Content Defined Chunking (CDC). It uses the same batch
-optimization as the BatchRoller. The stream is split wherever the rolling
-checksum matches a mask. Use `WithBoundaries` to keep chunk sizes within a
-desired range.
+pulls from an `io.Reader`. It uses the same batch optimization as
+`BatchRoller` (see [Block Searching](#block-searching)). The stream is split
+wherever the rolling checksum matches a mask. Use `WithBoundaries` to keep
+chunk sizes within a desired range.
 
 ```golang
 // Generate 4KiB of pseudo-random data
@@ -117,65 +100,11 @@ if err := c.Err(); err != nil {
 Use `Reset` to reuse the chunker across multiple streams without extra
 allocations.
 
-### Push interfaces
-
-Use these when you don't control how the data arrives: it's pushed to you
-piece by piece, e.g. through an `io.Writer` you have to implement, a
-callback API, or a network read loop, rather than something you can wrap
-in an `io.Reader`. `BatchWriter` and `ChunkWriter` are fed via
-`Write`/`Close` (`io.WriteCloser`) instead of pulling from a stream
-themselves.
-
-`Write` coalesces incoming bytes until a full batch is available (or
-`Close` is called), so the batched rolling-hash computation still runs on
-reasonably large batches even when the caller writes in small pieces; it
-runs in O(n) regardless of `Write` call size or count. `Write` returns
-`ErrClosed` if called after `Close`.
-
-#### BatchWriter
-
-[`rollinghash.BatchWriter`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#BatchWriter)
-does rsync-style block search (like `BatchRoller`) over data delivered via
-`Write`.
-
-```golang
-needle := []byte("brown")
-window := len(needle)
-
-h := buzhash64.New()
-h.Write(needle)
-target := h.Sum64()
-
-w := rollinghash.NewBatchWriter(buzhash64.New(), window)
-
-// Data can arrive in arbitrarily sized pieces; boundary-straddling
-// windows are still found across Write calls.
-for _, p := range [][]byte{[]byte("the quick brown fox "), []byte("jumps over the lazy dog")} {
-    w.Write(p)
-    for w.Next() {
-        sums, buf := w.Sums(), w.Bytes()
-        for i, sum := range sums {
-            if sum == target && bytes.Equal(buf[i:i+window], needle) {
-                fmt.Printf("found %q at offset %d\n", needle, w.Offset()+i)
-            }
-        }
-    }
-}
-w.Close()
-for w.Next() {
-    // drain any data buffered below one batch
-}
-if err := w.Err(); err != nil {
-    log.Fatal(err)
-}
-```
-
-Use `WithBufferSize` to control the coalescing threshold.
-
 #### ChunkWriter
 
 [`rollinghash.ChunkWriter`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#ChunkWriter)
-does Content Defined Chunking (like `Chunker`) over data delivered via `Write`.
+does the same Content Defined Chunking as `Chunker`, over data delivered via
+`Write`.
 
 ```golang
 // Generate 4KiB of pseudo-random data
@@ -211,6 +140,204 @@ if err := cw.Err(); err != nil {
 ```
 
 Use `WithBatchSize` to control the coalescing threshold.
+
+### Other CDC algorithms
+
+Beyond `rollinghash.Chunker`/`ChunkWriter`, the `cdc/` subtree provides
+purpose-built chunkers implementing several published CDC algorithms.
+Each exposes the same `New` (pull, over an `io.Reader`) /
+`NewChunkWriter` (push, via `Write`/`Close`) pair as the core package: the
+`*Chunker` returned by `New` satisfies `rollinghash.Chunker`, and the
+`*ChunkWriter` returned by `NewChunkWriter` satisfies
+`rollinghash.ChunkWriter`, so code written against those two interfaces
+works unchanged against any of them.
+
+* [`cdc/fastcdc`](cdc/fastcdc) implements FastCDC (Xia et al., 2016), a
+  windowless Gear fingerprint with normalized chunking and cut-point skipping.
+* [`cdc/ultracdc`](cdc/ultracdc) implements UltraCDC, a hashless algorithm
+  that slides an 8-byte window and cuts on Hamming distance to a constant
+  pattern.
+* [`cdc/jumpchunker`](cdc/jumpchunker) implements Jump Chunking (JC), a
+  dual-mask Gear fingerprint that jumps ahead on a mask miss instead of
+  stepping byte by byte, trading boundary placement for throughput.
+* [`cdc/maxcdc`](cdc/maxcdc) implements MaxCDC, which cuts at the maximum of
+  a windowless Gear fingerprint over a read-ahead horizon, giving a strict
+  `[minSize, maxSize]` bound with no probabilistic tail.
+* [`cdc/repmaxcdc`](cdc/repmaxcdc) / [`cdc/repmaxsfxcdc`](cdc/repmaxsfxcdc)
+  implement RepMaxCDC, which refines MaxCDC into a strict `[minSize,
+  2*minSize)` bound.
+* [`cdc/aecdc`](cdc/aecdc) implements AE (Asymmetric Extremum), a hashless
+  algorithm that cuts a fixed distance after the running maximum byte value
+  settles.
+* [`cdc/ramcdc`](cdc/ramcdc) implements RAM (Rapid Asymmetric Maximum), a
+  hashless algorithm that pairs a fixed window maximum with an unbounded
+  forward scan.
+* [`cdc/maxpcdc`](cdc/maxpcdc) implements MAXP, a hashless algorithm that
+  cuts at a local maximum byte over a sliding two-window range.
+
+For example, `cdc/fastcdc` takes the same pull/push shape as the core
+package, plus a `minSize`/`normalSize`/`maxSize` triple in place of a single
+mask:
+
+```golang
+// Repeatable pseudo-random data (xorshift), so boundaries are stable.
+data := make([]byte, 64*1024)
+x := uint32(1)
+for i := range data {
+    x ^= x << 13
+    x ^= x >> 17
+    x ^= x << 5
+    data[i] = byte(x)
+}
+
+c := fastcdc.New(bytes.NewReader(data), gearhash64.New(), 1024, 4096, 16384)
+
+total, chunks := 0, 0
+for c.Next() {
+    total += len(c.Bytes())
+    chunks++
+}
+if err := c.Err(); err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("split %d bytes into %d chunks\n", total, chunks)
+// Output:
+// split 65536 bytes into 14 chunks
+```
+
+`ramcdc`, `maxpcdc` and `aecdc` are accelerated by VectorCDC (AVX2 on amd64,
+with a portable fallback elsewhere) without changing boundaries.
+
+`cdc/analyze` is a standalone tool (separate Go module) that benchmarks
+dedup ratio, chunk size distribution and resync behavior of every chunker
+over a downloaded multi-format corpus.
+
+See [CHANGELOG.md](CHANGELOG.md) and each package's doc comment for further
+detail.
+
+### Compatibility layers
+
+`cdc/compat/` holds drop-in layers verified byte-for-byte against real
+upstream implementations: [`buildbarn`](cdc/compat/buildbarn),
+[`plakar`](cdc/compat/plakar), [`restic`](cdc/compat/restic) and
+[`boxo`](cdc/compat/boxo). Each
+mirrors its upstream package's own consumer API (same type and function
+names, same signatures), so adopting one is just a change of import path.
+For example, `cdc/compat/restic` mirrors `github.com/restic/chunker`:
+
+```golang
+import restic "github.com/chmduquesne/rollinghash/v4/cdc/compat/restic"
+
+data := make([]byte, 48*1024)
+x := uint32(1)
+for i := range data {
+    x ^= x << 13
+    x ^= x >> 17
+    x ^= x << 5
+    data[i] = byte(x)
+}
+
+c := restic.New(bytes.NewReader(data), restic.Pol(0x3DA3358B4DC173),
+    restic.WithBoundaries(512, 8192), restic.WithAverageBits(10))
+
+total, chunks := 0, 0
+for {
+    chunk, err := c.Next(nil)
+    if err == io.EOF {
+        break
+    }
+    if err != nil {
+        log.Fatal(err)
+    }
+    total += int(chunk.Length)
+    chunks++
+}
+fmt.Printf("split %d bytes into %d chunks\n", total, chunks)
+// Output:
+// split 49152 bytes into 36 chunks
+```
+
+## Block Searching
+
+Block searching looks for a known block of bytes within a stream,
+rsync-style: the rolling checksum acts as a cheap filter, and a secondary
+check confirms the match.
+
+### BatchRoller
+
+[`rollinghash.BatchRoller`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#BatchRoller)
+pulls from an `io.Reader`. Computations are batched to exploit
+instruction-level parallelism, achieving about twice the throughput of
+`Roll`.
+
+```golang
+data := []byte("the quick brown fox jumps over the lazy dog")
+
+needle := []byte("brown")
+window := len(needle)
+
+h := buzhash64.New()
+h.Write(needle)
+target := h.Sum64()
+
+s := rollinghash.NewBatchRoller(bytes.NewReader(data), buzhash64.New(), window)
+for s.Next() {
+    sums, buf := s.Sums(), s.Bytes()
+    for i, sum := range sums {
+        if sum == target && bytes.Equal(buf[i:i+window], needle) {
+            fmt.Printf("found %q at offset %d\n", needle, s.Offset()+i)
+        }
+    }
+}
+if err := s.Err(); err != nil {
+    log.Fatal(err)
+}
+```
+
+Within each batch, `Sums()[i]` is the checksum of `Bytes()[i:i+window]`, at
+stream position `Offset()+i`. Use `WithBufferSize` to control the batch size and
+`Reset` to reuse the batch roller across multiple streams without extra
+allocations.
+
+### BatchWriter
+
+[`rollinghash.BatchWriter`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#BatchWriter)
+does the same rsync-style block search as `BatchRoller`, over data delivered
+via `Write`.
+
+```golang
+needle := []byte("brown")
+window := len(needle)
+
+h := buzhash64.New()
+h.Write(needle)
+target := h.Sum64()
+
+w := rollinghash.NewBatchWriter(buzhash64.New(), window)
+
+// Data can arrive in arbitrarily sized pieces; boundary-straddling
+// windows are still found across Write calls.
+for _, p := range [][]byte{[]byte("the quick brown fox "), []byte("jumps over the lazy dog")} {
+    w.Write(p)
+    for w.Next() {
+        sums, buf := w.Sums(), w.Bytes()
+        for i, sum := range sums {
+            if sum == target && bytes.Equal(buf[i:i+window], needle) {
+                fmt.Printf("found %q at offset %d\n", needle, w.Offset()+i)
+            }
+        }
+    }
+}
+w.Close()
+for w.Next() {
+    // drain any data buffered below one batch
+}
+if err := w.Err(); err != nil {
+    log.Fatal(err)
+}
+```
+
+Use `WithBufferSize` to control the coalescing threshold.
 
 ## Gotchas
 

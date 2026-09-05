@@ -2,7 +2,7 @@ package maxcdc
 
 import (
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
 )
 
 // A ChunkWriter is the push-based counterpart to Chunker: fed via Write/Close
@@ -12,7 +12,7 @@ import (
 // more and try again. After Close, Next returning false means every chunk has
 // been emitted.
 type ChunkWriter struct {
-	core *chunkcore.Core
+	core *cutcore.Core
 }
 
 var _ rollinghash.ChunkWriter = (*ChunkWriter)(nil)
@@ -22,7 +22,7 @@ var _ rollinghash.ChunkWriter = (*ChunkWriter)(nil)
 // parameters are identical to New. It implements rollinghash.ChunkWriter.
 func NewChunkWriter(h rollinghash.Hash, minSize, maxSize int, opts ...Option) *ChunkWriter {
 	f := newCut(h, minSize, maxSize, opts)
-	return &ChunkWriter{core: chunkcore.NewWriter(f, f.buf)}
+	return &ChunkWriter{core: cutcore.NewWriter(f, f.buf)}
 }
 
 // Write feeds p into the chunker; it always consumes all of p and returns

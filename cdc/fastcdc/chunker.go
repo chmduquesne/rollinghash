@@ -24,7 +24,7 @@ import (
 	"math"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/gearscan"
 )
 
@@ -55,7 +55,7 @@ type gearTabler interface {
 //
 // The hash must expose Table() (gearhash64 does); New panics otherwise.
 type Chunker struct {
-	core *chunkcore.Core
+	core *cutcore.Core
 }
 
 var _ rollinghash.Chunker = (*Chunker)(nil)
@@ -90,7 +90,7 @@ func WithInclusiveBoundary() Option {
 // with an average near normalSize. h must expose Table(); New panics otherwise.
 func New(r io.Reader, h rollinghash.Hash, minSize, normalSize, maxSize int, opts ...Option) *Chunker {
 	f := newCut(h, minSize, normalSize, maxSize, opts)
-	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+	return &Chunker{core: cutcore.New(r, f, f.buf)}
 }
 
 func newCut(h rollinghash.Hash, minSize, normalSize, maxSize int, opts []Option) *fcCut {

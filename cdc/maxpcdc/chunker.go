@@ -26,7 +26,7 @@ import (
 	"io"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/vectorscan"
 )
 
@@ -39,7 +39,7 @@ import (
 //	}
 //	if err := c.Err(); err != nil { ... }
 type Chunker struct {
-	core *chunkcore.Core
+	core *cutcore.Core
 }
 
 var _ rollinghash.Chunker = (*Chunker)(nil)
@@ -59,7 +59,7 @@ func WithBuffer(buf []byte) Option {
 // may be shorter. New panics if windowSize < 1 or maxSize < 2*windowSize+1.
 func New(r io.Reader, windowSize, maxSize int, opts ...Option) *Chunker {
 	f := newCut(windowSize, maxSize, opts)
-	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+	return &Chunker{core: cutcore.New(r, f, f.buf)}
 }
 
 func newCut(windowSize, maxSize int, opts []Option) *maxpCut {
