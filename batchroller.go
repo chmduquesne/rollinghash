@@ -193,10 +193,10 @@ func (c *batcher) WindowSize() int { return c.window }
 // Bytes() are valid only until the next call to Next. An input shorter than
 // window yields no batches.
 type batchRoller struct {
-	bt *batcher
+	batcher *batcher
 
 	r        io.Reader
-	readSize int // bytes to pull per Read batch, == bt.batchSize
+	readSize int // bytes to pull per Read batch, == batcher.batchSize
 }
 
 var _ BatchRoller = (*batchRoller)(nil)
@@ -211,7 +211,7 @@ func NewBatchRoller(r io.Reader, h Hash, window int, opts ...batchRollerOption) 
 		opt(bt)
 	}
 	return &batchRoller{
-		bt:       bt,
+		batcher:  bt,
 		r:        r,
 		readSize: bt.batchSize,
 	}
@@ -222,21 +222,21 @@ func NewBatchRoller(r io.Reader, h Hash, window int, opts ...batchRollerOption) 
 // It lets one batchRoller process many streams without reallocating.
 func (s *batchRoller) Reset(r io.Reader) {
 	s.r = r
-	s.bt.reset()
+	s.batcher.reset()
 }
 
 // Next loads the next batch, returning false at end of input or on the first
 // error. After it returns false, Err reports any error other than io.EOF.
 func (s *batchRoller) Next() bool {
 	for {
-		switch s.bt.next() {
+		switch s.batcher.next() {
 		case emitted:
 			return true
 		case stepDone:
 			return false
 		case needMore:
 			if !s.fillBatcher() {
-				if s.bt.err != nil {
+				if s.batcher.err != nil {
 					return false
 				}
 				// Reader exhausted; loop back so next() can emit the final
@@ -248,12 +248,12 @@ func (s *batchRoller) Next() bool {
 
 // fillBatcher reads the next block from r straight into the batcher's
 // accumulator (no intermediate buffer) and returns false once the reader is
-// exhausted (bt.finish has been called) or on error (bt.err is set).
+// exhausted (batcher.finish has been called) or on error (batcher.err is set).
 func (s *batchRoller) fillBatcher() bool {
-	if s.bt.eof {
+	if s.batcher.eof {
 		return false
 	}
-	buf := s.bt.readTail(s.readSize)
+	buf := s.batcher.readTail(s.readSize)
 	n := 0
 	eof := false
 	for n < len(buf) && !eof {
@@ -262,14 +262,14 @@ func (s *batchRoller) fillBatcher() bool {
 		if err == io.EOF {
 			eof = true
 		} else if err != nil {
-			s.bt.commitTail(n)
-			s.bt.err = err
+			s.batcher.commitTail(n)
+			s.batcher.err = err
 			return false
 		}
 	}
-	s.bt.commitTail(n)
+	s.batcher.commitTail(n)
 	if eof {
-		s.bt.finish()
+		s.batcher.finish()
 		return false
 	}
 	return true
@@ -278,20 +278,20 @@ func (s *batchRoller) fillBatcher() bool {
 // Sums returns the checksums of the current batch, one per window position.
 // It is valid only until the next call to Next. Before the first call to
 // Next, and after Next returns false, Sums returns nil.
-func (s *batchRoller) Sums() []uint64 { return s.bt.Sums() }
+func (s *batchRoller) Sums() []uint64 { return s.batcher.Sums() }
 
 // Bytes returns the bytes of the current batch. Sums()[i] is the checksum of
 // Bytes()[i:i+window]. It is valid only until the next call to Next. Before
 // the first call to Next, and after Next returns false, Bytes returns nil.
-func (s *batchRoller) Bytes() []byte { return s.bt.Bytes() }
+func (s *batchRoller) Bytes() []byte { return s.batcher.Bytes() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (s *batchRoller) Err() error { return s.bt.Err() }
+func (s *batchRoller) Err() error { return s.batcher.Err() }
 
 // Offset returns the stream position of Bytes()[0] in the current batch.
 // Sums()[i] is the checksum of the window starting at Offset()+i.
 // Before the first call to Next, and after Next returns false, Offset returns 0.
-func (s *batchRoller) Offset() int { return s.bt.Offset() }
+func (s *batchRoller) Offset() int { return s.batcher.Offset() }
 
 // WindowSize returns the rolling window size passed to NewBatchRoller.
-func (s *batchRoller) WindowSize() int { return s.bt.WindowSize() }
+func (s *batchRoller) WindowSize() int { return s.batcher.WindowSize() }

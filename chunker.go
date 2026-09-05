@@ -399,7 +399,7 @@ func (c *splitter) WindowSize() int { return c.window }
 // checksum stream is materialized). The hash must implement BatchBoundaries;
 // Newchunker panics otherwise.
 type chunker struct {
-	sp *splitter
+	splitter *splitter
 
 	r        io.Reader
 	readSize int // bytes to pull per Read batch, == max(batchSize, window)
@@ -478,7 +478,7 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, opts ...chunkerOpt
 		opt(sp)
 	}
 	return &chunker{
-		sp:       sp,
+		splitter: sp,
 		r:        r,
 		readSize: max(sp.batchSize, window),
 	}
@@ -487,21 +487,21 @@ func NewChunker(r io.Reader, h Hash, window int, mask uint64, opts ...chunkerOpt
 // Reset prepares the chunker to split r from the start, reusing its buffers.
 func (c *chunker) Reset(r io.Reader) {
 	c.r = r
-	c.sp.reset()
+	c.splitter.reset()
 }
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error. After it returns false, Err reports any error other than EOF.
 func (c *chunker) Next() bool {
 	for {
-		switch c.sp.next() {
+		switch c.splitter.next() {
 		case emitted:
 			return true
 		case stepDone:
 			return false
 		case needMore:
 			if !c.fillSplitter() {
-				if c.sp.err != nil {
+				if c.splitter.err != nil {
 					return false
 				}
 				// Reader exhausted; loop back so next() can flush the
@@ -513,12 +513,12 @@ func (c *chunker) Next() bool {
 
 // fillSplitter reads the next block from r straight into the splitter's chunk
 // accumulator (no intermediate buffer) and returns false once the reader is
-// exhausted (sp.finish has been called) or on error (sp.err is set).
+// exhausted (splitter.finish has been called) or on error (splitter.err is set).
 func (c *chunker) fillSplitter() bool {
-	if c.sp.eof {
+	if c.splitter.eof {
 		return false
 	}
-	buf := c.sp.readTail(c.readSize)
+	buf := c.splitter.readTail(c.readSize)
 	n := 0
 	eof := false
 	for n < len(buf) && !eof {
@@ -527,14 +527,14 @@ func (c *chunker) fillSplitter() bool {
 		if err == io.EOF {
 			eof = true
 		} else if err != nil {
-			c.sp.commitTail(n)
-			c.sp.err = err
+			c.splitter.commitTail(n)
+			c.splitter.err = err
 			return false
 		}
 	}
-	c.sp.commitTail(n)
+	c.splitter.commitTail(n)
 	if eof {
-		c.sp.finish()
+		c.splitter.finish()
 		return false
 	}
 	return true
@@ -542,26 +542,26 @@ func (c *chunker) fillSplitter() bool {
 
 // Bytes returns the current chunk, valid until the next call to Next. Before
 // the first call to Next, and after Next returns false, Bytes returns nil.
-func (c *chunker) Bytes() []byte { return c.sp.Bytes() }
+func (c *chunker) Bytes() []byte { return c.splitter.Bytes() }
 
 // Sum returns the rolling checksum of the window ending at the current chunk's
 // cut, whether the cut was a mask hit, a forced cut at max, or the end of the
 // stream. It is 0 only for a final chunk whose stream has fewer than window
 // bytes. Before the first call to Next, and after Next returns false, Sum
 // returns 0.
-func (c *chunker) Sum() uint64 { return c.sp.Sum() }
+func (c *chunker) Sum() uint64 { return c.splitter.Sum() }
 
 // ContentDefined reports whether the current chunk was cut by the mask (true) rather
 // than forced at max or at end of stream (false). Before the first call to
 // Next, and after Next returns false, ContentDefined returns false.
-func (c *chunker) ContentDefined() bool { return c.sp.ContentDefined() }
+func (c *chunker) ContentDefined() bool { return c.splitter.ContentDefined() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *chunker) Err() error { return c.sp.Err() }
+func (c *chunker) Err() error { return c.splitter.Err() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
 // Before the first call to Next, and after Next returns false, Offset returns 0.
-func (c *chunker) Offset() int { return c.sp.Offset() }
+func (c *chunker) Offset() int { return c.splitter.Offset() }
 
 // WindowSize returns the rolling window size passed to NewChunker.
-func (c *chunker) WindowSize() int { return c.sp.WindowSize() }
+func (c *chunker) WindowSize() int { return c.splitter.WindowSize() }
