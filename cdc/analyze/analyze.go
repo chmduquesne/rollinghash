@@ -88,6 +88,13 @@ func (r *result) distribution() distribution {
 // measure chunks every file in order with one shared digest set, so duplication
 // across the ordered versions of a dataset drives the dedup ratio. Files are
 // streamed from disk and never fully held in memory.
+//
+// The per-chunk SHA-256 (needed for dedup bookkeeping) is timed separately and
+// subtracted out, so throughputMBs reflects chunking alone. Left in, it would
+// cap every algorithm near SHA-256's own throughput (~1.6 GB/s on a modern
+// CPU) and hide the gap between hash-per-byte chunkers and the vector-scan,
+// hashless ones (jumpchunker, aecdc), which chunk several times faster than
+// that on their own.
 func measure(ctx context.Context, algorithm string, cf chunkFunc, paths []string) (*result, error) {
 	res := &result{algorithm: algorithm, files: len(paths), resyncShared: -1}
 	seen := make(map[[32]byte]struct{})
@@ -97,8 +104,10 @@ func measure(ctx context.Context, algorithm string, cf chunkFunc, paths []string
 		if err != nil {
 			return nil, err
 		}
+		var overhead time.Duration
 		start := time.Now()
 		err = cf(ctx, f, func(c []byte) {
+			cbStart := time.Now()
 			res.chunks++
 			res.totalBytes += int64(len(c))
 			res.lengths = append(res.lengths, len(c))
@@ -108,8 +117,9 @@ func measure(ctx context.Context, algorithm string, cf chunkFunc, paths []string
 				res.uniqueChunk++
 				res.uniqueBytes += int64(len(c))
 			}
+			overhead += time.Since(cbStart)
 		})
-		res.duration += time.Since(start)
+		res.duration += time.Since(start) - overhead
 		f.Close()
 		if err != nil {
 			return nil, err
