@@ -24,7 +24,11 @@ import (
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
 )
 
-// readBlock is how many bytes Core pulls from the reader per fill.
+// readBlock is the minimum tail room fill() insists on before issuing a Read:
+// below it, fill() compacts (or, failing that, grows) the buffer first. It is
+// not how much fill() reads — fill() always reads into the entire available
+// tail, however large, since Cut processes whatever ends up buffered in one
+// call regardless of how many Read calls assembled it.
 const readBlock = 16 << 10
 
 // compactionSlack is the spare tail room kept beyond the 2*MaxSize a full
@@ -261,9 +265,15 @@ func (c *Core) compact() {
 	c.start = keep
 }
 
-// fill drops the consumed prefix if buf has no tail room, then reads one
-// readBlock into buf's tail. It returns false on reader error (with err set);
-// io.EOF sets eof and is not an error.
+// fill drops the consumed prefix if buf has too little tail room, then issues
+// one Read call sized to all the room currently available in buf's tail (at
+// least readBlock, growing the buffer first if that minimum isn't met). One
+// large Read turns what would otherwise be many small reader syscalls (the
+// old behavior capped every Read at readBlock, so filling a MaxSize window
+// took dozens of them) into as few as one for a disk-backed reader, with no
+// downside: Cut (in Next) processes whatever ends up buffered in a single
+// call regardless of how many Read calls assembled it. It returns false on
+// reader error (with err set); io.EOF sets eof and is not an error.
 func (c *Core) fill() bool {
 	if cap(c.buf)-len(c.buf) < readBlock {
 		c.compact()
@@ -274,21 +284,18 @@ func (c *Core) fill() bool {
 		}
 	}
 	base := len(c.buf)
-	c.buf = c.buf[:base+readBlock]
-	nread := 0
-	for nread < readBlock && !c.eof {
-		m, err := c.r.Read(c.buf[base+nread : base+readBlock])
-		nread += m
-		switch {
-		case err == io.EOF:
-			c.eof = true
-		case err != nil:
-			c.err = err
-			c.buf = c.buf[:base+nread]
-			return false
-		}
+	target := cap(c.buf)
+	c.buf = c.buf[:target]
+	m, err := c.r.Read(c.buf[base:target])
+	switch {
+	case err == io.EOF:
+		c.eof = true
+	case err != nil:
+		c.err = err
+		c.buf = c.buf[:base+m]
+		return false
 	}
-	c.buf = c.buf[:base+nread]
+	c.buf = c.buf[:base+m]
 	return true
 }
 
