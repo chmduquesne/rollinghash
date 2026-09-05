@@ -9,7 +9,7 @@ const defaultBatchRollerBufSize = 1 << 16 // 64 KiB
 
 // batchRollerOption is a functional option shared by NewBatchRoller and
 // NewBatchWriter.
-type batchRollerOption func(*batchRollerCore)
+type batchRollerOption func(*batcher)
 
 // WithBufferSize sets the batch size in bytes: how many bytes worth of
 // checksums are computed per Next(). A larger value means larger batches and
@@ -22,14 +22,14 @@ type batchRollerOption func(*batchRollerCore)
 // can't share one name since Go doesn't support overloading a function
 // name across the two distinct option types.
 func WithBufferSize(n int) batchRollerOption {
-	return func(c *batchRollerCore) { c.batchSize = n }
+	return func(c *batcher) { c.batchSize = n }
 }
 
-// batchRollerCore holds all rolling-checksum batching state that doesn't
+// batcher holds all rolling-checksum batching state that doesn't
 // depend on how bytes arrive: the byte accumulator and the logic that turns
 // it into aligned (Bytes, Sums) batches. batchRoller (pull, io.Reader) and
 // batchWriter (push, io.Writer) are both thin wrappers around one.
-type batchRollerCore struct {
+type batcher struct {
 	br        hashBatchRoller
 	window    int
 	batchSize int
@@ -48,12 +48,12 @@ type batchRollerCore struct {
 	err  error
 }
 
-func newBatchRollerCore(h Hash, window, batchSize int) *batchRollerCore {
+func newBatcher(h Hash, window, batchSize int) *batcher {
 	br, ok := h.(hashBatchRoller)
 	if !ok {
 		panic("rollinghash: BatchRoller requires BatchRoll; use Roll directly for hashes without BatchRoll")
 	}
-	return &batchRollerCore{
+	return &batcher{
 		br:        br,
 		window:    window,
 		batchSize: max(batchSize, window),
@@ -62,7 +62,7 @@ func newBatchRollerCore(h Hash, window, batchSize int) *batchRollerCore {
 
 // reset clears all buffered state for reuse with a new stream, keeping
 // internal allocations (buf, sumsStore).
-func (c *batchRollerCore) reset() {
+func (c *batcher) reset() {
 	c.buf = c.buf[:0]
 	c.carry = 0
 	c.prevN = 0
@@ -77,10 +77,10 @@ func (c *batchRollerCore) reset() {
 
 // finish signals that no more data will ever arrive, so next() can emit the
 // final, possibly short, batch instead of returning needMore.
-func (c *batchRollerCore) finish() { c.eof = true }
+func (c *batcher) finish() { c.eof = true }
 
 // feed appends newBytes (bytes not previously seen) to the accumulator.
-func (c *batchRollerCore) feed(newBytes []byte) {
+func (c *batcher) feed(newBytes []byte) {
 	c.buf = append(c.buf, newBytes...)
 }
 
@@ -90,8 +90,8 @@ func (c *batchRollerCore) feed(newBytes []byte) {
 // batchRoller read from its io.Reader directly into the accumulator instead
 // of bouncing every byte through a separate read buffer. next() has already
 // dropped the previously emitted prefix by the time this runs, so unlike
-// chunkerCore.readTail there is nothing to compact here.
-func (c *batchRollerCore) readTail(n int) []byte {
+// splitter.readTail there is nothing to compact here.
+func (c *batcher) readTail(n int) []byte {
 	l := len(c.buf)
 	if cap(c.buf) < l+n {
 		// Amortized (doubling) growth, like append, so buf's backing array
@@ -106,17 +106,17 @@ func (c *batchRollerCore) readTail(n int) []byte {
 
 // commitTail marks the first n bytes of the slice returned by readTail as
 // filled and part of the stream.
-func (c *batchRollerCore) commitTail(n int) { c.buf = c.buf[:len(c.buf)+n] }
+func (c *batcher) commitTail(n int) { c.buf = c.buf[:len(c.buf)+n] }
 
 // next attempts one non-blocking batch emission from currently buffered
 // state. It returns needMore if fewer than window bytes are available yet
 // and finish hasn't been called.
-func (c *batchRollerCore) next() coreState {
+func (c *batcher) next() stepResult {
 	if c.err != nil || c.done {
 		c.data = nil
 		c.sums = nil
 		c.offset = 0
-		return coreDone
+		return stepDone
 	}
 
 	// Advance past the new bytes yielded by the previous batch (all but the
@@ -142,7 +142,7 @@ func (c *batchRollerCore) next() coreState {
 			c.data = nil
 			c.sums = nil
 			c.offset = 0
-			return coreDone
+			return stepDone
 		}
 		return needMore
 	}
@@ -170,19 +170,19 @@ func (c *batchRollerCore) next() coreState {
 
 // Bytes returns the bytes of the current batch, valid until the next call
 // to Next.
-func (c *batchRollerCore) Bytes() []byte { return c.data }
+func (c *batcher) Bytes() []byte { return c.data }
 
 // Sums returns the checksums of the current batch, one per window position.
-func (c *batchRollerCore) Sums() []uint64 { return c.sums }
+func (c *batcher) Sums() []uint64 { return c.sums }
 
 // Err returns the first non-EOF error encountered, if any.
-func (c *batchRollerCore) Err() error { return c.err }
+func (c *batcher) Err() error { return c.err }
 
 // Offset returns the stream position of Bytes()[0] in the current batch.
-func (c *batchRollerCore) Offset() int { return c.offset }
+func (c *batcher) Offset() int { return c.offset }
 
 // WindowSize returns the rolling window size.
-func (c *batchRollerCore) WindowSize() int { return c.window }
+func (c *batcher) WindowSize() int { return c.window }
 
 // batchRoller walks an io.Reader and yields, in batches, the rolling checksum
 // at every window position together with the bytes those checksums cover.
@@ -193,10 +193,10 @@ func (c *batchRollerCore) WindowSize() int { return c.window }
 // Bytes() are valid only until the next call to Next. An input shorter than
 // window yields no batches.
 type batchRoller struct {
-	core *batchRollerCore
+	bt *batcher
 
 	r        io.Reader
-	readSize int // bytes to pull per Read batch, == core.batchSize
+	readSize int // bytes to pull per Read batch, == bt.batchSize
 }
 
 var _ BatchRoller = (*batchRoller)(nil)
@@ -206,14 +206,14 @@ var _ BatchRoller = (*batchRoller)(nil)
 // call Reset before the first Next to defer stream attachment. Use WithBufferSize
 // to control the batch size (default 64 KiB).
 func NewBatchRoller(r io.Reader, h Hash, window int, opts ...batchRollerOption) BatchRoller {
-	core := newBatchRollerCore(h, window, defaultBatchRollerBufSize)
+	bt := newBatcher(h, window, defaultBatchRollerBufSize)
 	for _, opt := range opts {
-		opt(core)
+		opt(bt)
 	}
 	return &batchRoller{
-		core:     core,
+		bt:       bt,
 		r:        r,
-		readSize: core.batchSize,
+		readSize: bt.batchSize,
 	}
 }
 
@@ -222,38 +222,38 @@ func NewBatchRoller(r io.Reader, h Hash, window int, opts ...batchRollerOption) 
 // It lets one batchRoller process many streams without reallocating.
 func (s *batchRoller) Reset(r io.Reader) {
 	s.r = r
-	s.core.reset()
+	s.bt.reset()
 }
 
 // Next loads the next batch, returning false at end of input or on the first
 // error. After it returns false, Err reports any error other than io.EOF.
 func (s *batchRoller) Next() bool {
 	for {
-		switch s.core.next() {
+		switch s.bt.next() {
 		case emitted:
 			return true
-		case coreDone:
+		case stepDone:
 			return false
 		case needMore:
-			if !s.fillCore() {
-				if s.core.err != nil {
+			if !s.fillBatcher() {
+				if s.bt.err != nil {
 					return false
 				}
 				// Reader exhausted; loop back so next() can emit the final
-				// batch (or report coreDone).
+				// batch (or report stepDone).
 			}
 		}
 	}
 }
 
-// fillCore reads the next block from r straight into core's accumulator (no
-// intermediate buffer) and returns false once the reader is exhausted
-// (core.finish has been called) or on error (core.err is set).
-func (s *batchRoller) fillCore() bool {
-	if s.core.eof {
+// fillBatcher reads the next block from r straight into the batcher's
+// accumulator (no intermediate buffer) and returns false once the reader is
+// exhausted (bt.finish has been called) or on error (bt.err is set).
+func (s *batchRoller) fillBatcher() bool {
+	if s.bt.eof {
 		return false
 	}
-	buf := s.core.readTail(s.readSize)
+	buf := s.bt.readTail(s.readSize)
 	n := 0
 	eof := false
 	for n < len(buf) && !eof {
@@ -262,14 +262,14 @@ func (s *batchRoller) fillCore() bool {
 		if err == io.EOF {
 			eof = true
 		} else if err != nil {
-			s.core.commitTail(n)
-			s.core.err = err
+			s.bt.commitTail(n)
+			s.bt.err = err
 			return false
 		}
 	}
-	s.core.commitTail(n)
+	s.bt.commitTail(n)
 	if eof {
-		s.core.finish()
+		s.bt.finish()
 		return false
 	}
 	return true
@@ -278,20 +278,20 @@ func (s *batchRoller) fillCore() bool {
 // Sums returns the checksums of the current batch, one per window position.
 // It is valid only until the next call to Next. Before the first call to
 // Next, and after Next returns false, Sums returns nil.
-func (s *batchRoller) Sums() []uint64 { return s.core.Sums() }
+func (s *batchRoller) Sums() []uint64 { return s.bt.Sums() }
 
 // Bytes returns the bytes of the current batch. Sums()[i] is the checksum of
 // Bytes()[i:i+window]. It is valid only until the next call to Next. Before
 // the first call to Next, and after Next returns false, Bytes returns nil.
-func (s *batchRoller) Bytes() []byte { return s.core.Bytes() }
+func (s *batchRoller) Bytes() []byte { return s.bt.Bytes() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (s *batchRoller) Err() error { return s.core.Err() }
+func (s *batchRoller) Err() error { return s.bt.Err() }
 
 // Offset returns the stream position of Bytes()[0] in the current batch.
 // Sums()[i] is the checksum of the window starting at Offset()+i.
 // Before the first call to Next, and after Next returns false, Offset returns 0.
-func (s *batchRoller) Offset() int { return s.core.Offset() }
+func (s *batchRoller) Offset() int { return s.bt.Offset() }
 
 // WindowSize returns the rolling window size passed to NewBatchRoller.
-func (s *batchRoller) WindowSize() int { return s.core.WindowSize() }
+func (s *batchRoller) WindowSize() int { return s.bt.WindowSize() }

@@ -2,7 +2,7 @@ package fastcdc
 
 import (
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cuttingwindow"
 )
 
 // A ChunkWriter is the push-based counterpart to Chunker: fed via Write/Close
@@ -12,7 +12,7 @@ import (
 // more and try again. After Close, Next returning false means every chunk has
 // been emitted.
 type ChunkWriter struct {
-	core *cutcore.Core
+	window *cuttingwindow.Window
 }
 
 var _ rollinghash.ChunkWriter = (*ChunkWriter)(nil)
@@ -22,25 +22,25 @@ var _ rollinghash.ChunkWriter = (*ChunkWriter)(nil)
 // parameters are identical to New. It implements rollinghash.ChunkWriter.
 func NewChunkWriter(h rollinghash.Hash, minSize, normalSize, maxSize int, opts ...Option) *ChunkWriter {
 	f := newCut(h, minSize, normalSize, maxSize, opts)
-	return &ChunkWriter{core: cutcore.NewWriter(f, f.buf)}
+	return &ChunkWriter{window: cuttingwindow.NewWriter(f, f.buf)}
 }
 
 // Write feeds p into the chunker; it always consumes all of p and returns
 // rollinghash.ErrClosed if called after Close.
-func (w *ChunkWriter) Write(p []byte) (int, error) { return w.core.Write(p) }
+func (w *ChunkWriter) Write(p []byte) (int, error) { return w.window.Write(p) }
 
 // Close marks the end of input.
-func (w *ChunkWriter) Close() error { return w.core.Close() }
+func (w *ChunkWriter) Close() error { return w.window.Close() }
 
 // Reset clears all buffered state for reuse, keeping internal allocations.
-func (w *ChunkWriter) Reset() { w.core.ResetWriter() }
+func (w *ChunkWriter) Reset() { w.window.ResetWriter() }
 
 // Next, Bytes, ContentDefined, Sum, Offset, WindowSize and Err behave as on
 // Chunker.
-func (w *ChunkWriter) Next() bool           { return w.core.Next() }
-func (w *ChunkWriter) Bytes() []byte        { return w.core.Bytes() }
-func (w *ChunkWriter) ContentDefined() bool { return w.core.ContentDefined() }
-func (w *ChunkWriter) Sum() uint64          { return w.core.Sum() }
-func (w *ChunkWriter) Offset() int          { return w.core.Offset() }
-func (w *ChunkWriter) WindowSize() int      { return w.core.WindowSize() }
-func (w *ChunkWriter) Err() error           { return w.core.Err() }
+func (w *ChunkWriter) Next() bool           { return w.window.Next() }
+func (w *ChunkWriter) Bytes() []byte        { return w.window.Bytes() }
+func (w *ChunkWriter) ContentDefined() bool { return w.window.ContentDefined() }
+func (w *ChunkWriter) Sum() uint64          { return w.window.Sum() }
+func (w *ChunkWriter) Offset() int          { return w.window.Offset() }
+func (w *ChunkWriter) WindowSize() int      { return w.window.Lookback() }
+func (w *ChunkWriter) Err() error           { return w.window.Err() }

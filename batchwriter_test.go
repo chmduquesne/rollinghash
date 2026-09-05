@@ -175,7 +175,7 @@ func TestBatchWriterShortInput(t *testing.T) {
 // full window's worth of new bytes yet, and after Close it drains the
 // remaining state before settling to false for good.
 // Uses WithBufferSize(window), the smallest valid coalescing threshold, so
-// Write flushes to the core as soon as a full window is available and Next
+// Write flushes to the batcher as soon as a full window is available and Next
 // can return true before Close. window is used here to test that boundary
 // case specifically, not as a throughput recommendation: it gives up most
 // of the throughput a batch size of just a few KiB would already recover
@@ -211,7 +211,7 @@ func TestBatchWriterPrePostClose(t *testing.T) {
 }
 
 // TestBatchWriterCoalesces verifies that with the default (large) batch
-// size, Write withholds bytes from the core until either the batch size is
+// size, Write withholds bytes from the batcher until either the batch size is
 // reached or Close is called: a single window's worth of data doesn't
 // surface via Next until Close flushes it. This is the tradeoff
 // WithBufferSize(window) opts out of in TestBatchWriterPrePostClose.

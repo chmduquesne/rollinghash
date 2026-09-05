@@ -1,4 +1,4 @@
-// Package cutcore is the shared streaming engine for the content-defined
+// Package cuttingwindow is the shared streaming engine for the content-defined
 // chunkers in the cdc tree (aecdc, fastcdc, jumpchunker, maxcdc, maxpcdc,
 // ramcdc, repmaxcdc, repmaxsfxcdc, ultracdc). It keeps a buffer
 // holding at least one MaxSize window from the current chunk start and turns an
@@ -16,7 +16,7 @@
 // the next read. The buffer is sized (2*MaxSize + compactionSlack) so that, by
 // the time that happens, start has advanced well past MaxSize, making
 // compaction move proportionally fewer bytes than it frees.
-package cutcore
+package cuttingwindow
 
 import (
 	"io"
@@ -48,18 +48,18 @@ type CutFinder interface {
 	// content-defined boundary (as opposed to a forced max cut or the final
 	// bytes of the stream), and the algorithm's rolling value at that boundary.
 	// The sum is used only when contentDefined is true; for a forced or final
-	// cut the core recomputes it from WindowDigest. When eof is false, avail
+	// cut cuttingwindow recomputes it from WindowDigest. When eof is false, avail
 	// holds at least MaxSize bytes. The returned length is clamped to
 	// [1, len(avail)] by the caller.
 	Cut(avail []byte, eof bool) (n int, contentDefined bool, sum uint64)
 	// WindowDigest returns the algorithm's rolling value over exactly the bytes
-	// b, which the core passes as the Window() bytes ending at a forced or
+	// b, which cuttingwindow passes as the Lookback() bytes ending at a forced or
 	// final cut so Sum is meaningful there too.
 	WindowDigest(b []byte) uint64
 	MaxSize() int
-	// Window is the number of trailing bytes the boundary test depends on,
+	// Lookback is the number of trailing bytes the boundary test depends on,
 	// reported by Chunker.WindowSize.
-	Window() int
+	Lookback() int
 }
 
 // cutResetter is implemented by a CutFinder that carries state across Cut
@@ -69,12 +69,12 @@ type cutResetter interface {
 	ResetCut()
 }
 
-// Core is the streaming buffer + iterator shared by the cdc chunkers.
-type Core struct {
-	r      io.Reader
-	f      CutFinder
-	max    int
-	window int
+// Window is the streaming buffer + iterator shared by the cdc chunkers.
+type Window struct {
+	r        io.Reader
+	f        CutFinder
+	max      int
+	lookback int
 
 	buf    []byte
 	start  int // index in buf of the current (not yet emitted) chunk's first byte
@@ -92,47 +92,48 @@ type Core struct {
 	curOff         int
 }
 
-// New returns a Core reading from r and cutting with f. If buf is non-nil and
-// large enough (cap >= 2*MaxSize + compactionSlack) it is adopted as the
+// New returns a Window reading from r and cutting with f. If buf is non-nil
+// and large enough (cap >= 2*MaxSize + compactionSlack) it is adopted as the
 // working buffer; otherwise a fresh one is allocated.
-func New(r io.Reader, f CutFinder, buf []byte) *Core {
+func New(r io.Reader, f CutFinder, buf []byte) *Window {
 	max := f.MaxSize()
 	want := 2*max + compactionSlack
 	if buf == nil || cap(buf) < want {
 		buf = make([]byte, 0, want)
 	}
-	return &Core{
-		r:      r,
-		f:      f,
-		max:    max,
-		window: f.Window(),
-		buf:    buf[:0],
+	return &Window{
+		r:        r,
+		f:        f,
+		max:      max,
+		lookback: f.Lookback(),
+		buf:      buf[:0],
 	}
 }
 
-// NewWriter returns a push-mode Core: instead of pulling from an io.Reader it
-// is fed via Write, and Close marks end of input. buf is adopted as in New.
-func NewWriter(f CutFinder, buf []byte) *Core {
+// NewWriter returns a push-mode Window: instead of pulling from an io.Reader
+// it is fed via Write, and Close marks end of input. buf is adopted as in New.
+func NewWriter(f CutFinder, buf []byte) *Window {
 	c := New(nil, f, buf)
 	c.push = true
 	return c
 }
 
-// Reset prepares the Core to chunk r from the start, keeping the buffer alloc.
-func (c *Core) Reset(r io.Reader) {
+// Reset prepares the Window to chunk r from the start, keeping the buffer
+// alloc.
+func (c *Window) Reset(r io.Reader) {
 	c.r = r
 	c.push = false
 	c.resetState()
 }
 
-// ResetWriter clears a push-mode Core for reuse.
-func (c *Core) ResetWriter() {
+// ResetWriter clears a push-mode Window for reuse.
+func (c *Window) ResetWriter() {
 	c.r = nil
 	c.push = true
 	c.resetState()
 }
 
-func (c *Core) resetState() {
+func (c *Window) resetState() {
 	if r, ok := c.f.(cutResetter); ok {
 		r.ResetCut()
 	}
@@ -153,7 +154,7 @@ func (c *Core) resetState() {
 // consumes all of p and returns rollinghash.ErrClosed after Close. Callers
 // should drain Next in a loop after each Write; the consumed prefix is dropped
 // on demand, so the buffer stays bounded as long as that happens.
-func (c *Core) Write(p []byte) (int, error) {
+func (c *Window) Write(p []byte) (int, error) {
 	if c.closed {
 		return 0, rollinghash.ErrClosed
 	}
@@ -166,8 +167,8 @@ func (c *Core) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// Close marks the end of input for a push-mode Core.
-func (c *Core) Close() error {
+// Close marks the end of input for a push-mode Window.
+func (c *Window) Close() error {
 	c.closed = true
 	c.eof = true
 	return nil
@@ -175,7 +176,7 @@ func (c *Core) Close() error {
 
 // Next advances to the next chunk. It returns false at end of input or on the
 // first reader error (reported by Err).
-func (c *Core) Next() bool {
+func (c *Window) Next() bool {
 	if c.err != nil || c.done {
 		c.clearChunk()
 		return false
@@ -183,7 +184,7 @@ func (c *Core) Next() bool {
 
 	// Make a full MaxSize window available from start, or reach EOF. In push
 	// mode that means waiting for more Write calls; Next just reports "not
-	// ready" by returning false without marking the Core done.
+	// ready" by returning false without marking the Window done.
 	if c.push {
 		if len(c.buf)-c.start < c.max && !c.eof {
 			c.clearChunk()
@@ -231,30 +232,30 @@ func (c *Core) Next() bool {
 	return true
 }
 
-func (c *Core) clearChunk() {
+func (c *Window) clearChunk() {
 	c.chunk = nil
 	c.contentDefined = false
 	c.sum = 0
 }
 
-// windowDigestAt returns the finder's rolling value over the window of c.window
-// bytes ending just before buf index end (exclusive). It returns 0 when fewer
-// than c.window bytes precede end; compact retains c.window-1 bytes of lead-in
-// before c.start, so this happens only for a final chunk lying within c.window
-// bytes of the start of the stream.
-func (c *Core) windowDigestAt(end int) uint64 {
-	lo := end - c.window
+// windowDigestAt returns the finder's rolling value over the window of
+// c.lookback bytes ending just before buf index end (exclusive). It returns
+// 0 when fewer than c.lookback bytes precede end; compact retains
+// c.lookback-1 bytes of lead-in before c.start, so this happens only for a
+// final chunk lying within c.lookback bytes of the start of the stream.
+func (c *Window) windowDigestAt(end int) uint64 {
+	lo := end - c.lookback
 	if lo < 0 {
 		return 0
 	}
 	return c.f.WindowDigest(c.buf[lo:end])
 }
 
-// compact drops the consumed prefix of buf, retaining c.window-1 bytes of
+// compact drops the consumed prefix of buf, retaining c.lookback-1 bytes of
 // lead-in before start so windowDigestAt can still see a window that straddles
 // the previous chunk's end.
-func (c *Core) compact() {
-	keep := min(c.start, c.window-1)
+func (c *Window) compact() {
+	keep := min(c.start, c.lookback-1)
 	src := c.start - keep
 	if src == 0 {
 		return
@@ -274,7 +275,7 @@ func (c *Core) compact() {
 // downside: Cut (in Next) processes whatever ends up buffered in a single
 // call regardless of how many Read calls assembled it. It returns false on
 // reader error (with err set); io.EOF sets eof and is not an error.
-func (c *Core) fill() bool {
+func (c *Window) fill() bool {
 	if cap(c.buf)-len(c.buf) < readBlock {
 		c.compact()
 		if cap(c.buf)-len(c.buf) < readBlock { // still tight: grow (shouldn't happen given New's sizing)
@@ -299,7 +300,7 @@ func (c *Core) fill() bool {
 	return true
 }
 
-func (c *Core) fail() bool {
+func (c *Window) fail() bool {
 	c.done = true
 	c.clearChunk()
 	return false
@@ -308,25 +309,26 @@ func (c *Core) fail() bool {
 // Bytes returns the current chunk, aliasing the internal buffer; it is valid
 // only until the next call to Next. It is nil before the first Next and after
 // Next returns false.
-func (c *Core) Bytes() []byte { return c.chunk }
+func (c *Window) Bytes() []byte { return c.chunk }
 
 // ContentDefined reports whether the current chunk ended at a content-defined
 // boundary (as opposed to a forced max cut or the final bytes of the stream).
-func (c *Core) ContentDefined() bool { return c.contentDefined }
+func (c *Window) ContentDefined() bool { return c.contentDefined }
 
 // Sum returns the algorithm's rolling value for the window ending at the current
 // chunk's cut, whether that cut was a mask hit, a forced cut at max, or the end
 // of the stream. At a content-defined boundary it is the value the mask was
-// tested against. It is 0 only for a final chunk lying within WindowSize bytes
+// tested against. It is 0 only for a final chunk lying within Lookback bytes
 // of the start of the stream, and before the first Next / after Next returns
 // false.
-func (c *Core) Sum() uint64 { return c.sum }
+func (c *Window) Sum() uint64 { return c.sum }
 
 // Offset is the stream offset of the current chunk's first byte.
-func (c *Core) Offset() int { return c.curOff }
+func (c *Window) Offset() int { return c.curOff }
 
-// WindowSize is the number of trailing bytes the boundary test depends on.
-func (c *Core) WindowSize() int { return c.window }
+// Lookback is the number of trailing bytes the boundary test depends on,
+// exposed by each cdc/* package's public Chunker as WindowSize.
+func (c *Window) Lookback() int { return c.lookback }
 
 // Err returns the first non-EOF reader error, if any.
-func (c *Core) Err() error { return c.err }
+func (c *Window) Err() error { return c.err }

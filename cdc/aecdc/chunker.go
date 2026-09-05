@@ -24,7 +24,7 @@ import (
 	"io"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cuttingwindow"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/vectorscan"
 )
 
@@ -37,7 +37,7 @@ import (
 //	}
 //	if err := c.Err(); err != nil { ... }
 type Chunker struct {
-	core *cutcore.Core
+	window *cuttingwindow.Window
 }
 
 var _ rollinghash.Chunker = (*Chunker)(nil)
@@ -57,7 +57,7 @@ func WithBuffer(buf []byte) Option {
 // maxSize < minSize.
 func New(r io.Reader, minSize, maxSize int, opts ...Option) *Chunker {
 	f := newCut(minSize, maxSize, opts)
-	return &Chunker{core: cutcore.New(r, f, f.buf)}
+	return &Chunker{window: cuttingwindow.New(r, f, f.buf)}
 }
 
 func newCut(minSize, maxSize int, opts []Option) *aeCut {
@@ -84,9 +84,9 @@ type aeCut struct {
 
 func (f *aeCut) MaxSize() int { return f.max }
 
-// Window: AE has no rolling window; the boundary test spans the whole chunk.
+// Lookback: AE has no rolling window; the boundary test spans the whole chunk.
 // One byte is reported so Sum at a forced or final cut is well defined.
-func (f *aeCut) Window() int { return 1 }
+func (f *aeCut) Lookback() int { return 1 }
 
 // WindowDigest returns the value of the last byte of b, the AE Sum at a forced
 // or final cut.
@@ -142,32 +142,32 @@ func (f *aeCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
-func (c *Chunker) Reset(r io.Reader) { c.core.Reset(r) }
+func (c *Chunker) Reset(r io.Reader) { c.window.Reset(r) }
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error.
-func (c *Chunker) Next() bool { return c.core.Next() }
+func (c *Chunker) Next() bool { return c.window.Next() }
 
 // Bytes returns the current chunk, valid until the next call to Next.
-func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
+func (c *Chunker) Bytes() []byte { return c.window.Bytes() }
 
 // ContentDefined reports whether the current chunk ended at a content-defined
 // boundary (an extremum settled) rather than being forced at maxSize or the end
 // of the stream.
-func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
+func (c *Chunker) ContentDefined() bool { return c.window.ContentDefined() }
 
 // Sum returns the extremum (maximum) byte value the boundary test selected for
 // the current chunk's cut. At a forced cut it is the final byte of the chunk
 // instead. AE uses no rolling hash; this is the value its boundary test hinges
 // on.
-func (c *Chunker) Sum() uint64 { return c.core.Sum() }
+func (c *Chunker) Sum() uint64 { return c.window.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
-func (c *Chunker) Offset() int { return c.core.Offset() }
+func (c *Chunker) Offset() int { return c.window.Offset() }
 
 // WindowSize returns 1: AE has no rolling window (its left window spans the
 // whole chunk); one byte is reported for a well-defined forced-cut Sum.
-func (c *Chunker) WindowSize() int { return c.core.WindowSize() }
+func (c *Chunker) WindowSize() int { return c.window.Lookback() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *Chunker) Err() error { return c.core.Err() }
+func (c *Chunker) Err() error { return c.window.Err() }

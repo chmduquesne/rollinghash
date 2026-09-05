@@ -25,7 +25,7 @@ import (
 	"io"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cuttingwindow"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/vectorscan"
 )
 
@@ -38,7 +38,7 @@ import (
 //	}
 //	if err := c.Err(); err != nil { ... }
 type Chunker struct {
-	core *cutcore.Core
+	window *cuttingwindow.Window
 }
 
 var _ rollinghash.Chunker = (*Chunker)(nil)
@@ -58,7 +58,7 @@ func WithBuffer(buf []byte) Option {
 // final chunk may be shorter. New panics if windowSize < 1 or maxSize < windowSize.
 func New(r io.Reader, windowSize, maxSize int, opts ...Option) *Chunker {
 	f := newCut(windowSize, maxSize, opts)
-	return &Chunker{core: cutcore.New(r, f, f.buf)}
+	return &Chunker{window: cuttingwindow.New(r, f, f.buf)}
 }
 
 func newCut(windowSize, maxSize int, opts []Option) *ramCut {
@@ -85,9 +85,9 @@ type ramCut struct {
 
 func (f *ramCut) MaxSize() int { return f.max }
 
-// Window: RAM's boundary hinges on the window maximum and one trailing byte; one
+// Lookback: RAM's boundary hinges on the window maximum and one trailing byte; one
 // byte is reported so Sum at a forced or final cut is well defined.
-func (f *ramCut) Window() int { return 1 }
+func (f *ramCut) Lookback() int { return 1 }
 
 // WindowDigest returns the value of the last byte of b, the RAM Sum at a forced
 // or final cut.
@@ -118,31 +118,31 @@ func (f *ramCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
-func (c *Chunker) Reset(r io.Reader) { c.core.Reset(r) }
+func (c *Chunker) Reset(r io.Reader) { c.window.Reset(r) }
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error.
-func (c *Chunker) Next() bool { return c.core.Next() }
+func (c *Chunker) Next() bool { return c.window.Next() }
 
 // Bytes returns the current chunk, valid until the next call to Next.
-func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
+func (c *Chunker) Bytes() []byte { return c.window.Bytes() }
 
 // ContentDefined reports whether the current chunk ended at a content-defined
 // boundary (a byte >= the window maximum was found) rather than being forced at
 // maxSize or the end of the stream.
-func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
+func (c *Chunker) ContentDefined() bool { return c.window.ContentDefined() }
 
 // Sum returns the maximum byte of the chunk's leading windowSize bytes — the
 // value RAM's forward scan tested against. At a forced or final cut it is the
 // last byte of the chunk instead. RAM uses no rolling hash.
-func (c *Chunker) Sum() uint64 { return c.core.Sum() }
+func (c *Chunker) Sum() uint64 { return c.window.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
-func (c *Chunker) Offset() int { return c.core.Offset() }
+func (c *Chunker) Offset() int { return c.window.Offset() }
 
 // WindowSize returns 1: RAM has no rolling window; one byte is reported for a
 // well-defined forced-cut Sum.
-func (c *Chunker) WindowSize() int { return c.core.WindowSize() }
+func (c *Chunker) WindowSize() int { return c.window.Lookback() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *Chunker) Err() error { return c.core.Err() }
+func (c *Chunker) Err() error { return c.window.Err() }

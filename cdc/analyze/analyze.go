@@ -25,7 +25,7 @@ const resyncInputCap = 128 << 20
 
 // measureReadSize is the syscall granularity every algorithm reads its input
 // at during measure(). Every chunker here pulls fixed 16 KiB blocks from its
-// io.Reader (cutcore.readBlock, chunkerBatchSize); wrapping the file in a
+// io.Reader (cuttingwindow.readBlock, chunkerBatchSize); wrapping the file in a
 // larger buffer once, here, cuts the real syscall count uniformly across all
 // of them so the harness's own I/O overhead doesn't become the bottleneck for
 // the fastest chunkers.

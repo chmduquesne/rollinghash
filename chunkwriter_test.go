@@ -120,7 +120,7 @@ func TestChunkWriterFeedGranularity(t *testing.T) {
 func TestChunkWriterVsChunker(t *testing.T) {
 	// Pseudo-random data with min < window so short chunks (straddling windows)
 	// and forced cuts both occur; every Sum() case is exercised and must match
-	// the Chunker byte for byte, since both wrap the same chunkerCore.
+	// the Chunker byte for byte, since both wrap the same splitter.
 	data := make([]byte, 150*1024)
 	rand.New(rand.NewSource(2)).Read(data)
 	const window = 48
@@ -396,7 +396,7 @@ func TestChunkWriterReset(t *testing.T) {
 
 // TestChunkWriterWithBuffer checks that WithBuffer feeds through the push path
 // too: same chunks, and an adequate buffer removes the accumulator's start-up
-// growth allocations that Write's core.feed append would otherwise pay.
+// growth allocations that Write's sp.feed append would otherwise pay.
 func TestChunkWriterWithBuffer(t *testing.T) {
 	const window = 32
 	const mask, min, max = 0x1ff, 512, 64 * 1024

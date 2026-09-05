@@ -35,7 +35,7 @@ import (
 	"slices"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cuttingwindow"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/gearscan"
 )
 
@@ -59,7 +59,7 @@ type gearTabler interface {
 //
 // The hash must expose Table() (gearhash64 does); New panics otherwise.
 type Chunker struct {
-	core *cutcore.Core
+	window *cuttingwindow.Window
 }
 
 var _ rollinghash.Chunker = (*Chunker)(nil)
@@ -80,7 +80,7 @@ func WithBuffer(buf []byte) Option {
 // Table(); New panics otherwise, or if minSize < 64 or horizon < 0.
 func New(r io.Reader, h rollinghash.Hash, minSize, horizon int, opts ...Option) *Chunker {
 	f := newCut(h, minSize, horizon, opts)
-	return &Chunker{core: cutcore.New(r, f, f.buf)}
+	return &Chunker{window: cuttingwindow.New(r, f, f.buf)}
 }
 
 func newCut(h rollinghash.Hash, minSize, horizon int, opts []Option) *rmCut {
@@ -149,9 +149,9 @@ func (f *rmCut) ResetCut() {
 
 func (f *rmCut) MaxSize() int { return f.peek }
 
-// Window: the Gear fingerprint is windowless but its accumulator retains only
+// Lookback: the Gear fingerprint is windowless but its accumulator retains only
 // the last 64 bytes.
-func (f *rmCut) Window() int { return window }
+func (f *rmCut) Lookback() int { return window }
 
 // WindowDigest returns the Gear fingerprint of b, used for Sum at a forced or
 // final cut.
@@ -162,7 +162,7 @@ func (f *rmCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 
 	// Fast path: an earlier horizon scan already produced more than one
 	// stable boundary. Hand them out one at a time with no further scanning,
-	// so the core can discard as aggressively as possible in between.
+	// so cuttingwindow can discard as aggressively as possible in between.
 	if n := len(f.completeChunks); n > 0 {
 		size := f.completeChunks[n-1]
 		f.completeChunks = f.completeChunks[:n-1]
@@ -170,13 +170,13 @@ func (f *rmCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 	}
 
 	// Cap the view to the peek horizon, matching buildbarn's
-	// Peek(peekSizeBytes). The core may hand us more than MaxSize.
+	// Peek(peekSizeBytes). cuttingwindow may hand us more than MaxSize.
 	if len(d) > f.peek {
 		d = d[:f.peek]
 	}
 
 	// Too little left to guarantee a >= min follow-up chunk: emit everything
-	// as one forced chunk. The core only calls Cut with fewer than MaxSize
+	// as one forced chunk. cuttingwindow only calls Cut with fewer than MaxSize
 	// (>= 2*min) bytes at end of stream, so this is the EOF tail.
 	if len(d) < 2*min {
 		f.completeChunks = f.completeChunks[:0]
@@ -405,32 +405,32 @@ func (f *rmCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
-func (c *Chunker) Reset(r io.Reader) { c.core.Reset(r) }
+func (c *Chunker) Reset(r io.Reader) { c.window.Reset(r) }
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error.
-func (c *Chunker) Next() bool { return c.core.Next() }
+func (c *Chunker) Next() bool { return c.window.Next() }
 
 // Bytes returns the current chunk, valid until the next call to Next.
-func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
+func (c *Chunker) Bytes() []byte { return c.window.Bytes() }
 
 // ContentDefined reports whether the current chunk ended at a content-defined
 // boundary (the repeated-maximum search picked it) rather than being forced at
 // the end of the stream.
-func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
+func (c *Chunker) ContentDefined() bool { return c.window.ContentDefined() }
 
 // Sum returns the Gear fingerprint of the 64-byte window ending at the current
 // chunk's cut. At a content-defined boundary it is the maximal value the
 // repeated-maximum search selected. It is 0 only for a final chunk within 64
 // bytes of the start of the stream.
-func (c *Chunker) Sum() uint64 { return c.core.Sum() }
+func (c *Chunker) Sum() uint64 { return c.window.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
-func (c *Chunker) Offset() int { return c.core.Offset() }
+func (c *Chunker) Offset() int { return c.window.Offset() }
 
 // WindowSize returns 64: the Gear fingerprint is windowless, but its
 // accumulator retains only the last 64 bytes.
-func (c *Chunker) WindowSize() int { return c.core.WindowSize() }
+func (c *Chunker) WindowSize() int { return c.window.Lookback() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *Chunker) Err() error { return c.core.Err() }
+func (c *Chunker) Err() error { return c.window.Err() }

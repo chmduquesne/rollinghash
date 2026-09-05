@@ -29,7 +29,7 @@ import (
 	"slices"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cuttingwindow"
 )
 
 // A Chunker splits an io.Reader into content-defined chunks using RepMaxSfxCDC.
@@ -41,7 +41,7 @@ import (
 //	}
 //	if err := c.Err(); err != nil { ... }
 type Chunker struct {
-	core *cutcore.Core
+	window *cuttingwindow.Window
 }
 
 var _ rollinghash.Chunker = (*Chunker)(nil)
@@ -80,7 +80,7 @@ func WithSubstitutionBox(box [256]byte) Option {
 // minSize < 2 or horizon < 0.
 func New(r io.Reader, minSize, horizon int, opts ...Option) *Chunker {
 	f := newCut(minSize, horizon, opts)
-	return &Chunker{core: cutcore.New(r, f, f.buf)}
+	return &Chunker{window: cuttingwindow.New(r, f, f.buf)}
 }
 
 func newCut(minSize, horizon int, opts []Option) *sfxCut {
@@ -148,10 +148,10 @@ type sfxCut struct {
 
 func (f *sfxCut) MaxSize() int { return f.peek }
 
-// Window: RepMaxSfxCDC has no rolling window; the strings it compares start at
+// Lookback: RepMaxSfxCDC has no rolling window; the strings it compares start at
 // the candidate cut and reach forward into the next chunk. One byte is reported
 // so Sum at a forced or final cut is well defined.
-func (f *sfxCut) Window() int { return 1 }
+func (f *sfxCut) Lookback() int { return 1 }
 
 // WindowDigest returns the value of the last byte of b, the Sum at a forced or
 // final cut.
@@ -185,13 +185,13 @@ func (f *sfxCut) Cut(d []byte, eof bool) (int, bool, uint64) {
 	}
 
 	// Cap the view to the peek horizon, matching buildbarn's
-	// Peek(peekSizeBytes). The core may hand us more than MaxSize.
+	// Peek(peekSizeBytes). cuttingwindow may hand us more than MaxSize.
 	if len(d) > f.peek {
 		d = d[:f.peek]
 	}
 
 	// Too little left to guarantee a >= min follow-up chunk: emit everything
-	// as one forced chunk. The core only calls Cut with fewer than MaxSize
+	// as one forced chunk. cuttingwindow only calls Cut with fewer than MaxSize
 	// (>= 2*min) bytes at end of stream, so this is the EOF tail.
 	if len(d) < 2*min {
 		f.completeChunks = f.completeChunks[:0]
@@ -469,34 +469,34 @@ func min2(a, b int) int {
 }
 
 // Reset prepares the Chunker to split r from the start, reusing its buffers.
-func (c *Chunker) Reset(r io.Reader) { c.core.Reset(r) }
+func (c *Chunker) Reset(r io.Reader) { c.window.Reset(r) }
 
 // Next advances to the next chunk, returning false at end of input or on the
 // first error.
-func (c *Chunker) Next() bool { return c.core.Next() }
+func (c *Chunker) Next() bool { return c.window.Next() }
 
 // Bytes returns the current chunk, valid until the next call to Next.
-func (c *Chunker) Bytes() []byte { return c.core.Bytes() }
+func (c *Chunker) Bytes() []byte { return c.window.Bytes() }
 
 // ContentDefined reports whether the current chunk ended at a content-defined
 // boundary (the repeated-maximum search picked it) rather than being forced at
 // the end of the stream.
-func (c *Chunker) ContentDefined() bool { return c.core.ContentDefined() }
+func (c *Chunker) ContentDefined() bool { return c.window.ContentDefined() }
 
 // Sum returns the first byte of the lexicographically-maximal minSize-byte
 // string the cut was chosen for (i.e. the first byte of the next chunk). At a
 // forced cut it is the final byte of the chunk instead. RepMaxSfxCDC uses no
 // rolling hash, and this single byte carries less information than the
 // Gear-based chunkers' Sum.
-func (c *Chunker) Sum() uint64 { return c.core.Sum() }
+func (c *Chunker) Sum() uint64 { return c.window.Sum() }
 
 // Offset returns the start byte offset of the current chunk in the stream.
-func (c *Chunker) Offset() int { return c.core.Offset() }
+func (c *Chunker) Offset() int { return c.window.Offset() }
 
 // WindowSize returns 1: RepMaxSfxCDC has no rolling window (its comparison
 // strings reach forward from the cut); one byte is reported for a well-defined
 // forced-cut Sum.
-func (c *Chunker) WindowSize() int { return c.core.WindowSize() }
+func (c *Chunker) WindowSize() int { return c.window.Lookback() }
 
 // Err returns the first non-EOF error encountered by Next, if any.
-func (c *Chunker) Err() error { return c.core.Err() }
+func (c *Chunker) Err() error { return c.window.Err() }

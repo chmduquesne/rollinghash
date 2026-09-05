@@ -366,7 +366,7 @@ func TestChunkerWithBuffer(t *testing.T) {
 	// allocations that a fresh chunker otherwise pays on its first stream. Use a
 	// cheap-to-construct hash and a large max so the growth series (nil -> ~2*max
 	// by doubling) is many allocations, unmistakably more than the handful of
-	// fixed ones (reader, chunker, core, la/lb).
+	// fixed ones (reader, chunker, splitter, la/lb).
 	const bigMax = 512 * 1024
 	big2 := testData(4 * 1024 * 1024)
 	hnew := func() rollinghash.Hash { return buzhash32.New() }
