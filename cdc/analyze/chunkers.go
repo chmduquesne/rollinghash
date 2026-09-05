@@ -5,6 +5,9 @@ import (
 	"io"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
+	"github.com/chmduquesne/rollinghash/v4/bozo32"
+	"github.com/chmduquesne/rollinghash/v4/bozo64"
+	"github.com/chmduquesne/rollinghash/v4/buzhash32"
 	"github.com/chmduquesne/rollinghash/v4/buzhash64"
 	"github.com/chmduquesne/rollinghash/v4/cdc/aecdc"
 	"github.com/chmduquesne/rollinghash/v4/cdc/fastcdc"
@@ -16,6 +19,7 @@ import (
 	"github.com/chmduquesne/rollinghash/v4/cdc/repmaxsfxcdc"
 	"github.com/chmduquesne/rollinghash/v4/cdc/ultracdc"
 	"github.com/chmduquesne/rollinghash/v4/gearhash64"
+	"github.com/chmduquesne/rollinghash/v4/rabinkarp64"
 
 	chunkers "github.com/PlakarKorp/go-cdc-chunkers"
 	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/fastcdc"
@@ -96,6 +100,22 @@ func registry(o sizeOpts) []namedChunker {
 		})},
 		{"parent-buzhash", rollDrain(func(r io.Reader) rollinghash.Chunker {
 			return rollinghash.NewChunker(r, buzhash64.New(), 56, uint64(o.normal-1),
+				rollinghash.WithBoundaries(o.min, o.max))
+		})},
+		{"parent-buzhash32", rollDrain(func(r io.Reader) rollinghash.Chunker {
+			return rollinghash.NewChunker(r, buzhash32.New(), 56, uint64(o.normal-1),
+				rollinghash.WithBoundaries(o.min, o.max))
+		})},
+		{"parent-bozo32", rollDrain(func(r io.Reader) rollinghash.Chunker {
+			return rollinghash.NewChunker(r, bozo32.New(), 56, uint64(o.normal-1),
+				rollinghash.WithBoundaries(o.min, o.max))
+		})},
+		{"parent-bozo64", rollDrain(func(r io.Reader) rollinghash.Chunker {
+			return rollinghash.NewChunker(r, bozo64.New(), 56, uint64(o.normal-1),
+				rollinghash.WithBoundaries(o.min, o.max))
+		})},
+		{"parent-rabinkarp64", rollDrain(func(r io.Reader) rollinghash.Chunker {
+			return rollinghash.NewChunker(r, rabinkarp64.New(), 56, uint64(o.normal-1),
 				rollinghash.WithBoundaries(o.min, o.max))
 		})},
 		{"fastcdc", rollDrain(func(r io.Reader) rollinghash.Chunker {
