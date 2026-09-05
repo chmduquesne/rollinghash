@@ -164,6 +164,7 @@ icBlkMask:
 	VMOV	V8.B[0], R9
 	CBNZ	R9, icFoundBlk
 
+icBlkNoHit:
 	ADD	$16, R11, R11
 	SUB	$16, R1, R1
 	CMP	$16, R1
@@ -209,6 +210,13 @@ icFoundBlk:
 	MOVD	$0, R13
 
 icFoundBlkLoop:
+	// R13 cannot legitimately reach 16 here: VADDV/CBNZ above already found a
+	// hit among these 16 bytes. This bound only guards against that invariant
+	// being violated by a future change, turning a would-be unbounded
+	// out-of-bounds read into a safe fallback that treats the block as a
+	// miss.
+	CMP	$16, R13
+	BEQ	icBlkNoHit
 	MOVBU	(R12)(R13), R10
 	CMP	$0, R3
 	BEQ	icFBGT
