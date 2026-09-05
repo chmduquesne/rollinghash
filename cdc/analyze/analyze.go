@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -14,13 +15,21 @@ import (
 
 // chunkFunc streams data through a chunker, calling yield once per chunk. The
 // slice passed to yield is only valid for that call. It aborts when ctx is
-// cancelled. Both this repo's rollinghash.Chunker and go-cdc-chunkers'
-// *chunkers.Chunker are wrapped into this shape by chunkers.go.
+// cancelled. This repo's rollinghash.Chunker is wrapped into this shape by
+// chunkers.go's rollDrain.
 type chunkFunc func(ctx context.Context, r io.Reader, yield func(chunk []byte)) error
 
 // resyncInputCap bounds the file resync re-chunks so a 1.5 GB member does not
 // blow the time budget; the shared prefix is what the metric measures anyway.
 const resyncInputCap = 128 << 20
+
+// measureReadSize is the syscall granularity every algorithm reads its input
+// at during measure(). Every chunker here pulls fixed 16 KiB blocks from its
+// io.Reader (cutcore.readBlock, chunkerBatchSize); wrapping the file in a
+// larger buffer once, here, cuts the real syscall count uniformly across all
+// of them so the harness's own I/O overhead doesn't become the bottleneck for
+// the fastest chunkers.
+const measureReadSize = 1 << 20
 
 // result is the full measurement of one algorithm over one dataset.
 type result struct {
@@ -106,7 +115,7 @@ func measure(ctx context.Context, algorithm string, cf chunkFunc, paths []string
 		}
 		var overhead time.Duration
 		start := time.Now()
-		err = cf(ctx, f, func(c []byte) {
+		err = cf(ctx, bufio.NewReaderSize(f, measureReadSize), func(c []byte) {
 			cbStart := time.Now()
 			res.chunks++
 			res.totalBytes += int64(len(c))

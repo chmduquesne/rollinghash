@@ -20,11 +20,6 @@ import (
 	"github.com/chmduquesne/rollinghash/v4/cdc/ultracdc"
 	"github.com/chmduquesne/rollinghash/v4/gearhash64"
 	"github.com/chmduquesne/rollinghash/v4/rabinkarp64"
-
-	chunkers "github.com/PlakarKorp/go-cdc-chunkers"
-	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/fastcdc"
-	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/jc"
-	_ "github.com/PlakarKorp/go-cdc-chunkers/chunkers/ultracdc"
 )
 
 // namedChunker is one row of the comparison: a label and a factory that turns a
@@ -54,37 +49,8 @@ func rollDrain(newC func(io.Reader) rollinghash.Chunker) chunkFunc {
 	}
 }
 
-// plakarDrain streams r through a go-cdc-chunkers *Chunker.
-func plakarDrain(algo string, o sizeOpts) chunkFunc {
-	return func(ctx context.Context, r io.Reader, yield func([]byte)) error {
-		c, err := chunkers.NewChunker(algo, r, &chunkers.ChunkerOpts{
-			MinSize: o.min, NormalSize: o.normal, MaxSize: o.max,
-		})
-		if err != nil {
-			return err
-		}
-		for i := 0; ; i++ {
-			b, err := c.Next()
-			if len(b) > 0 {
-				yield(b)
-			}
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			if i%chunkEvery == 0 {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-			}
-		}
-	}
-}
-
-// registry returns every algorithm to compare, this repo's first then the real
-// go-cdc-chunkers ones, all parametrised toward the same size target.
+// registry returns every chunker in this repo to compare, parametrised toward
+// the same size target.
 func registry(o sizeOpts) []namedChunker {
 	g := gearhash64.New
 	// maxpcdc's chunk size scales super-linearly with its window; this mapping
@@ -145,12 +111,5 @@ func registry(o sizeOpts) []namedChunker {
 		{"maxpcdc", rollDrain(func(r io.Reader) rollinghash.Chunker {
 			return maxpcdc.New(r, maxpWin, o.max)
 		})},
-
-		// go-cdc-chunkers' spec (non-legacy) implementations — the legacy
-		// aliases ("fastcdc", "ultracdc") clamp size opts and are misleading
-		// above their 8/64 KiB defaults.
-		{"plakar/fastcdc-v1.0.0", plakarDrain("fastcdc-v1.0.0", o)},
-		{"plakar/jc-v1.1.0", plakarDrain("jc-v1.1.0", o)},
-		{"plakar/ultracdc-v1.0.0", plakarDrain("ultracdc-v1.0.0", o)},
 	}
 }
