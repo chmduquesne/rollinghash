@@ -20,7 +20,7 @@ import (
 	"math/bits"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
 	"github.com/chmduquesne/rollinghash/v4/cdc/internal/gearscan"
 )
 
@@ -47,7 +47,7 @@ type gearTabler interface {
 // The hash must expose Table(); New panics otherwise. Use Reset to reuse the
 // Chunker across streams without extra allocations.
 type Chunker struct {
-	core *chunkcore.Core
+	core *cutcore.Core
 }
 
 var _ rollinghash.Chunker = (*Chunker)(nil)
@@ -85,7 +85,7 @@ func WithBuffer(buf []byte) Option {
 // h must expose Table() (gearhash64 does); New panics otherwise.
 func New(r io.Reader, h rollinghash.Hash, normalSize, min, max int, opts ...Option) *Chunker {
 	f := newCut(h, normalSize, min, max, opts)
-	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+	return &Chunker{core: cutcore.New(r, f, f.buf)}
 }
 
 func newCut(h rollinghash.Hash, normalSize, min, max int, opts []Option) *jcCut {

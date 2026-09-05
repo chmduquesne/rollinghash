@@ -29,7 +29,7 @@ import (
 	"slices"
 
 	rollinghash "github.com/chmduquesne/rollinghash/v4"
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
 )
 
 // A Chunker splits an io.Reader into content-defined chunks using RepMaxSfxCDC.
@@ -41,7 +41,7 @@ import (
 //	}
 //	if err := c.Err(); err != nil { ... }
 type Chunker struct {
-	core *chunkcore.Core
+	core *cutcore.Core
 }
 
 var _ rollinghash.Chunker = (*Chunker)(nil)
@@ -80,7 +80,7 @@ func WithSubstitutionBox(box [256]byte) Option {
 // minSize < 2 or horizon < 0.
 func New(r io.Reader, minSize, horizon int, opts ...Option) *Chunker {
 	f := newCut(minSize, horizon, opts)
-	return &Chunker{core: chunkcore.New(r, f, f.buf)}
+	return &Chunker{core: cutcore.New(r, f, f.buf)}
 }
 
 func newCut(minSize, horizon int, opts []Option) *sfxCut {

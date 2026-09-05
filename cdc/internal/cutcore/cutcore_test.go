@@ -1,4 +1,4 @@
-package chunkcore_test
+package cutcore_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/chmduquesne/rollinghash/v4/cdc/internal/chunkcore"
+	"github.com/chmduquesne/rollinghash/v4/cdc/internal/cutcore"
 )
 
 // fixedCut cuts every `size` bytes, forcing the max path.
@@ -32,7 +32,7 @@ func (f fixedCut) WindowDigest(b []byte) uint64 {
 	return s
 }
 
-func drain(t *testing.T, c *chunkcore.Core) ([][]byte, []int) {
+func drain(t *testing.T, c *cutcore.Core) ([][]byte, []int) {
 	t.Helper()
 	var chunks [][]byte
 	var offs []int
@@ -49,7 +49,7 @@ func drain(t *testing.T, c *chunkcore.Core) ([][]byte, []int) {
 func TestCoreChunksAndOffsets(t *testing.T) {
 	data := bytes.Repeat([]byte("abcdefgh"), 5000) // 40000 bytes
 	for _, size := range []int{1, 7, 4096, 39999, 40000, 40001} {
-		c := chunkcore.New(bytes.NewReader(data), fixedCut{size: size, max: 8192}, nil)
+		c := cutcore.New(bytes.NewReader(data), fixedCut{size: size, max: 8192}, nil)
 		chunks, offs := drain(t, c)
 
 		if joined := bytes.Join(chunks, nil); !bytes.Equal(joined, data) {
@@ -67,8 +67,8 @@ func TestCoreChunksAndOffsets(t *testing.T) {
 
 func TestCoreOneByteReader(t *testing.T) {
 	data := bytes.Repeat([]byte{1, 2, 3}, 9000)
-	want, _ := drain(t, chunkcore.New(bytes.NewReader(data), fixedCut{size: 1000, max: 4096}, nil))
-	got, _ := drain(t, chunkcore.New(iotest.OneByteReader(bytes.NewReader(data)), fixedCut{size: 1000, max: 4096}, nil))
+	want, _ := drain(t, cutcore.New(bytes.NewReader(data), fixedCut{size: 1000, max: 4096}, nil))
+	got, _ := drain(t, cutcore.New(iotest.OneByteReader(bytes.NewReader(data)), fixedCut{size: 1000, max: 4096}, nil))
 	if len(got) != len(want) {
 		t.Fatalf("got %d chunks, want %d", len(got), len(want))
 	}
@@ -81,7 +81,7 @@ func TestCoreOneByteReader(t *testing.T) {
 
 func TestCoreReaderError(t *testing.T) {
 	boom := errors.New("boom")
-	c := chunkcore.New(iotest.ErrReader(boom), fixedCut{size: 10, max: 64}, nil)
+	c := cutcore.New(iotest.ErrReader(boom), fixedCut{size: 10, max: 64}, nil)
 	if c.Next() {
 		t.Fatal("expected Next to return false on reader error")
 	}
@@ -91,7 +91,7 @@ func TestCoreReaderError(t *testing.T) {
 }
 
 func TestCoreEmptyAndReset(t *testing.T) {
-	c := chunkcore.New(bytes.NewReader(nil), fixedCut{size: 10, max: 64}, nil)
+	c := cutcore.New(bytes.NewReader(nil), fixedCut{size: 10, max: 64}, nil)
 	if c.Next() {
 		t.Fatal("empty: expected no chunks")
 	}
@@ -137,7 +137,7 @@ func TestCoreSumWindow(t *testing.T) {
 	// 3-byte final chunk, whose 8-byte window reaches back past c.start into
 	// the previous chunk.
 	data := randData(600000 + 3)
-	c := chunkcore.New(&bigBlockReader{data: data}, fixedCut{size: 20000, max: 32 * 1024}, nil)
+	c := cutcore.New(&bigBlockReader{data: data}, fixedCut{size: 20000, max: 32 * 1024}, nil)
 	end, forced := 0, 0
 	for c.Next() {
 		end += len(c.Bytes())
@@ -160,7 +160,7 @@ func TestCoreSumWindow(t *testing.T) {
 	}
 
 	// A whole stream shorter than the window: Sum stays 0.
-	c = chunkcore.New(bytes.NewReader([]byte("abc")), fixedCut{size: 20000, max: 32 * 1024}, nil)
+	c = cutcore.New(bytes.NewReader([]byte("abc")), fixedCut{size: 20000, max: 32 * 1024}, nil)
 	if !c.Next() {
 		t.Fatal("expected one chunk")
 	}
@@ -184,7 +184,7 @@ func randData(n int) []byte {
 
 func TestCoreBufferGrowth(t *testing.T) {
 	data := bytes.Repeat([]byte{0xAB}, 500*1024)
-	c := chunkcore.New(&bigBlockReader{data: data}, fixedCut{size: 200 * 1024, max: 256 * 1024}, nil)
+	c := cutcore.New(&bigBlockReader{data: data}, fixedCut{size: 200 * 1024, max: 256 * 1024}, nil)
 	chunks, _ := drain(t, c)
 	if joined := bytes.Join(chunks, nil); !bytes.Equal(joined, data) {
 		t.Fatalf("reassembled %d bytes, want %d", len(joined), len(data))
