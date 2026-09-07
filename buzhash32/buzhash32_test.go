@@ -2,9 +2,9 @@ package buzhash32_test
 
 import (
 	"bufio"
-	"math/rand"
 	"hash"
 	"io"
+	"math/rand"
 	"strings"
 	"testing"
 

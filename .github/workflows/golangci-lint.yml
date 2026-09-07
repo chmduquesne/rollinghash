@@ -24,8 +24,27 @@ jobs:
         with:
           version: v2.13
           working-directory: rollstat
-      - name: golangci-lint (cdc/compat/gocdc/bench)
+      - name: golangci-lint (cdc/analyze)
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13
-          working-directory: cdc/compat/gocdc/bench
+          working-directory: cdc/analyze
+      - name: golangci-lint (cdc/compat/boxo/bench)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13
+          working-directory: cdc/compat/boxo/bench
+      - name: golangci-lint (cdc/compat/buildbarn/bench)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13
+          working-directory: cdc/compat/buildbarn/bench
+      # cdc/compat/plakar/bench has no step of its own: golangci-lint's nilness
+      # pass panics analysing a transitive dependency of kloset, which that
+      # module pulls in for the end-to-end backup parity test. Its code is
+      # still built and tested by the compat-parity job in ci.yml.
+      - name: golangci-lint (cdc/compat/restic/bench)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13
+          working-directory: cdc/compat/restic/bench

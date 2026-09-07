@@ -129,7 +129,7 @@ func measure(ctx context.Context, algorithm string, cf chunkFunc, paths []string
 			overhead += time.Since(cbStart)
 		})
 		res.duration += time.Since(start) - overhead
-		f.Close()
+		_ = f.Close()
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +146,7 @@ func resync(ctx context.Context, cf chunkFunc, basePath string, edits int, seed 
 		return 0, err
 	}
 	base, err := io.ReadAll(io.LimitReader(f, resyncInputCap))
-	f.Close()
+	_ = f.Close()
 	if err != nil {
 		return 0, err
 	}

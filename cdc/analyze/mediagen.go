@@ -21,7 +21,7 @@ func pngToJPEG(src, dst string) error {
 		return err
 	}
 	img, err := png.Decode(f)
-	f.Close()
+	_ = f.Close()
 	if err != nil {
 		return fmt.Errorf("decode %s: %w", src, err)
 	}
@@ -29,7 +29,7 @@ func pngToJPEG(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 	return jpeg.Encode(w, img, &jpeg.Options{Quality: 92})
 }
 
@@ -44,7 +44,7 @@ func jpegVersions(base, dir string, n int) ([]string, error) {
 		return nil, err
 	}
 	src, err := jpeg.Decode(f)
-	f.Close()
+	_ = f.Close()
 	if err != nil {
 		return nil, fmt.Errorf("decode %s: %w", base, err)
 	}
@@ -76,7 +76,7 @@ func jpegVersions(base, dir string, n int) ([]string, error) {
 				return nil, err
 			}
 			err = jpeg.Encode(w, rgba, &jpeg.Options{Quality: 90 - v})
-			w.Close()
+			_ = w.Close()
 			if err != nil {
 				return nil, err
 			}

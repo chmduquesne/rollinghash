@@ -118,7 +118,8 @@ func (c *BaseChunker) NextSplitPoint(buf []byte) int {
 	// part cw has not already seen. Write copies, so the caller may reuse buf.
 	if newTail := c.consumed + len(buf) - c.fed; newTail > 0 {
 		fresh := buf[len(buf)-newTail:]
-		c.cw.Write(fresh)
+		// Write only fails with ErrClosed, and c.cw is never closed here.
+		_, _ = c.cw.Write(fresh)
 		c.cw.Flush()
 		c.fed += newTail
 	}

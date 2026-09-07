@@ -4,9 +4,9 @@ package rabinkarp64_test
 
 import (
 	"bufio"
-	"math/rand"
 	"hash"
 	"io"
+	"math/rand"
 	"strings"
 	"testing"
 

@@ -187,7 +187,7 @@ func (d *Buzhash64) BatchRoll(dst []uint64, data []byte, window int) {
 
 	// Reslice so the compiler can prove bounds without a chain through half
 	// and window, eliminating the per-iteration bounds checks.
-	leaving  := data[:n+1]
+	leaving := data[:n+1]
 	entering := data[window:]
 
 	// Lane A owns dst[0:half], lane B owns dst[half:n+1]; the extra output
@@ -261,7 +261,7 @@ func (d *Buzhash64) BatchBoundaries(a, b []int32, data []byte, window int, mask 
 	}
 
 	n := len(data) - window
-	leaving  := data[:n+1]
+	leaving := data[:n+1]
 	entering := data[window:]
 	half := (n + 2) / 2
 
@@ -300,8 +300,8 @@ func (d *Buzhash64) BatchBoundaries(a, b []int32, data []byte, window int, mask 
 	// The inner loop is 2x unrolled so loads for step k+1 can overlap
 	// the computation of step k.
 	const blockSize = 32 // must be ≤ 32 so both halves fit in one uint64
-	limitA := half - 1  // ia runs [0, limitA)
-	limitB := n - half  // ib_rel runs [0, limitB)
+	limitA := half - 1   // ia runs [0, limitA)
+	limitB := n - half   // ib_rel runs [0, limitB)
 	limit := min(limitA, limitB)
 	fullBlocks := limit / blockSize
 

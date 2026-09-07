@@ -147,28 +147,6 @@
   pooled (like boxo's go-buffer-pool use). On 8 MiB of random data the rabin
   splitter runs ~3× faster than boxo's (`whyrusleeping/chunker`, unmaintained
   since 2018) and buzhash is at parity.
-- `cdc/compat/duplicacy`: drop-in for the chunk boundaries of
-  `github.com/gilbertchen/duplicacy`'s `ChunkMaker`. `CreateChunkMaker` with the
-  `WithChunkSeed` / `WithAverageChunkSize` / `WithMinimumChunkSize` /
-  `WithMaximumChunkSize` / `WithBuffer` options and the `AddData(reader,
-  sendChunk)` / `Reset` methods mirror Duplicacy's, and it splits a stream at the
-  same offsets for a given seed and size triple. Duplicacy's buzhash splitter
-  (window = minimum chunk size, single mask `averageChunkSize-1`, SHA-256 table
-  chain from the repository `ChunkSeed`) is reproduced with `buzhash64` +
-  `rollinghash.NewChunkWriter`. `Chunk.Hash` is the buzhash of the window at the
-  cut (the value Duplicacy tests against its `hashMask`); the chunk *content*
-  hash, ID and file name are out of scope. Verified against an independent
-  reimplementation of the algorithm (`refChunks` in the tests) rather than a
-  nested bench module: Duplicacy ships no consumable Go module (its pre-`go.mod`
-  tags no longer build against current transitive deps, its `v3` tags lack a
-  `/v3` path). That same reference is the throughput baseline —
-  `BenchmarkChunkMaker` runs `compat` and `reference` side by side. The buzhash
-  window is the whole minimum chunk size (megabytes), so `CreateChunkMaker`
-  defaults the hashing batch to ~8 windows to amortise `BatchBoundaries`
-  priming; `compat` still runs at ~0.85x of the single-pass `reference` (the
-  per-batch re-prime and the per-cut `Chunk.Hash` recompute), and the
-  multiple-of-64 window precludes SIMD, so it is slower in absolute terms than
-  the small-window CDC algorithms here.
 - `cdc/compat/buildbarn`: drop-in for the consumer API of
   `github.com/buildbarn/go-cdc`. The `ContentDefinedChunker` / `ChunkReader` /
   `Peeker` interfaces, the
@@ -210,6 +188,12 @@
 
 ### Changed
 
+- **Breaking for implementers of `rollinghash.ChunkWriter`**: the interface
+  gained a `Flush()` method (see Added above). Code that only *uses* a
+  `ChunkWriter` returned by this library is unaffected, but a type outside this
+  library that implements the interface itself no longer satisfies it until it
+  grows a `Flush()` method. For a writer that never holds bytes back, an empty
+  method body is a correct implementation.
 - Minimum Go version is now 1.24 (`go.mod` `go 1.24.0`), up from 1.23 (now
   end-of-life). `cdc/compat/buildbarn`'s `NewSeededGearTable` /
   `NewSeededSubstitutionBox` use `crypto/sha3`, stdlib since Go 1.24.
@@ -229,7 +213,7 @@
   parent `Chunker`/`ChunkWriter` v4.3.3 semantics — a stream shorter than
   `WindowSize` yields its bytes as one final, non-content-defined chunk
   (`Sum()` 0), and only a truly empty stream yields no chunks. The shared
-  streaming engine (`cdc/internal/chunkcore`) already emitted trailing bytes
+  streaming engine (`cdc/internal/cuttingwindow`) already emitted trailing bytes
   unconditionally, so no code change was needed; the edge-case tests for all
   three algorithms and both drive styles now assert it explicitly.
 - `cdc/jumpchunker` (unreleased): rewritten on the new shared `cdc` streaming

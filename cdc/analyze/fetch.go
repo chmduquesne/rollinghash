@@ -35,7 +35,7 @@ func httpGet(url string, hdr map[string]string) (*http.Response, error) {
 		return nil, err
 	}
 	if resp.StatusCode/100 != 2 {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
 	}
 	return resp, nil
@@ -53,7 +53,7 @@ func download(url, dst string, hdr map[string]string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	tmp := dst + ".part"
 	f, err := os.Create(tmp)
@@ -61,12 +61,12 @@ func download(url, dst string, hdr map[string]string) error {
 		return err
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		f.Close()
-		os.Remove(tmp)
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return err
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, dst)
@@ -81,12 +81,12 @@ func gunzip(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	zr, err := gzip.NewReader(in)
 	if err != nil {
 		return err
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 
 	tmp := dst + ".part"
 	out, err := os.Create(tmp)
@@ -94,12 +94,12 @@ func gunzip(src, dst string) error {
 		return err
 	}
 	if _, err := io.Copy(out, zr); err != nil {
-		out.Close()
-		os.Remove(tmp)
+		_ = out.Close()
+		_ = os.Remove(tmp)
 		return err
 	}
 	if err := out.Close(); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, dst)
@@ -120,20 +120,20 @@ func concatFiles(srcs []string, dst string) error {
 	for _, s := range srcs {
 		in, err := os.Open(s)
 		if err != nil {
-			out.Close()
-			os.Remove(tmp)
+			_ = out.Close()
+			_ = os.Remove(tmp)
 			return err
 		}
 		_, err = io.Copy(out, in)
-		in.Close()
+		_ = in.Close()
 		if err != nil {
-			out.Close()
-			os.Remove(tmp)
+			_ = out.Close()
+			_ = os.Remove(tmp)
 			return err
 		}
 	}
 	if err := out.Close(); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, dst)

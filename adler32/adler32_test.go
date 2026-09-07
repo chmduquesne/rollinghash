@@ -2,10 +2,10 @@ package adler32_test
 
 import (
 	"bufio"
-	"math/rand"
 	"hash"
 	"hash/adler32"
 	"io"
+	"math/rand"
 	"strings"
 	"testing"
 

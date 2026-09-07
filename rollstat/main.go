@@ -49,8 +49,14 @@ func (r *randReader) Read(p []byte) (int, error) {
 	n := 0
 	for n+8 <= len(p) {
 		v := r.rng.Uint64()
-		p[n] = byte(v); p[n+1] = byte(v >> 8); p[n+2] = byte(v >> 16); p[n+3] = byte(v >> 24)
-		p[n+4] = byte(v >> 32); p[n+5] = byte(v >> 40); p[n+6] = byte(v >> 48); p[n+7] = byte(v >> 56)
+		p[n] = byte(v)
+		p[n+1] = byte(v >> 8)
+		p[n+2] = byte(v >> 16)
+		p[n+3] = byte(v >> 24)
+		p[n+4] = byte(v >> 32)
+		p[n+5] = byte(v >> 40)
+		p[n+6] = byte(v >> 48)
+		p[n+7] = byte(v >> 56)
 		n += 8
 	}
 	if n < len(p) {

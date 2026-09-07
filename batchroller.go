@@ -34,9 +34,9 @@ type batcher struct {
 	window    int
 	batchSize int
 
-	buf       []byte   // accumulated, not-yet-emitted bytes (includes any pending carry)
-	carry     int      // trailing window-1 bytes of the last emitted batch, still in buf
-	prevN     int      // length of the last emitted batch (where its carry tail sits)
+	buf   []byte // accumulated, not-yet-emitted bytes (includes any pending carry)
+	carry int    // trailing window-1 bytes of the last emitted batch, still in buf
+	prevN int    // length of the last emitted batch (where its carry tail sits)
 
 	data      []byte   // current batch's bytes; == buf[:n]; nil outside a batch
 	sums      []uint64 // current batch's checksums; nil outside a batch

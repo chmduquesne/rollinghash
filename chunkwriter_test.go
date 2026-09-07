@@ -467,7 +467,7 @@ func TestChunkWriterWithBuffer(t *testing.T) {
 	big2 := testData(4 * 1024 * 1024)
 	hnew := func() rollinghash.Hash { return buzhash32.New() }
 	run := func(cw rollinghash.ChunkWriter) {
-		cw.Write(big2)
+		_, _ = cw.Write(big2)
 		cw.Close()
 		for cw.Next() {
 		}

@@ -19,7 +19,7 @@ func wikimediaDumpDates(wiki string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func ociPullFlat(repo, tag, dst string) error {
 		Token string `json:"token"`
 	}
 	err = jsonBody(resp.Body, &tok)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func ociPullFlat(repo, tag, dst string) error {
 		if err != nil {
 			return err
 		}
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		return jsonBody(r.Body, v)
 	}
 
@@ -131,33 +131,33 @@ func ociPullFlat(repo, tag, dst string) error {
 		blobURL := fmt.Sprintf("https://registry-1.docker.io/v2/library/%s/blobs/%s", repo, l.Digest)
 		r, err := httpGet(blobURL, auth)
 		if err != nil {
-			out.Close()
-			os.Remove(tmp)
+			_ = out.Close()
+			_ = os.Remove(tmp)
 			return err
 		}
 		zr, err := gzip.NewReader(r.Body)
 		if err != nil {
 			// Not gzipped (rare mediaType) — copy raw.
 			if _, cerr := io.Copy(out, r.Body); cerr != nil {
-				r.Body.Close()
-				out.Close()
-				os.Remove(tmp)
+				_ = r.Body.Close()
+				_ = out.Close()
+				_ = os.Remove(tmp)
 				return cerr
 			}
-			r.Body.Close()
+			_ = r.Body.Close()
 			continue
 		}
 		_, cerr := io.Copy(out, zr)
-		zr.Close()
-		r.Body.Close()
+		_ = zr.Close()
+		_ = r.Body.Close()
 		if cerr != nil {
-			out.Close()
-			os.Remove(tmp)
+			_ = out.Close()
+			_ = os.Remove(tmp)
 			return cerr
 		}
 	}
 	if err := out.Close(); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, dst)
@@ -173,7 +173,7 @@ func hfCommits(kind, repo string, limit int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var commits []struct {
 		ID string `json:"id"`
 	}

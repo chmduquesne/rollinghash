@@ -164,9 +164,9 @@ func FuzzNewFromInt(f *testing.F) {
 // skipped: a=1 collapses the hash to a simple sum bounded by window*255,
 // leaving the high bits permanently zero.
 func FuzzNewFromIntCDC(f *testing.F) {
-	f.Add(uint32(65521))       // default: largest prime fitting in 16 bits
-	f.Add(uint32(32771))       // a smaller odd prime
-	f.Add(uint32(1<<16 + 3))   // large odd
+	f.Add(uint32(65521))     // default: largest prime fitting in 16 bits
+	f.Add(uint32(32771))     // a smaller odd prime
+	f.Add(uint32(1<<16 + 3)) // large odd
 
 	f.Fuzz(func(t *testing.T, a uint32) {
 		if a&1 == 0 || a <= 1 {
