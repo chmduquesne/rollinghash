@@ -39,11 +39,17 @@ jobs:
     - name: Race detection
       run: go test -race ./...
 
-  plakar-parity:
-    # Nested module cdc/compat/gocdc/bench: diffs cdc/compat/gocdc against the real
-    # github.com/PlakarKorp/go-cdc-chunkers. Kept out of the main module so its
-    # blake3/cpuid deps never enter the dependency-free root.
+  compat-parity:
+    # One nested bench module per compatibility layer, each diffing our port
+    # against the real upstream library. Kept out of the main module so their
+    # dependencies never enter the dependency-free root. GOTOOLCHAIN=auto (the
+    # default) fetches the Go version each nested go.mod asks for, including
+    # buildbarn's 1.26.
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: [boxo, buildbarn, plakar, restic]
     steps:
     - uses: actions/checkout@v4
 
@@ -53,7 +59,7 @@ jobs:
         go-version: 'stable'
 
     - name: Parity test + benchmark
-      working-directory: cdc/compat/gocdc/bench
+      working-directory: cdc/compat/${{ matrix.layer }}/bench
       run: |
         go test -v ./...
         go test -run=NONE -bench=. -benchmem ./...
