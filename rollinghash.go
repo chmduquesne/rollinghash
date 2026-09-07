@@ -226,26 +226,6 @@ type ChunkWriter interface {
 	Reset()
 }
 
-// Flusher is implemented by a ChunkWriter that can be made to act on the bytes
-// written so far without ending the stream. Every ChunkWriter this package and
-// the cdc subpackages return implements it, so the assertion
-//
-//	f := cw.(rollinghash.Flusher)
-//
-// always succeeds on a writer from NewChunkWriter or from any cdc/*
-// NewChunkWriter. It is kept out of the ChunkWriter interface itself so that
-// adding it does not break types outside this library that implement
-// ChunkWriter.
-type Flusher interface {
-	// Flush feeds bytes still held back by Write's batch coalescing into the
-	// chunker without ending the stream, so a following Next loop sees every
-	// boundary implied by the bytes written so far. Write may still be called
-	// afterward. It trades throughput for that immediacy, so call it once per
-	// batch of Writes, not once per tiny Write. For a writer that never holds
-	// bytes back, such as the cdc/* writers, it is a no-op.
-	Flush()
-}
-
 // hashBatchRoller is the interface a Hash must implement to be usable with
 // NewBatchRoller. BatchRoll must write len(data)-window+1 checksums to dst,
 // where dst[i] is the rolling checksum of data[i:i+window].

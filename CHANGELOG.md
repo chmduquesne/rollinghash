@@ -180,17 +180,17 @@
   via `Reset` already keeps its buffer and needs nothing.
 - `gearhash64.Table()`: returns a copy of the hash's 256-entry Gear table, the
   inverse of `NewFromUint64Array`.
-- `rollinghash.Flusher`: a one-method interface whose `Flush()` feeds bytes held
-  back by `Write`'s batch coalescing into the chunker without ending the stream,
-  so a following `Next` loop sees every boundary the data written so far
-  implies. It lets a `ChunkWriter` back a zero-latency incremental splitter, as
-  `cdc/compat/restic`'s `BaseChunker` does. Every writer returned by
-  `NewChunkWriter`, in this package and in every `cdc/*` package, implements it
-  (a no-op for the `cdc/*` writers, which never defer a write), so
-  `cw.(rollinghash.Flusher)` always succeeds on one. It is a separate interface
-  rather than a new method on `ChunkWriter` so that types outside this library
-  implementing `ChunkWriter` keep satisfying it, which a new interface method
-  would have broken.
+- `Flush()` on the writer returned by `NewChunkWriter`: it feeds bytes held back
+  by `Write`'s batch coalescing into the chunker without ending the stream, so a
+  following `Next` loop sees every boundary the data written so far implies. It
+  lets a `ChunkWriter` back a zero-latency incremental splitter, which is how
+  `cdc/compat/restic`'s `BaseChunker` reproduces restic's per-slice
+  `NextSplitPoint`. Reach it with `cw.(interface{ Flush() }).Flush()`. It is
+  deliberately not a method on the `ChunkWriter` interface, which would have
+  broken types outside this library that implement `ChunkWriter`, and no named
+  interface is exported for it: only this writer coalesces, so the `cdc/*`
+  writers do not define `Flush` at all and a caller tests for the method rather
+  than assuming it.
 
 ### Changed
 

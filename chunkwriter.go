@@ -27,7 +27,10 @@ type chunkWriter struct {
 
 var (
 	_ ChunkWriter = (*chunkWriter)(nil)
-	_ Flusher     = (*chunkWriter)(nil)
+	// Flush is deliberately not part of ChunkWriter: adding a method to an
+	// interface already released in v4.3.0 would break outside implementers.
+	// Callers who need it assert for it, so this keeps that assertion honest.
+	_ interface{ Flush() } = (*chunkWriter)(nil)
 )
 
 // NewChunkWriter returns a ChunkWriter. A boundary is placed where the
@@ -35,6 +38,19 @@ var (
 // 0, with the chunk length kept in [min, max] (see WithBoundaries). window
 // must be >= 1. The hash must implement BatchBoundaries; NewChunkWriter
 // panics otherwise.
+//
+// Because Write coalesces bytes into batches, Next can report no boundary yet
+// even when the bytes written already imply one. A caller that needs a
+// decision for exactly the bytes it has pushed, as an incremental splitter
+// does, can force them through:
+//
+//	cw.(interface{ Flush() }).Flush()
+//
+// Only this writer coalesces, so only this writer has Flush; the cdc/* writers
+// feed every Write straight through and deliberately do not define it, which
+// is why the idiom above tests for the method rather than assuming it. Flush
+// trades throughput for immediacy, so call it once per batch of Writes rather
+// than once per small Write; unlike Close it leaves the writer open.
 func NewChunkWriter(h Hash, window int, mask uint64, opts ...chunkerOption) ChunkWriter {
 	sp := newSplitter(h, window, mask, 0, math.MaxInt)
 	for _, opt := range opts {

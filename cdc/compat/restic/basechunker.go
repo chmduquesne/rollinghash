@@ -7,9 +7,11 @@ import (
 
 // flushingChunkWriter is the rollinghash.ChunkWriter this package drives: one
 // whose held-back bytes can be pushed through without ending the stream.
+// rollinghash keeps Flush off the ChunkWriter interface, so the requirement is
+// spelled out here rather than imported.
 type flushingChunkWriter interface {
 	rollinghash.ChunkWriter
-	rollinghash.Flusher
+	Flush()
 }
 
 // BaseChunker is restic/chunker's reader-less, incremental splitter: the caller
@@ -89,8 +91,8 @@ func (c *BaseChunker) init(pol Pol, opts []baseOption) {
 	h := rabinkarp64.NewFromPol(c.pol)
 	mask := uint64(1)<<uint(c.avgBits) - 1
 	// NextSplitPoint needs a boundary decision for exactly the bytes handed to
-	// it, so it drives Flush; rollinghash.NewChunkWriter always returns a
-	// Flusher, making this assertion total.
+	// it, so it drives Flush; every rollinghash.NewChunkWriter result has that
+	// method, making this assertion total.
 	c.cw = rollinghash.NewChunkWriter(h, windowSize, mask,
 		rollinghash.WithBoundaries(int(c.min), int(c.max))).(flushingChunkWriter)
 	c.consumed = 0

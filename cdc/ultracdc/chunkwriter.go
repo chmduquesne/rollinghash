@@ -15,10 +15,7 @@ type ChunkWriter struct {
 	window *cuttingwindow.Window
 }
 
-var (
-	_ rollinghash.ChunkWriter = (*ChunkWriter)(nil)
-	_ rollinghash.Flusher     = (*ChunkWriter)(nil)
-)
+var _ rollinghash.ChunkWriter = (*ChunkWriter)(nil)
 
 // NewChunkWriter returns the push-based counterpart to New: instead of pulling
 // from an io.Reader it is fed via Write, and Close marks end of input. The
@@ -34,9 +31,6 @@ func (w *ChunkWriter) Write(p []byte) (int, error) { return w.window.Write(p) }
 
 // Close marks the end of input.
 func (w *ChunkWriter) Close() error { return w.window.Close() }
-
-// Flush is a no-op: each Write is fed to the chunker immediately.
-func (w *ChunkWriter) Flush() { w.window.Flush() }
 
 // Reset clears all buffered state for reuse, keeping internal allocations.
 func (w *ChunkWriter) Reset() { w.window.ResetWriter() }
