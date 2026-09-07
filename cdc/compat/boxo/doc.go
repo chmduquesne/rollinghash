@@ -2,10 +2,33 @@
 // (package chunk). Its Splitter interface, NewSizeSplitter / NewRabin /
 // NewRabinMinMax / NewBuzhash constructors, DefaultSplitter, SizeSplitterGen,
 // Chan, FromString and Register all match that package's signatures, and it
-// produces byte-identical chunk boundaries — so the CIDs of content chunked
-// through it are identical to boxo's. Migrating is a one-line change:
+// produces byte-identical chunk boundaries. The CIDs of content chunked through
+// it are therefore identical to boxo's.
+//
+// # Migrating
+//
+// The replacement is at the interface level. Values returned by this package
+// (the Splitter constructors, FromString, DefaultSplitter) satisfy
+// boxo/chunker.Splitter structurally, so a call site that consumes a Splitter
+// migrates with a one-line import swap:
 //
 //	import chunk "github.com/chmduquesne/rollinghash/v4/cdc/compat/boxo"
+//
+// A call site that passes this package's named SplitterGen or SplitterFunc type
+// into a boxo function needs more than an import swap: boxo/chunker.SplitterGen
+// and this package's SplitterGen are distinct named types with distinct
+// underlying types, so Go will not assign one to the other. Keep the
+// boxo/chunker import for the named type and route only the rolling-hash
+// construction through this package, wrapping it in a closure whose declared
+// return type is boxo's Splitter interface:
+//
+//	return func(r io.Reader) chunk.Splitter {
+//		s, err := rollinghash.FromString(r, chunkerStr)
+//		...
+//	}
+//
+// Kubo's config/import.go is the one call site in the IPFS tree that hits this;
+// its ipfs add path (core/coreunix) migrates with the bare import swap.
 //
 // # How it works
 //
