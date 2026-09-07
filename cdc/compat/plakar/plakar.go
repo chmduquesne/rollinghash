@@ -7,6 +7,11 @@
 //
 //	import chunkers "github.com/chmduquesne/rollinghash/v4/cdc/compat/plakar"
 //
+// The drop-in is verified end to end, not just at the raw API: a test runs a
+// real backup through github.com/PlakarKorp/kloset (plakar's backup library)
+// and checks that re-chunking the same bytes with this package reproduces
+// kloset's chunk boundaries exactly.
+//
 // Keyed FastCDC ("kfastcdc") is not supported; those names return an error.
 // Callers who want the typed, idiomatic API should use the cdc/fastcdc,
 // cdc/ultracdc, and cdc/jumpchunker packages directly.

@@ -1,7 +1,9 @@
 // Package bench compares this repo's CDC packages against the real
 // github.com/PlakarKorp/go-cdc-chunkers: parity tests with real plakar as the
 // oracle (cdc/compat/plakar for the unkeyed families, cdc/fastcdc for keyed FastCDC)
-// and a head-to-head throughput benchmark.
+// and a head-to-head throughput benchmark. kloset_test.go additionally runs a
+// real backup through github.com/PlakarKorp/kloset and checks that re-chunking
+// the same bytes with cdc/compat/plakar reproduces kloset's chunk boundaries.
 package bench
 
 import (
