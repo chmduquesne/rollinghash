@@ -290,6 +290,42 @@ func TestChunkWriterCoalesces(t *testing.T) {
 	}
 }
 
+// TestChunkWriterFlush verifies that Flush releases bytes Write's coalescing
+// would otherwise withhold, so a completed chunk becomes visible before Close,
+// and that Write and Close still work afterward.
+func TestChunkWriterFlush(t *testing.T) {
+	const window = 16
+	const mask, min, max = ^uint64(0), 1, 64 // forced at max, chunk far below the default batch size
+	data := testData(max)
+
+	cw := rollinghash.NewChunkWriter(allHashes[0].new(), window, mask, rollinghash.WithBoundaries(min, max))
+	if _, err := cw.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	if cw.Next() {
+		t.Fatal("expected Next() false before Flush: input is below the default batch size")
+	}
+	cw.Flush()
+	if !cw.Next() {
+		t.Fatal("expected Flush to surface the completed chunk")
+	}
+	if got := len(cw.Bytes()); got != max {
+		t.Fatalf("chunk length %d, want %d", got, max)
+	}
+
+	// Flush does not close: more data can follow and Close still flushes it.
+	if _, err := cw.Write(testData(max / 2)); err != nil {
+		t.Fatal(err)
+	}
+	cw.Close()
+	if !cw.Next() {
+		t.Fatal("expected the trailing chunk after Close")
+	}
+	if got := len(cw.Bytes()); got != max/2 {
+		t.Fatalf("trailing chunk length %d, want %d", got, max/2)
+	}
+}
+
 // TestChunkWriterErrClosed verifies that Write returns ErrClosed after
 // Close, without silently dropping the write, and that Reset clears the
 // closed state so the writer can be reused.

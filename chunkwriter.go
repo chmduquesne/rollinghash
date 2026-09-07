@@ -91,6 +91,21 @@ func (w *chunkWriter) Close() error {
 	return nil
 }
 
+// Flush feeds any bytes still held back by Write's batch coalescing into the
+// splitter, without ending the stream. After Flush, a Next loop sees every
+// boundary implied by the bytes written so far, instead of waiting for Write
+// to accumulate a full batch (see WithBatchSize) or for Close. Use it when a
+// caller needs a boundary decision for the exact bytes it has pushed so far,
+// as an incremental splitter does; it trades throughput for that immediacy,
+// so call it once per batch of Writes, not once per tiny Write. Unlike Close
+// it does not close the writer: Write may still be called afterward.
+func (w *chunkWriter) Flush() {
+	if len(w.pending) > 0 {
+		w.splitter.feed(w.pending)
+		w.pending = w.pending[:0]
+	}
+}
+
 // Next advances to the next chunk, returning false when none is available
 // yet (before Close) or when every chunk has been emitted (after Close).
 func (w *chunkWriter) Next() bool { return w.splitter.next() == emitted }

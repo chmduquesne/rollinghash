@@ -140,34 +140,6 @@ func TestParityRestic(t *testing.T) {
 
 func benchData() []byte { return randData(8 << 20) }
 
-func BenchmarkRestic_Real(b *testing.B) {
-	data := benchData()
-	b.SetBytes(int64(len(data)))
-	b.ResetTimer()
-	for range b.N {
-		c := rc.New(bytes.NewReader(data), resticDefaultPol)
-		for {
-			if _, err := c.Next(nil); err == io.EOF {
-				break
-			} else if err != nil {
-				b.Fatal(err)
-			}
-		}
-	}
-}
-
-func BenchmarkRestic_Compat(b *testing.B) {
-	data := benchData()
-	b.SetBytes(int64(len(data)))
-	b.ResetTimer()
-	for range b.N {
-		c := compat.New(bytes.NewReader(data), compat.Pol(resticDefaultPol))
-		for {
-			if _, err := c.Next(nil); err == io.EOF {
-				break
-			} else if err != nil {
-				b.Fatal(err)
-			}
-		}
-	}
-}
+// The throughput benchmark lives in basechunker_test.go: restic chunks file
+// data through BaseChunker.NextSplitPoint, not the io.Reader API, so that is
+// what the head-to-head measures.

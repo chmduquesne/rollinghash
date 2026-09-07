@@ -124,8 +124,13 @@
   64-byte window) via `rabinkarp64` + `rollinghash.NewChunker`, verified against
   the real package by the `cdc/compat/restic/bench` nested module. `Chunk.Cut`
   differs only on a final chunk shorter than `MinSize`, where restic returns a
-  value its own source calls meaningless. The `BaseChunker`/`NewBase` API is not
-  mirrored.
+  value its own source calls meaningless. Also mirrors `BaseChunker`, `NewBase`,
+  their `Reset`/`NextSplitPoint` methods and the
+  `WithBaseBoundaries`/`WithBaseAverageBits` options: this is the reader-less
+  incremental API restic itself chunks file data through, so the replacement
+  reaches restic's real chunking path. `BaseChunker` boundaries are
+  byte-identical for `MinSize` at or above the 64-byte window, which restic's
+  configuration always satisfies.
 - `rabinkarp64.Pol.MarshalJSON`/`UnmarshalJSON`: encode a polynomial as a quoted
   lowercase-hex string, matching restic/chunker, so a polynomial from a restic
   repository config round-trips through `rabinkarp64.Pol`.
@@ -197,6 +202,11 @@
   via `Reset` already keeps its buffer and needs nothing.
 - `gearhash64.Table()`: returns a copy of the hash's 256-entry Gear table, the
   inverse of `NewFromUint64Array`.
+- `rollinghash.ChunkWriter.Flush()`: feeds bytes held back by `Write`'s batch
+  coalescing into the chunker without ending the stream, so a following `Next`
+  loop sees every boundary the data written so far implies. New method on the
+  `ChunkWriter` interface (a no-op for the `cdc/*` writers, which never defer a
+  write); lets `ChunkWriter` back a zero-latency incremental splitter.
 
 ### Changed
 

@@ -221,6 +221,12 @@ type ChunkWriter interface {
 	WindowSize() int
 	Err() error
 
+	// Flush feeds bytes still held back by Write's batch coalescing into the
+	// chunker without ending the stream, so a following Next loop sees every
+	// boundary implied by the bytes written so far. Write may still be called
+	// afterward.
+	Flush()
+
 	// Reset clears all buffered state for reuse with a new stream, keeping
 	// internal allocations.
 	Reset()

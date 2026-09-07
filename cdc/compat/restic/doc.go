@@ -2,8 +2,10 @@
 // github.com/restic/chunker. Its New/NewWithBoundaries, *Chunker, Chunk, Pol,
 // RandomPolynomial/DerivePolynomial, MinSize/MaxSize, the WithBoundaries /
 // WithAverageBits / WithBuffer options, and the Next/Reset/SetAverageBits
-// methods match that package's signatures, and it produces byte-identical chunk
-// boundaries. Migrating is a one-line change:
+// methods match that package's signatures, as do the incremental
+// BaseChunker, NewBase, its Reset/NextSplitPoint methods and the
+// WithBaseBoundaries / WithBaseAverageBits options. It produces byte-identical
+// chunk boundaries. Migrating is a one-line change:
 //
 //	import chunker "github.com/chmduquesne/rollinghash/v4/cdc/compat/restic"
 //
@@ -29,10 +31,13 @@
 //     64 bytes, or 0 when the whole stream is shorter than 64 bytes.
 //   - MinSize must be at least 64 (the window). restic's default is 512 KiB and
 //     a smaller-than-window MinSize misbehaves there too (unsigned underflow);
-//     this package does not validate it.
-//   - The BaseChunker / NewBase API (chunking without an io.Reader) is not
-//     mirrored.
+//     this package does not validate it. BaseChunker boundaries are byte-identical
+//     to restic/chunker only above that bound, which restic's own configuration
+//     always respects.
+//   - BaseChunker reports only split positions, matching restic/chunker; it has
+//     no per-boundary Cut value, so the final-chunk Cut difference above does not
+//     arise for it.
 //
 // Callers who want the idiomatic API should use rabinkarp64.NewFromPol together
-// with rollinghash.NewChunker directly.
+// with rollinghash.NewChunker or rollinghash.NewChunkWriter directly.
 package restic

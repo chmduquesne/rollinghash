@@ -174,6 +174,11 @@ func (c *Window) Close() error {
 	return nil
 }
 
+// Flush is a no-op: Write appends straight into the buffer Next reads from, so
+// there is never any written-but-unseen input to release. It exists to satisfy
+// the rollinghash.ChunkWriter contract.
+func (c *Window) Flush() {}
+
 // Next advances to the next chunk. It returns false at end of input or on the
 // first reader error (reported by Err).
 func (c *Window) Next() bool {
