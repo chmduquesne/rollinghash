@@ -180,20 +180,20 @@
   via `Reset` already keeps its buffer and needs nothing.
 - `gearhash64.Table()`: returns a copy of the hash's 256-entry Gear table, the
   inverse of `NewFromUint64Array`.
-- `rollinghash.ChunkWriter.Flush()`: feeds bytes held back by `Write`'s batch
-  coalescing into the chunker without ending the stream, so a following `Next`
-  loop sees every boundary the data written so far implies. New method on the
-  `ChunkWriter` interface (a no-op for the `cdc/*` writers, which never defer a
-  write); lets `ChunkWriter` back a zero-latency incremental splitter.
+- `rollinghash.Flusher`: a one-method interface whose `Flush()` feeds bytes held
+  back by `Write`'s batch coalescing into the chunker without ending the stream,
+  so a following `Next` loop sees every boundary the data written so far
+  implies. It lets a `ChunkWriter` back a zero-latency incremental splitter, as
+  `cdc/compat/restic`'s `BaseChunker` does. Every writer returned by
+  `NewChunkWriter`, in this package and in every `cdc/*` package, implements it
+  (a no-op for the `cdc/*` writers, which never defer a write), so
+  `cw.(rollinghash.Flusher)` always succeeds on one. It is a separate interface
+  rather than a new method on `ChunkWriter` so that types outside this library
+  implementing `ChunkWriter` keep satisfying it, which a new interface method
+  would have broken.
 
 ### Changed
 
-- **Breaking for implementers of `rollinghash.ChunkWriter`**: the interface
-  gained a `Flush()` method (see Added above). Code that only *uses* a
-  `ChunkWriter` returned by this library is unaffected, but a type outside this
-  library that implements the interface itself no longer satisfies it until it
-  grows a `Flush()` method. For a writer that never holds bytes back, an empty
-  method body is a correct implementation.
 - Minimum Go version is now 1.24 (`go.mod` `go 1.24.0`), up from 1.23 (now
   end-of-life). `cdc/compat/buildbarn`'s `NewSeededGearTable` /
   `NewSeededSubstitutionBox` use `crypto/sha3`, stdlib since Go 1.24.

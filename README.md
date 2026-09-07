@@ -141,6 +141,21 @@ if err := cw.Err(); err != nil {
 
 Use `WithBatchSize` to control the coalescing threshold.
 
+`Write` holds bytes back until a full batch has accumulated, so `Next` may
+report no boundary yet even when the bytes written do imply one. A caller that
+needs a decision for exactly the bytes it has pushed, as an incremental
+splitter does, can force those bytes through with
+[`rollinghash.Flusher`](https://godoc.org/github.com/chmduquesne/rollinghash/v4#Flusher):
+
+```golang
+cw.(rollinghash.Flusher).Flush()
+```
+
+Every writer returned by `NewChunkWriter`, here and in the `cdc/` packages,
+implements `Flusher`, so that assertion always succeeds. `Flush` trades
+throughput for immediacy, so call it once per batch of `Write`s rather than
+once per small `Write`. Unlike `Close` it leaves the writer open.
+
 ### Other CDC algorithms
 
 Beyond `rollinghash.Chunker`/`ChunkWriter`, the `cdc/` subtree provides

@@ -15,7 +15,10 @@ type ChunkWriter struct {
 	window *cuttingwindow.Window
 }
 
-var _ rollinghash.ChunkWriter = (*ChunkWriter)(nil)
+var (
+	_ rollinghash.ChunkWriter = (*ChunkWriter)(nil)
+	_ rollinghash.Flusher     = (*ChunkWriter)(nil)
+)
 
 // NewChunkWriter returns the push-based counterpart to New: instead of pulling
 // from an io.Reader it is fed via Write, and Close marks end of input. The

@@ -25,7 +25,10 @@ type chunkWriter struct {
 	pending  []byte
 }
 
-var _ ChunkWriter = (*chunkWriter)(nil)
+var (
+	_ ChunkWriter = (*chunkWriter)(nil)
+	_ Flusher     = (*chunkWriter)(nil)
+)
 
 // NewChunkWriter returns a ChunkWriter. A boundary is placed where the
 // rolling checksum under h (over window bytes) satisfies checksum & mask ==

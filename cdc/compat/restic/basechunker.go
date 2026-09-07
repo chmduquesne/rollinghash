@@ -5,6 +5,13 @@ import (
 	"github.com/chmduquesne/rollinghash/v4/rabinkarp64"
 )
 
+// flushingChunkWriter is the rollinghash.ChunkWriter this package drives: one
+// whose held-back bytes can be pushed through without ending the stream.
+type flushingChunkWriter interface {
+	rollinghash.ChunkWriter
+	rollinghash.Flusher
+}
+
 // BaseChunker is restic/chunker's reader-less, incremental splitter: the caller
 // pushes successive byte slices through NextSplitPoint and is told where each
 // content-defined boundary falls, owning the chunk bytes itself. This is the
@@ -31,7 +38,7 @@ type BaseChunker struct {
 	max     uint
 	avgBits int
 
-	cw rollinghash.ChunkWriter
+	cw flushingChunkWriter
 
 	// consumed is the caller's cursor: the stream offset of buf[0] on the next
 	// NextSplitPoint call, advanced by each returned split and by each
@@ -81,8 +88,11 @@ func (c *BaseChunker) init(pol Pol, opts []baseOption) {
 	}
 	h := rabinkarp64.NewFromPol(c.pol)
 	mask := uint64(1)<<uint(c.avgBits) - 1
+	// NextSplitPoint needs a boundary decision for exactly the bytes handed to
+	// it, so it drives Flush; rollinghash.NewChunkWriter always returns a
+	// Flusher, making this assertion total.
 	c.cw = rollinghash.NewChunkWriter(h, windowSize, mask,
-		rollinghash.WithBoundaries(int(c.min), int(c.max)))
+		rollinghash.WithBoundaries(int(c.min), int(c.max))).(flushingChunkWriter)
 	c.consumed = 0
 	c.fed = 0
 }

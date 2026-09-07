@@ -305,7 +305,11 @@ func TestChunkWriterFlush(t *testing.T) {
 	if cw.Next() {
 		t.Fatal("expected Next() false before Flush: input is below the default batch size")
 	}
-	cw.Flush()
+	f, ok := cw.(rollinghash.Flusher)
+	if !ok {
+		t.Fatal("NewChunkWriter must return a rollinghash.Flusher")
+	}
+	f.Flush()
 	if !cw.Next() {
 		t.Fatal("expected Flush to surface the completed chunk")
 	}
